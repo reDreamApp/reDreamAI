@@ -10,15 +10,27 @@ __pycache__/
 *.py[cod]
 .venv/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
 
 # Flutter / Dart
-frontend/.dart_tool/
-frontend/.flutter-plugins
-frontend/.flutter-plugins-dependencies
-frontend/build/
-frontend/.fvm/flutter_sdk
+apps/app/.dart_tool/
+apps/app/.flutter-plugins
+apps/app/.flutter-plugins-dependencies
+apps/app/build/
+apps/app/.fvm/flutter_sdk
+
+# Node (Supabase CLI / tooling)
+node_modules/
 
 # Env files
 .env
 **/.env.local
 infra/env/
+
+# Supabase CLI local state
+supabase/.branches/
+supabase/.temp/

@@ -1,0 +1,28 @@
+{
+  "@@locale": "de",
+  "appTitle": "reDreamAI",
+
+  "signInTitle": "Anmelden",
+  "signInEmail": "E-Mail",
+  "signInPassword": "Passwort",
+  "signInButton": "Anmelden",
+  "signInError": "Anmeldung fehlgeschlagen. Bitte prüfe deine Eingaben.",
+
+  "chatTitle": "Traum-Chat",
+  "chatInputHint": "Erzähl mir von deinem Traum …",
+  "chatSend": "Senden",
+  "chatThinking": "Denke nach …",
+
+  "stageRecording": "Traum aufzeichnen",
+  "stageIntensity": "Intensität bewerten",
+  "stageRewriting": "Traum umschreiben",
+  "stageSummary": "Zusammenfassung",
+  "stageFinal": "Fertig",
+
+  "safetyHelplineTitle": "Hol dir Unterstützung",
+  "safetyHelplineBody": "Wenn es dir gerade nicht gut geht, wende dich bitte an eine Hotline. Wir pausieren das Gespräch, damit du gut für dich sorgen kannst.",
+  "safetyHelplineButton": "Hotlines anzeigen",
+
+  "budgetExceededTitle": "Tageslimit erreicht",
+  "budgetExceededBody": "Du hast das heutige Chat-Limit erreicht. Es wird um Mitternacht (UTC) zurückgesetzt."
+}

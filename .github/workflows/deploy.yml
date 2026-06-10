@@ -1,0 +1,50 @@
+name: Deploy to Scaleway
+
+# Manual-only. Auto-deploy on push to `main` is intentionally NOT enabled.
+# Once a `production` branch is in use, add:
+#   push:
+#     branches: [production]
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout monorepo
+        uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SCALEWAY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -p "${{ secrets.SCALEWAY_PORT }}" "${{ secrets.SCALEWAY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Sync repo to server
+        run: |
+          rsync -az --delete \
+            --exclude ".git" \
+            --exclude ".github" \
+            --exclude "legacy_repos" \
+            --exclude "apps/app" \
+            --exclude ".env" \
+            --exclude "env/" \
+            --exclude "infra/env/" \
+            --exclude "supabase/.branches" \
+            --exclude "supabase/.temp" \
+            -e "ssh -i ~/.ssh/id_ed25519 -p ${{ secrets.SCALEWAY_PORT }}" \
+            ./ ${{ secrets.SCALEWAY_USER }}@${{ secrets.SCALEWAY_HOST }}:/srv/redreamai/
+
+      - name: docker compose up
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -p "${{ secrets.SCALEWAY_PORT }}" "${{ secrets.SCALEWAY_USER }}@${{ secrets.SCALEWAY_HOST }}" <<'EOF'
+            set -euo pipefail
+            cd /srv/redreamai/infra
+            docker compose up -d --build
+            docker image prune -f
+          EOF

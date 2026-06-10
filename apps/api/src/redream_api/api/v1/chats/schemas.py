@@ -1,0 +1,60 @@
+"""Chats schemas."""
+
+from __future__ import annotations
+
+from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel, Field
+
+
+class ChatStartRequest(BaseModel):
+    language: str = Field(default="en", pattern="^(en|de)$")
+
+
+class ChatStartResponse(BaseModel):
+    chat_id: int
+    language: str
+    current_stage: str
+
+
+class ChatOut(BaseModel):
+    id: int
+    language: str
+    current_stage: str
+    is_done: bool
+    is_nightmare: bool | None
+    title: str | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ChatMessageOut(BaseModel):
+    id: UUID
+    role: str
+    content: str
+    stage: str | None
+    visibility_status: str
+    created_at: datetime
+
+
+class ChatMessageRequest(BaseModel):
+    content: str = Field(min_length=1, max_length=10_000)
+
+
+class SafetyEventPayload(BaseModel):
+    risk: str
+    categories: list[str]
+    confidence: float
+
+
+class ChatMessageResponse(BaseModel):
+    chat_id: int
+    user_message: ChatMessageOut
+    ai_message: ChatMessageOut | None = None
+    stage: str
+    is_done: bool
+    safety_event: SafetyEventPayload | None = None
+    """Present (non-null) when the safety classifier returned risk=high. The IRT
+    state did NOT advance and `ai_message` is null. Frontend renders the
+    helpline overlay (ADR 0005)."""

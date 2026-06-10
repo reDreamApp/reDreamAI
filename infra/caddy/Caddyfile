@@ -1,0 +1,31 @@
+# Caddy reverse proxy — TLS via Let's Encrypt, SSE-friendly by default.
+#
+# {$DOMAIN} is read from caddy.env (e.g. DOMAIN=redream.example.com).
+# Routes:
+#   {$DOMAIN}           → api:8001        (mobile clients hit /api/v1/...)
+#   ai.{$DOMAIN}        → ai:8080         (internal-only — restrict by IP if exposed)
+#   langfuse.{$DOMAIN}  → langfuse:3000   (auth handled by Langfuse itself)
+#
+# Caddy does not buffer reverse-proxied responses, so SSE chat streams flow
+# through without extra config (unlike nginx where `proxy_buffering off` is
+# required — see ADR 0009).
+
+{$DOMAIN} {
+    encode zstd gzip
+    reverse_proxy api:8001
+    log {
+        output stdout
+        format console
+    }
+}
+
+ai.{$DOMAIN} {
+    # Internal service. Either:
+    #  - keep this site removed from public DNS, or
+    #  - add `@allowed remote_ip <your-cidr>` + `handle @allowed { ... }` here.
+    reverse_proxy ai:8080
+}
+
+langfuse.{$DOMAIN} {
+    reverse_proxy langfuse:3000
+}
