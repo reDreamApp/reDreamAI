@@ -43,16 +43,25 @@ class ChatMessage {
 }
 
 class SafetyEvent {
-  SafetyEvent({required this.risk, required this.categories, required this.confidence});
+  SafetyEvent({
+    required this.risk,
+    required this.categories,
+    required this.confidence,
+    this.message,
+  });
 
   final String risk;
   final List<String> categories;
   final double confidence;
 
+  /// Optional backend-localized helpline text. Absent on older backends.
+  final String? message;
+
   static SafetyEvent fromJson(Map<String, dynamic> json) => SafetyEvent(
         risk: json['risk'] as String,
         categories: (json['categories'] as List).cast<String>(),
         confidence: (json['confidence'] as num).toDouble(),
+        message: json['message'] as String?,
       );
 }
 

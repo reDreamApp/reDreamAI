@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from ..models import Stage
 
-PROMPT_VERSION = "prompts-de-v1.0.0"
+PROMPT_VERSION = "prompts-de-v1.1.0"
 
 
 _RECORDING = """\

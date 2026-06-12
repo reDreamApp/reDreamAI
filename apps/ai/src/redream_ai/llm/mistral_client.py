@@ -6,12 +6,24 @@ the `LlmClient` protocol.
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from collections.abc import AsyncIterator
 from typing import Any
 
-from mistralai import Mistral  # type: ignore[import-untyped]
+from mistralai import Mistral
+from mistralai.models import SDKError
 
-from .base import StreamChunk
+from .base import LlmUnavailableError, StreamChunk
+
+log = logging.getLogger(__name__)
+
+# Backoff schedule for transient provider errors (429 / 5xx). A chat turn
+# makes up to 3 LLM calls (safety + route + respond), so rate-limit bursts
+# mid-conversation are expected, not exceptional. The schedule must outlast a
+# per-minute quota window but stay inside the backend's AI_REQUEST_TIMEOUT.
+_RETRY_DELAYS = (1.0, 2.0, 5.0, 10.0, 20.0)
+_RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 
 
 class MistralLlmClient:
@@ -21,6 +33,27 @@ class MistralLlmClient:
         if not api_key:
             raise ValueError("MISTRAL_API_KEY must be set")
         self._client = Mistral(api_key=api_key)
+
+    async def _complete_with_retry(self, kwargs: dict[str, Any]) -> Any:
+        for attempt, delay in enumerate((*_RETRY_DELAYS, None)):
+            try:
+                return await self._client.chat.complete_async(**kwargs)
+            except SDKError as exc:
+                if exc.status_code not in _RETRYABLE_STATUS:
+                    raise
+                if delay is None:
+                    raise LlmUnavailableError(
+                        f"Mistral unavailable after {attempt + 1} attempts "
+                        f"(status {exc.status_code})"
+                    ) from exc
+                log.warning(
+                    "Mistral returned %s (attempt %d); retrying in %.0fs",
+                    exc.status_code,
+                    attempt + 1,
+                    delay,
+                )
+                await asyncio.sleep(delay)
+        raise AssertionError("unreachable")
 
     async def chat(
         self,
@@ -44,7 +77,7 @@ class MistralLlmClient:
         if reasoning_effort is not None:
             kwargs["reasoning_effort"] = reasoning_effort
 
-        response = await self._client.chat.complete_async(**kwargs)
+        response = await self._complete_with_retry(kwargs)
         content = response.choices[0].message.content or ""
         usage = {
             "input_tokens": response.usage.prompt_tokens,

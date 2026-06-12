@@ -6,7 +6,7 @@ import 'package:redream_app/core/auth/auth_service.dart';
 import 'package:redream_app/features/auth/sign_in_screen.dart';
 import 'package:redream_app/l10n/generated/app_localizations.dart';
 
-class _FakeAuth implements IAuthService {
+class _FakeAuth extends ChangeNotifier implements IAuthService {
   @override
   String? get accessToken => null;
   @override
@@ -26,7 +26,7 @@ void main() {
     await tester.pumpWidget(
       MultiProvider(
         providers: [
-          Provider<IAuthService>.value(value: _FakeAuth()),
+          ListenableProvider<IAuthService>.value(value: _FakeAuth()),
         ],
         child: const MaterialApp(
           localizationsDelegates: [

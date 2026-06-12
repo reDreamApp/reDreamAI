@@ -32,6 +32,10 @@ class ChatMessageRepo:
         await self.db.refresh(message)
         return message
 
+    async def delete(self, message: ChatMessage) -> None:
+        await self.db.delete(message)
+        await self.db.commit()
+
     async def get_latest_summary(self, chat_id: int) -> ChatMessage | None:
         stmt = (
             select(ChatMessage)

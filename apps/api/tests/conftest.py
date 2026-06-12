@@ -66,11 +66,18 @@ class FakeAiClient:
     def queue_rehearsal(self, response: dict[str, Any]) -> None:
         self._rehearsal.append(response)
 
+    def queue_chat_error(self, exc: Exception) -> None:
+        """Queue an exception to be raised by the next `chat` call."""
+        self._chat.append({"__raise__": exc})
+
     async def chat(self, payload: dict[str, Any]) -> dict[str, Any]:
         self.calls.append({"method": "chat", "payload": payload})
         if not self._chat:
             raise RuntimeError("FakeAiClient: no chat response queued")
-        return self._chat.pop(0)
+        response = self._chat.pop(0)
+        if "__raise__" in response:
+            raise response["__raise__"]
+        return response
 
     async def safety_classify(self, payload: dict[str, Any]) -> dict[str, Any]:
         self.calls.append({"method": "safety_classify", "payload": payload})

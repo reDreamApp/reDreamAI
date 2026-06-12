@@ -3,6 +3,9 @@
 Canonical flow: recording -> intensity -> rewriting -> summary -> final.
 
 Guardrails:
+- Stages advance at most ONE step per turn — a router that jumps (e.g.
+  intensity -> summary on a vivid user message) gets clamped to the next
+  stage, so no phase of the protocol is skipped.
 - Cannot reach REWRITING without having visited INTENSITY.
 - Cannot reach FINAL without a SUMMARY in history, AND no REWRITING after the
   most recent SUMMARY (a fresh summary must be the latest synthesis).
@@ -65,6 +68,11 @@ def enforce_transition(history: list[Message], proposed: Stage) -> Stage:
 
     if STAGE_ORDER.index(proposed) < STAGE_ORDER.index(cur):
         return cur
+
+    # One step at a time: each stage is a distinct phase of the protocol, and
+    # a jump would silently drop one (e.g. no rewriting conversation at all).
+    if STAGE_ORDER.index(proposed) > STAGE_ORDER.index(cur) + 1:
+        proposed = STAGE_ORDER[STAGE_ORDER.index(cur) + 1]
 
     if proposed == Stage.REWRITING and Stage.INTENSITY not in visited:
         return Stage.INTENSITY

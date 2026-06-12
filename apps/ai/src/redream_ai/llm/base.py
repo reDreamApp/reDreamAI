@@ -10,6 +10,14 @@ from collections.abc import AsyncIterator
 from typing import Any, Protocol, TypedDict
 
 
+class LlmUnavailableError(Exception):
+    """The provider is temporarily unavailable (rate limit / 5xx) after retries.
+
+    Routes translate this into HTTP 503 so callers can distinguish "try again
+    shortly" from a real server bug.
+    """
+
+
 class StreamChunk(TypedDict, total=False):
     """One chunk of a streaming chat response."""
 

@@ -46,6 +46,9 @@ class SafetyEventPayload(BaseModel):
     risk: str
     categories: list[str]
     confidence: float
+    message: str | None = None
+    """Localized helpline text for the client to render in place of the AI
+    reply (ADR 0005) — without it a high-risk turn has nothing to show."""
 
 
 class ChatMessageResponse(BaseModel):

@@ -91,6 +91,17 @@ class TestGuardrails:
         history = [_assistant("...", Stage.RECORDING)]
         assert enforce_transition(history, Stage.INTENSITY) == Stage.INTENSITY
 
+    def test_jump_is_clamped_to_next_stage(self) -> None:
+        history = [
+            _assistant("...", Stage.RECORDING),
+            _assistant("rate it 0-10", Stage.INTENSITY),
+        ]
+        assert enforce_transition(history, Stage.SUMMARY) == Stage.REWRITING
+
+    def test_jump_from_recording_to_summary_is_clamped(self) -> None:
+        history = [_assistant("...", Stage.RECORDING)]
+        assert enforce_transition(history, Stage.SUMMARY) == Stage.INTENSITY
+
 
 class TestHasFreshSummary:
     def test_no_summary_yet(self) -> None:

@@ -9,12 +9,13 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 
 from .api import audio, chat, health, safety
 from .api.chat import get_llm_client
 from .config import settings
-from .llm.base import LlmClient
+from .llm.base import LlmClient, LlmUnavailableError
 
 
 def _build_llm_client() -> LlmClient | None:
@@ -47,6 +48,15 @@ async def _llm_dep() -> LlmClient:
 
 
 app.dependency_overrides[get_llm_client] = _llm_dep
+
+
+@app.exception_handler(LlmUnavailableError)
+async def _llm_unavailable_handler(_: Request, exc: LlmUnavailableError) -> JSONResponse:
+    return JSONResponse(
+        status_code=503,
+        content={"detail": f"LLM provider temporarily unavailable: {exc}"},
+        headers={"Retry-After": "10"},
+    )
 
 app.include_router(health.router)
 app.include_router(chat.router)

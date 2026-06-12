@@ -17,6 +17,10 @@ class ChatState extends ChangeNotifier {
   SafetyEvent? _safetyEvent;
   int? _retryAfterSeconds;
   String? _errorMessage;
+  bool _startFailed = false;
+  bool _hasSubmittedIntensity = false;
+  String? _failedMessageId;
+  int _localSeq = 0;
 
   int? get chatId => _chatId;
   IrtStage get stage => _stage;
@@ -27,16 +31,48 @@ class ChatState extends ChangeNotifier {
   int? get retryAfterSeconds => _retryAfterSeconds;
   String? get errorMessage => _errorMessage;
 
-  Future<void> startChat({required String language}) async {
-    final res = await _service.start(language: language);
-    _chatId = res.chatId;
-    _stage = res.currentStage;
-    _messages.clear();
-    _isDone = false;
-    _safetyEvent = null;
-    _retryAfterSeconds = null;
+  /// True when the last [startChat] call failed; the UI offers a retry.
+  bool get startFailed => _startFailed;
+
+  /// True once a rating was successfully submitted in the current
+  /// intensity stage; resets on a new chat or when the stage moves on.
+  bool get hasSubmittedIntensity => _hasSubmittedIntensity;
+
+  /// Local id of the message whose send failed, if any.
+  String? get failedMessageId => _failedMessageId;
+
+  /// Starts a new chat session, resetting all local state.
+  ///
+  /// [welcomeMessage] is a localized, display-only greeting shown as the
+  /// first assistant bubble. It is never sent to the backend — chat history
+  /// is owned by the backend (ADR 0002); this mirrors the legacy client.
+  Future<void> startChat({
+    required String language,
+    required String welcomeMessage,
+  }) async {
+    _startFailed = false;
     _errorMessage = null;
-    notifyListeners();
+    try {
+      final res = await _service.start(language: language);
+      _chatId = res.chatId;
+      _stage = res.currentStage;
+      _messages
+        ..clear()
+        ..add(_localMessage(role: 'assistant', content: welcomeMessage));
+      _isDone = false;
+      _hasSubmittedIntensity = false;
+      _safetyEvent = null;
+      _retryAfterSeconds = null;
+      _failedMessageId = null;
+    } on ApiException catch (e) {
+      _startFailed = true;
+      _errorMessage = e.message;
+    } on Exception catch (e) {
+      _startFailed = true;
+      _errorMessage = e.toString();
+    } finally {
+      notifyListeners();
+    }
   }
 
   void dismissSafetyEvent() {
@@ -58,6 +94,11 @@ class ChatState extends ChangeNotifier {
       return;
     }
     if (content.trim().isEmpty) return;
+    // Optimistically show the user's message so a failed send never
+    // discards what they typed.
+    final local = _localMessage(role: 'user', content: content);
+    _messages.add(local);
+    _failedMessageId = null;
     _sending = true;
     _safetyEvent = null;
     _retryAfterSeconds = null;
@@ -65,12 +106,16 @@ class ChatState extends ChangeNotifier {
     notifyListeners();
     try {
       final turn = await _service.sendMessage(chatId: id, content: content);
-      _messages.add(turn.userMessage);
+      _messages
+        ..remove(local)
+        ..add(turn.userMessage);
       if (turn.aiMessage != null) _messages.add(turn.aiMessage!);
       _stage = turn.stage;
       _isDone = turn.isDone;
       _safetyEvent = turn.safetyEvent;
+      if (_stage != IrtStage.intensity) _hasSubmittedIntensity = false;
     } on ApiException catch (e) {
+      _failedMessageId = local.id;
       if (e.isRateLimited) {
         _retryAfterSeconds = e.retryAfterSeconds;
       } else {
@@ -81,4 +126,38 @@ class ChatState extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  /// Re-sends the message whose send previously failed.
+  Future<void> retryFailedSend() async {
+    final failedId = _failedMessageId;
+    if (failedId == null || _sending) return;
+    final index = _messages.indexWhere((m) => m.id == failedId);
+    if (index == -1) {
+      _failedMessageId = null;
+      return;
+    }
+    final content = _messages.removeAt(index).content;
+    _failedMessageId = null;
+    await send(content);
+  }
+
+  /// Submits the intensity rating; the integer travels as a normal chat
+  /// message (wire contract). The slider stays available until a submit
+  /// actually succeeds.
+  Future<void> submitIntensity(int value) async {
+    await send(value.toString());
+    if (_failedMessageId == null) {
+      _hasSubmittedIntensity = true;
+      notifyListeners();
+    }
+  }
+
+  ChatMessage _localMessage({required String role, required String content}) =>
+      ChatMessage(
+        id: 'local-${_localSeq++}',
+        role: role,
+        content: content,
+        stage: null,
+        createdAt: DateTime.now(),
+      );
 }

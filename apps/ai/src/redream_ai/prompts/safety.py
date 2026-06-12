@@ -5,12 +5,24 @@ unnecessary helpline reminder. The classifier is NOT a diagnostic tool —
 it's a signpost to public helplines.
 """
 
-PROMPT_VERSION = "safety-v0.1.0"
+PROMPT_VERSION = "safety-v0.3.0"
 
 SAFETY_PROMPT_EN = """\
-You are a safety classifier for a self-help app. Read the user's message and
-flag risk categories. Err on the side of FALSE POSITIVES — a missed crisis is
-worse than an unnecessary helpline reminder.
+You are a safety classifier for a nightmare self-help app (imagery rehearsal
+therapy). Read the user's message and flag risk categories. Err on the side of
+FALSE POSITIVES — a missed crisis is worse than an unnecessary helpline
+reminder.
+
+The input may include bracketed context: the IRT stage and the assistant
+message the user is replying to. Use it to interpret terse replies. Two kinds
+of ordinary chat turns must NOT be flagged:
+- The app asks the user to rate their nightmare's intensity on a 0-10 scale —
+  a message that is just a number or a rating ("8", "It is an 8 out of 10.")
+  answers that scale question and is NOT a self-harm or suicide signal.
+- Polite conversation closers — gratitude, confirmations, goodbyes ("Thanks,
+  that's all", "Goodbye") — are the normal way a session ends, NOT a farewell
+  note. Flag a goodbye only if the same message also contains an actual risk
+  signal (e.g. a stated intent to harm oneself).
 
 Categories:
 - suicidal_ideation: thoughts, plans, or wishes related to ending one's life
@@ -34,9 +46,24 @@ not threats.
 """
 
 SAFETY_PROMPT_DE = """\
-Du bist ein Sicherheits-Klassifikator für eine Selbsthilfe-App. Lies die
-Nachricht und markiere Risiko-Kategorien. Im Zweifel lieber FALSCH-POSITIV
-markieren — eine übersehene Krise ist schlimmer als ein unnötiger Hinweis.
+Du bist ein Sicherheits-Klassifikator für eine Albtraum-Selbsthilfe-App
+(Imagery Rehearsal Therapie). Lies die Nachricht und markiere
+Risiko-Kategorien. Im Zweifel lieber FALSCH-POSITIV markieren — eine
+übersehene Krise ist schlimmer als ein unnötiger Hinweis.
+
+Die Eingabe kann Kontext in eckigen Klammern enthalten: die IRT-Phase und die
+Assistenten-Nachricht, auf die geantwortet wird. Nutze ihn, um knappe
+Antworten einzuordnen. Zwei Arten gewöhnlicher Chat-Nachrichten dürfen NICHT
+markiert werden:
+- Die App selbst bittet darum, die Intensität des Albtraums auf einer Skala
+  von 0-10 zu bewerten — eine Nachricht, die nur eine Zahl oder Bewertung ist
+  ("8", "Es ist eine 8 von 10."), beantwortet diese Skalenfrage und ist KEIN
+  Signal für Selbstverletzung oder Suizidalität.
+- Höfliche Gesprächsabschlüsse — Dank, Bestätigungen, Verabschiedungen
+  ("Danke, das war's", "Tschüss") — sind das normale Ende einer Sitzung,
+  KEIN Abschiedsbrief. Markiere eine Verabschiedung nur, wenn dieselbe
+  Nachricht auch ein echtes Risikosignal enthält (z.B. eine geäußerte
+  Absicht, sich etwas anzutun).
 
 Kategorien:
 - suicidal_ideation: Gedanken, Pläne oder Wünsche, dem eigenen Leben ein Ende zu setzen

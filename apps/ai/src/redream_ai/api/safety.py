@@ -29,4 +29,6 @@ async def safety_classify(
         model=settings.mistral_safety_model,
         text=req.text,
         language=req.language,
+        stage=req.stage,
+        context=req.context,
     )

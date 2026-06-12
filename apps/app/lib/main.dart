@@ -27,8 +27,7 @@ Future<void> main() async {
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider<SupabaseAuthService>.value(value: authService),
-        Provider<IAuthService>.value(value: authService),
+        ListenableProvider<IAuthService>.value(value: authService),
         Provider<ApiClient>.value(value: apiClient),
         Provider<IChatService>.value(value: chatService),
         ChangeNotifierProvider<ChatState>(create: (_) => ChatState(chatService)),

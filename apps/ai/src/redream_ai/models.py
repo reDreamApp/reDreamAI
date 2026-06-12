@@ -74,6 +74,12 @@ class SummaryStructured(BaseModel):
     original_summary: str
     rewritten_summary: str
     dream_summary: str
+    intensity: int | None = Field(
+        default=None,
+        ge=0,
+        le=10,
+        description="The 0-10 distress rating the user gave, if they gave one.",
+    )
 
 
 class UsageStats(BaseModel):
@@ -120,6 +126,17 @@ class SafetyCategory(StrEnum):
 class SafetyRequest(BaseModel):
     text: str
     language: Language
+    stage: Stage | None = Field(
+        default=None,
+        description="IRT stage the message was sent in, for classifier context.",
+    )
+    context: str | None = Field(
+        default=None,
+        description=(
+            "The assistant message the user is replying to. Without it, terse "
+            "answers ('It is an 8 out of 10.') are uninterpretable."
+        ),
+    )
 
 
 class SafetyResponse(BaseModel):

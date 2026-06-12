@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-abstract class IAuthService {
+abstract class IAuthService implements Listenable {
   String? get accessToken;
   bool get isSignedIn;
   String? get userEmail;

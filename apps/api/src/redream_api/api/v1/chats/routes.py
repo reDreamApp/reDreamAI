@@ -17,6 +17,7 @@ Flow for `POST /chats/{id}/message`:
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -48,6 +49,57 @@ log = logging.getLogger(__name__)
 router = APIRouter(prefix="/chats", tags=["chats"])
 
 _HIDDEN_PLACEHOLDER = "[Message hidden by moderation]"
+
+_TITLE_MAX_LEN = 60
+
+# Helpline text returned with a high-risk safety event (ADR 0005). The client
+# renders this in place of the AI reply.
+_HELPLINE_MESSAGE = {
+    "en": (
+        "It sounds like you might be going through something serious. "
+        "This app is a self-help tool and can't provide crisis support. "
+        "Please reach out to someone who can help right now: in Germany, the "
+        "TelefonSeelsorge is available 24/7 at 0800 111 0 111 or 0800 111 0 222 "
+        "(free and anonymous). If you are in immediate danger, call 112."
+    ),
+    "de": (
+        "Es klingt, als würdest du gerade etwas Ernstes durchmachen. "
+        "Diese App ist ein Selbsthilfe-Tool und kann keine Krisenhilfe leisten. "
+        "Bitte wende dich an Menschen, die dir jetzt helfen können: Die "
+        "TelefonSeelsorge ist rund um die Uhr erreichbar unter 0800 111 0 111 "
+        "oder 0800 111 0 222 (kostenlos und anonym). In akuter Gefahr ruf bitte "
+        "die 112 an."
+    ),
+}
+
+# Matches the first standalone 0-10 in an intensity-stage user message
+# ("8", "8/10", "It is an 8 out of 10."). This parses USER input, not AI
+# output — the ADR 0003 ban on string-matching AI responses doesn't apply.
+_INTENSITY_RE = re.compile(r"\b(10|[0-9])\b")
+
+
+def _truncate_title(text: str) -> str:
+    title = " ".join(text.split())
+    if len(title) <= _TITLE_MAX_LEN:
+        return title
+    return title[: _TITLE_MAX_LEN - 1].rstrip() + "…"
+
+
+def _extract_intensity(structured: dict[str, object], history: list[ChatMessage]) -> int | None:
+    """The user's 0-10 rating: structured AI field first, history regex fallback.
+
+    The structured field is authoritative (the summary model reads the whole
+    transcript); the regex only catches sessions where the model omitted it.
+    """
+    raw = structured.get("intensity")
+    if isinstance(raw, (int, float)) and not isinstance(raw, bool) and 0 <= raw <= 10:
+        return int(raw)
+    for m in reversed(history):
+        if m.role == "user" and m.stage == "intensity":
+            match = _INTENSITY_RE.search(m.content)
+            if match:
+                return int(match.group(1))
+    return None
 
 
 def _to_message_out(msg: ChatMessage) -> ChatMessageOut:
@@ -168,10 +220,31 @@ async def send_message(
     )
     await msg_repo.create(user_msg)
 
+    if not chat.title:
+        chat.title = _truncate_title(body.content)
+        await chat_repo.save(chat)
+
+    history_msgs = await msg_repo.list_for_chat(chat.id)
+
     # ---- safety classifier (ADR 0005) ------------------------------------
+    # Stage + the assistant message being answered disambiguate terse replies
+    # ("It is an 8 out of 10." is a scale answer, not ideation).
+    last_assistant = next(
+        (
+            m.content
+            for m in reversed(history_msgs)
+            if m.role == "assistant" and m.visibility_status == "visible"
+        ),
+        None,
+    )
     try:
         safety = await ai.safety_classify(
-            {"text": body.content, "language": chat.language}
+            {
+                "text": body.content,
+                "language": chat.language,
+                "stage": chat.current_stage,
+                "context": last_assistant,
+            }
         )
     except AIServiceError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"safety: {exc}") from exc
@@ -201,11 +274,14 @@ async def send_message(
                 risk="high",
                 categories=list(safety.get("categories", [])),
                 confidence=float(safety.get("confidence", 0.0)),
+                message=_HELPLINE_MESSAGE.get(chat.language, _HELPLINE_MESSAGE["en"]),
             ),
         )
 
     # ---- forward full history to AI /chat (stateless AI — ADR 0002) ------
-    history_msgs = await msg_repo.list_for_chat(chat.id)
+    # Safety-flagged messages got a helpline, not an AI turn — replaying them
+    # into later prompts would re-inject crisis content the flow already
+    # short-circuited on.
     payload = {
         "messages": [
             {
@@ -215,7 +291,7 @@ async def send_message(
                 "language": chat.language,
             }
             for m in history_msgs
-            if m.visibility_status == "visible"
+            if m.visibility_status == "visible" and not m.safety_flagged
         ],
         "language": chat.language,
         "session_id": str(chat.id),
@@ -224,6 +300,10 @@ async def send_message(
     try:
         ai_resp = await ai.chat(payload)
     except AIServiceError as exc:
+        # Drop the just-persisted user message: leaving it orphaned (no AI
+        # reply) would replay it into the next turn's history alongside the
+        # client's retry of the same text.
+        await msg_repo.delete(user_msg)
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"chat: {exc}") from exc
 
     ai_stage = str(ai_resp.get("stage", chat.current_stage))
@@ -245,6 +325,8 @@ async def send_message(
     # ---- advance chat state ----------------------------------------------
     chat.current_stage = ai_stage
     chat.is_done = ai_stage == "final"
+    if ai_stage == "intensity" and chat.is_nightmare is not True:
+        chat.is_nightmare = True
     chat.updated_at = datetime.now(timezone.utc)
     await chat_repo.save(chat)
 
@@ -256,6 +338,7 @@ async def send_message(
             chat_id=chat.id,
             language=chat.language,
             structured=structured,
+            intensity=_extract_intensity(structured, history_msgs),
         )
 
     # ---- token usage accounting (ADR 0008) -------------------------------
@@ -283,6 +366,7 @@ async def _upsert_dream_from_structured(
     chat_id: int,
     language: str,
     structured: dict,
+    intensity: int | None = None,
 ) -> Dream:
     """Create or update the Dream row that corresponds to this chat's summary.
 
@@ -304,6 +388,8 @@ async def _upsert_dream_from_structured(
         existing.title = title
         existing.original_dream = original or existing.original_dream
         existing.rewritten_dream = rewritten or existing.rewritten_dream
+        if intensity is not None:
+            existing.intensity = intensity
         existing.last_edited = datetime.now(timezone.utc)
         # Rewritten changed → invalidate any cached rehearsal audio.
         existing.rehearsal_audio_url = None
@@ -318,6 +404,7 @@ async def _upsert_dream_from_structured(
         title=title,
         original_dream=original,
         rewritten_dream=rewritten,
+        intensity=intensity,
         is_nightmare=True,
         session_id=session_key,
         source="chatbot",
