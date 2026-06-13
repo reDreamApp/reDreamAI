@@ -35,6 +35,29 @@ class ApiClient {
     return _decode(res);
   }
 
+  Future<Map<String, dynamic>> put(String path, Object? body) async {
+    final res = await _http.put(
+      _uri(path),
+      headers: _headers(json: true),
+      body: body == null ? null : jsonEncode(body),
+    );
+    return _decode(res);
+  }
+
+  Future<Map<String, dynamic>> patch(String path, Object? body) async {
+    final res = await _http.patch(
+      _uri(path),
+      headers: _headers(json: true),
+      body: body == null ? null : jsonEncode(body),
+    );
+    return _decode(res);
+  }
+
+  Future<void> delete(String path) async {
+    final res = await _http.delete(_uri(path), headers: _headers());
+    _decodeRaw(res);
+  }
+
   Future<List<dynamic>> getList(String path) async {
     final res = await _http.get(_uri(path), headers: _headers());
     final decoded = _decodeRaw(res);

@@ -42,6 +42,41 @@ class ChatMessage {
       );
 }
 
+/// One row of `GET /api/v1/chats` (backend `ChatOut`) — used by the
+/// chat-history drawer and the resume-on-open flow.
+class ChatSummary {
+  ChatSummary({
+    required this.id,
+    required this.language,
+    required this.currentStage,
+    required this.isDone,
+    required this.isNightmare,
+    required this.title,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final int id;
+  final String language;
+  final IrtStage currentStage;
+  final bool isDone;
+  final bool? isNightmare;
+  final String? title;
+  final DateTime createdAt;
+  final DateTime updatedAt;
+
+  static ChatSummary fromJson(Map<String, dynamic> json) => ChatSummary(
+        id: json['id'] as int,
+        language: json['language'] as String,
+        currentStage: stageFromString(json['current_stage'] as String),
+        isDone: json['is_done'] as bool? ?? false,
+        isNightmare: json['is_nightmare'] as bool?,
+        title: json['title'] as String?,
+        createdAt: DateTime.parse(json['created_at'] as String),
+        updatedAt: DateTime.parse(json['updated_at'] as String),
+      );
+}
+
 class SafetyEvent {
   SafetyEvent({
     required this.risk,

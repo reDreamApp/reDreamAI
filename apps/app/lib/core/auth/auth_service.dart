@@ -8,6 +8,10 @@ abstract class IAuthService implements Listenable {
   Stream<bool> get authChanges;
 
   Future<void> signIn({required String email, required String password});
+  Future<void> signUp({required String email, required String password});
+  Future<void> sendPasswordReset(String email);
+  Future<void> updateEmail(String newEmail);
+  Future<void> updatePassword(String newPassword);
   Future<void> signOut();
 }
 
@@ -35,6 +39,26 @@ class SupabaseAuthService extends ChangeNotifier implements IAuthService {
   @override
   Future<void> signIn({required String email, required String password}) async {
     await _client.auth.signInWithPassword(email: email, password: password);
+  }
+
+  @override
+  Future<void> signUp({required String email, required String password}) async {
+    await _client.auth.signUp(email: email, password: password);
+  }
+
+  @override
+  Future<void> sendPasswordReset(String email) async {
+    await _client.auth.resetPasswordForEmail(email);
+  }
+
+  @override
+  Future<void> updateEmail(String newEmail) async {
+    await _client.auth.updateUser(UserAttributes(email: newEmail));
+  }
+
+  @override
+  Future<void> updatePassword(String newPassword) async {
+    await _client.auth.updateUser(UserAttributes(password: newPassword));
   }
 
   @override

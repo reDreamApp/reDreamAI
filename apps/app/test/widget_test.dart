@@ -18,6 +18,14 @@ class _FakeAuth extends ChangeNotifier implements IAuthService {
   @override
   Future<void> signIn({required String email, required String password}) async {}
   @override
+  Future<void> signUp({required String email, required String password}) async {}
+  @override
+  Future<void> sendPasswordReset(String email) async {}
+  @override
+  Future<void> updateEmail(String newEmail) async {}
+  @override
+  Future<void> updatePassword(String newPassword) async {}
+  @override
   Future<void> signOut() async {}
 }
 

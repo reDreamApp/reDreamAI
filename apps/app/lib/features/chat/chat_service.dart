@@ -3,8 +3,10 @@ import 'chat_models.dart';
 
 abstract class IChatService {
   Future<ChatStart> start({required String language});
+  Future<List<ChatSummary>> listChats();
   Future<List<ChatMessage>> listMessages(int chatId);
   Future<ChatTurn> sendMessage({required int chatId, required String content});
+  Future<void> deleteChat(int chatId);
 }
 
 class ChatService implements IChatService {
@@ -18,10 +20,19 @@ class ChatService implements IChatService {
   }
 
   @override
+  Future<List<ChatSummary>> listChats() async {
+    final list = await _api.getList('/api/v1/chats');
+    return list.map((e) => ChatSummary.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  @override
   Future<List<ChatMessage>> listMessages(int chatId) async {
     final list = await _api.getList('/api/v1/chats/$chatId/messages');
     return list.map((e) => ChatMessage.fromJson(e as Map<String, dynamic>)).toList();
   }
+
+  @override
+  Future<void> deleteChat(int chatId) => _api.delete('/api/v1/chats/$chatId');
 
   @override
   Future<ChatTurn> sendMessage({required int chatId, required String content}) async {

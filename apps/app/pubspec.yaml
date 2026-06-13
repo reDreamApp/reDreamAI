@@ -19,6 +19,9 @@ dependencies:
   flutter_dotenv: ^6.0.0
   shared_preferences: ^2.5.3
   intl: any
+  url_launcher: ^6.3.2
+  package_info_plus: ^9.0.0
+  introduction_screen: ^4.0.0
 
 dev_dependencies:
   flutter_test:
@@ -33,3 +36,4 @@ flutter:
   generate: true
   assets:
     - .env
+    - assets/images/
