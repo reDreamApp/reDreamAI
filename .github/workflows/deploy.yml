@@ -37,6 +37,17 @@ jobs:
             --exclude "infra/env/" \
             --exclude "supabase/.branches" \
             --exclude "supabase/.temp" \
+            --exclude "tests/" \
+            --exclude "docs/" \
+            --exclude ".claude/" \
+            --exclude "node_modules/" \
+            --exclude "**/__pycache__" \
+            --exclude "**/*.pyc" \
+            --exclude "**/.pytest_cache" \
+            --exclude "**/.mypy_cache" \
+            --exclude "**/.ruff_cache" \
+            --exclude "**/.venv" \
+            --exclude "**/.DS_Store" \
             -e "ssh -i ~/.ssh/id_ed25519 -p ${{ secrets.SCALEWAY_PORT }}" \
             ./ ${{ secrets.SCALEWAY_USER }}@${{ secrets.SCALEWAY_HOST }}:/srv/redreamai/
 

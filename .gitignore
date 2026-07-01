@@ -26,10 +26,9 @@ apps/app/.fvm/flutter_sdk
 # Node (Supabase CLI / tooling)
 node_modules/
 
-# Env files
+# Env files — real secrets live in .env (ignored); *.env.example are committed templates
 .env
 **/.env
-**/.env.example
 **/.env.local
 infra/env/
 

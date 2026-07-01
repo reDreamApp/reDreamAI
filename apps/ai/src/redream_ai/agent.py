@@ -22,6 +22,7 @@ import logging
 from typing import Any
 
 from . import irt as irt_mod
+from . import observability as obs
 from .llm.base import LlmClient
 from .models import ChatRequest, Language, Stage, SummaryStructured
 from .prompts import de as de_prompts
@@ -86,11 +87,14 @@ def _history_messages(req: ChatRequest) -> list[dict[str, str]]:
     return [{"role": m.role.value, "content": m.content} for m in req.messages]
 
 
-async def route(*, llm: LlmClient, model: str, req: ChatRequest) -> tuple[Stage, dict[str, int]]:
+async def route(
+    *, llm: LlmClient, model: str, req: ChatRequest, trace: obs.Trace = None
+) -> tuple[Stage, dict[str, int]]:
     """Routing agent: propose the next IRT stage (pre-enforcement).
 
     Returns (proposed_stage, usage). Falls back to the current stage if the
-    model returns an unparseable or unknown stage.
+    model returns an unparseable or unknown stage. Records the call as a
+    Langfuse generation under `trace` (no-op when tracing is disabled).
     """
 
     current = irt_mod.current_stage(req.messages)
@@ -109,6 +113,15 @@ async def route(*, llm: LlmClient, model: str, req: ChatRequest) -> tuple[Stage,
         messages=messages,
         temperature=0.0,
         response_format=_JSON_OBJECT,
+    )
+    obs.record_generation(
+        trace,
+        name="irt-route",
+        model=model,
+        input=messages,
+        output=content,
+        usage=usage,
+        metadata={"prompt_version": routing_prompts.PROMPT_VERSION, "current_stage": current.value},
     )
     try:
         proposed = Stage(json.loads(content)["stage"])
@@ -134,11 +147,13 @@ async def respond(
     model: str,
     stage: Stage,
     req: ChatRequest,
+    trace: obs.Trace = None,
 ) -> tuple[str, SummaryStructured | None, dict[str, int], str]:
     """Response agent: generate the assistant reply for the (enforced) stage.
 
     Returns (response_text, structured, usage, prompt_version). `structured` is
-    populated only for the SUMMARY stage (ADR 0003).
+    populated only for the SUMMARY stage (ADR 0003). Each LLM call is recorded
+    as a Langfuse generation under `trace` (no-op when tracing is disabled).
     """
 
     system_prompts, prompt_version = _PROMPTS_BY_LANG[req.language]
@@ -159,6 +174,15 @@ async def respond(
                 messages=messages,
                 temperature=0.4,
                 response_format=_JSON_OBJECT,
+            )
+            obs.record_generation(
+                trace,
+                name=f"irt-respond-summary-{attempt + 1}",
+                model=model,
+                input=messages,
+                output=content,
+                usage=call_usage,
+                metadata={"stage": stage.value, "prompt_version": prompt_version},
             )
             usage = {
                 "input_tokens": usage["input_tokens"] + call_usage.get("input_tokens", 0),
@@ -192,4 +216,13 @@ async def respond(
         *_history_messages(req),
     ]
     content, usage = await llm.chat(model=model, messages=messages, temperature=0.5)
+    obs.record_generation(
+        trace,
+        name="irt-respond",
+        model=model,
+        input=messages,
+        output=content,
+        usage=usage,
+        metadata={"stage": stage.value, "prompt_version": prompt_version},
+    )
     return content, None, usage, prompt_version

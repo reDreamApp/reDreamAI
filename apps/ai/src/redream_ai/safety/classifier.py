@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from .. import observability as obs
 from ..llm.base import LlmClient
 from ..models import Language, SafetyCategory, SafetyResponse, SafetyRisk, Stage
 from ..prompts.safety import PROMPT_VERSION, SAFETY_PROMPT_DE, SAFETY_PROMPT_EN
@@ -25,6 +26,7 @@ async def classify(
     language: Language,
     stage: Stage | None = None,
     context: str | None = None,
+    trace: obs.Trace = None,
 ) -> SafetyResponse:
     """Run the safety classifier over user-supplied text.
 
@@ -45,11 +47,20 @@ async def classify(
         {"role": "user", "content": "\n\n".join(parts)},
     ]
 
-    content, _usage = await llm.chat(
+    content, usage = await llm.chat(
         model=model,
         messages=messages,
         temperature=0.0,
         response_format=_RESPONSE_FORMAT,
+    )
+    obs.record_generation(
+        trace,
+        name="safety-classify",
+        model=model,
+        input=messages,
+        output=content,
+        usage=usage,
+        metadata={"prompt_version": PROMPT_VERSION},
     )
 
     parsed = json.loads(content)

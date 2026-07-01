@@ -62,6 +62,16 @@ class ChatRequest(BaseModel):
         default=None,
         description="Optional opaque ID for Langfuse trace grouping. Not used for state.",
     )
+    nightmare_summary: str | None = Field(
+        default=None,
+        description=(
+            "The nightmare summary the AI generated once at the recording→rewriting "
+            "transition. The backend persists it and echoes it back on every "
+            "subsequent turn so the AI doesn't regenerate it each rewriting turn "
+            "(keeps ADR 0002 statelessness while honouring 'generated exactly once'). "
+            "None on turns before the summary exists."
+        ),
+    )
 
 
 class SummaryStructured(BaseModel):
@@ -99,6 +109,21 @@ class ChatResponse(BaseModel):
     structured: SummaryStructured | None = None
     usage: UsageStats
     prompt_version: str
+    safety: dict | None = Field(
+        default=None,
+        description=(
+            "Clinical rewrite-safety verdict from the neuro-symbolic SafetyCritic. "
+            "Populated only during the `rewriting` stage; None otherwise or when the "
+            "critic is unavailable (None means 'not evaluated', not 'safe')."
+        ),
+    )
+    nightmare_summary: str | None = Field(
+        default=None,
+        description=(
+            "The once-generated nightmare summary, echoed so the backend can persist "
+            "it and send it back next turn (see ChatRequest.nightmare_summary)."
+        ),
+    )
 
     model_config = ConfigDict(extra="forbid")
 

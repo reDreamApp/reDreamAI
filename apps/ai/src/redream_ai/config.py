@@ -12,7 +12,8 @@ class Settings(BaseSettings):
     Surface area is mirrored in .env.example.
     """
 
-    mistral_api_key: str = Field(default="", description="Mistral API key")
+    mistral_api_key: str = Field(default="", description="Mistral API key (fallback path)")
+    scaleway_api_key: str = Field(default="", description="Scaleway API key (primary path)")
 
     # Pinned model IDs (ADR 0010 — never floating aliases for prod models).
     mistral_response_model: str = "mistral-small-4-0-26-03"

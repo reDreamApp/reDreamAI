@@ -29,8 +29,33 @@ def _build_llm_client() -> LlmClient | None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    import logging
+
+    from . import observability as obs
+    from .core import irt_app
+
+    log = logging.getLogger("redream_ai.startup")
+
+    # Crisis classifier (ADR 0005) still uses the direct-Mistral LlmClient.
     app.state.llm_client = _build_llm_client()
-    yield
+
+    # Warmth check for the ported IRT pipeline (agents + SafetyCritic build eagerly
+    # at import; here we surface their status as a deep health signal, §7.4).
+    agents_ready = irt_app.routing_agent is not None and irt_app.response_agent is not None
+    app.state.irt_ready = agents_ready
+    app.state.safety_ready = irt_app.safety_critic is not None
+    if not agents_ready:
+        log.warning("IRT agents UNCONFIGURED — set SCALEWAY_API_KEY + MISTRAL_API_KEY; /chat → 503")
+    else:
+        log.info(
+            "IRT pipeline ready (agents=ok, safety_critic=%s)",
+            "ok" if app.state.safety_ready else "disabled (fail-open)",
+        )
+    try:
+        yield
+    finally:
+        # Flush buffered Langfuse events so nothing is lost on shutdown.
+        obs.flush()
 
 
 app = FastAPI(
