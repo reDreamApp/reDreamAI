@@ -1,6 +1,6 @@
 # 0010 — Pinned Mistral / Voxtral model IDs
 
-- Status: accepted
+- Status: accepted (chat/routing/safety models **amended 2026-07-01** — see Amendment below)
 - Date: 2026-05-11
 - Deciders: Daniel
 
@@ -47,3 +47,36 @@ The response model uses `reasoning_effort=low` for therapy turns to keep latency
 - **Floating aliases**: rejected — see context.
 - **OpenAI / Anthropic**: rejected — Mistral is EU-resident, price-competitive, and ships the Voxtral audio stack we need.
 - **Self-hosted via vLLM**: out of scope for v1 (ops weight).
+
+## Amendment (2026-07-01) — Scaleway-primary chat topology from the ported chatbot core
+
+The IRT chatbot core was replaced by the richer engine ported from the SU Streamlit
+prototype (neuro-symbolic clinical safety, cross-provider fallback, logprob classifier).
+That engine is built for **Scaleway as the primary provider with direct Mistral as a
+cross-provider fallback** — a resilience property (Scaleway occasionally drops connections
+under load) the original single-provider decision lacked. The pinned-dated-ID principle is
+unchanged; the specific IDs and providers for the **chat / routing / safety** roles are
+superseded as follows (Voxtral TTS/STT rows above are unchanged):
+
+| Role | Primary (Scaleway) | Fallback (direct Mistral) | Logprobs |
+|---|---|---|---|
+| Response (IRT chat) | `mistral-medium-3.5-128b` | `mistral-large-2512` | no |
+| Stage routing | `mistral-small-3.2-24b-instruct-2506` | `ministral-8b-2512` | no |
+| Safety segmenter | `mistral-small-3.2-24b-instruct-2506` | `ministral-8b-2512` | no |
+| Safety classifier | `mistral-small-3.2-24b-instruct-2506` | `mistral-small-2603` | **yes** |
+
+The classifier's fallback is deliberately `mistral-small-2603` (not `ministral-8b`) because
+the logprob-based confidence gate needs a fallback that returns logprobs.
+
+These IDs live in the ported `redream_ai/core/agent.py::MODELS` registry (pinned; a typo
+fails `tests/test_ported_core.py`). Base URLs `https://api.scaleway.ai/v1` and
+`https://api.mistral.ai/v1` are load-bearing.
+
+**Config change:** `SCALEWAY_API_KEY` is now **required** alongside `MISTRAL_API_KEY`. The
+old `MISTRAL_RESPONSE_MODEL` / `MISTRAL_ROUTING_MODEL` (`mistral-small-4-0-26-03`,
+`ministral-8b-2512`) drove the retired core and no longer apply to the chat path.
+
+**`reasoning_effort`:** not sent by the ported core (the old "response model uses
+`reasoning_effort=low`" note above no longer applies to chat). If reintroduced, it must be a
+per-model capability flag stripped from the fallback kwargs — the Mistral fallback models
+likely don't support it (see integration brief §3).

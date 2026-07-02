@@ -11,6 +11,7 @@ core during `rewriting` only.
 from __future__ import annotations
 
 import logging
+from typing import NoReturn
 
 from fastapi import APIRouter, HTTPException
 
@@ -29,7 +30,7 @@ log = logging.getLogger(__name__)
 PROMPT_VERSION = "irt-ported-2026-07"
 
 
-async def get_llm_client():
+async def get_llm_client() -> NoReturn:
     """DI hook for the crisis-classifier route (api/safety.py imports it).
 
     The /chat route no longer uses the LlmClient — it drives the ported core's own

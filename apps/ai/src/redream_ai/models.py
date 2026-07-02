@@ -9,12 +9,19 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class Stage(StrEnum):
-    """IRT therapy stages, in canonical forward order (see redream_ai.irt)."""
+    """Wire-contract IRT stages.
+
+    The ported core routes only `recording → rewriting → summary → final`
+    (`redream_ai.core.models.Stage`). `INTENSITY` is retained here for backward
+    wire compatibility (older backend/app history may carry it); the ported flow
+    never emits it — the 0-10 rating lives on `SummaryStructured.intensity`.
+    """
 
     RECORDING = "recording"
     INTENSITY = "intensity"
@@ -109,7 +116,7 @@ class ChatResponse(BaseModel):
     structured: SummaryStructured | None = None
     usage: UsageStats
     prompt_version: str
-    safety: dict | None = Field(
+    safety: dict[str, Any] | None = Field(
         default=None,
         description=(
             "Clinical rewrite-safety verdict from the neuro-symbolic SafetyCritic. "

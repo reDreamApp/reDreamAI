@@ -48,9 +48,25 @@ packages = ["src/redream_ai"]
 target-version = "py312"
 line-length = 100
 src = ["src", "tests"]
+# Vendored: the ported IRT core + safety engine are copied verbatim from the SU
+# Streamlit repo (see chatbot integration brief — "do not reflow or clean up").
+# Excluded from our lint/type rules; only the redream_ai-authored glue is strict.
+extend-exclude = [
+    "src/redream_ai/core",
+    "src/redream_ai/clinical_safety",
+    "chatbot_port",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "ASYNC", "RUF"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI dependency-injection markers are the idiomatic way to set route defaults;
+# they are not the mutable-default-arg footgun B008 targets.
+extend-immutable-calls = [
+    "fastapi.Depends", "fastapi.File", "fastapi.Query", "fastapi.Form",
+    "fastapi.Header", "fastapi.Path", "fastapi.Cookie", "fastapi.Body",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -66,3 +82,17 @@ mypy_path = "src"
 [[tool.mypy.overrides]]
 module = ["langfuse.*"]
 ignore_missing_imports = true
+
+# Third-party SDKs used only by the vendored core that ship no type stubs.
+[[tool.mypy.overrides]]
+module = ["groq.*", "networkx.*", "tiktoken.*", "dotenv.*"]
+ignore_missing_imports = true
+
+# Vendored: ported IRT core + safety engine (copied verbatim; not type-clean by
+# design). Imports still resolve; their internal type errors are not reported.
+# implicit_reexport: the glue code accesses names the vendored modules re-import
+# (e.g. irt_app.routing_agent, process_chat_message) without an explicit __all__.
+[[tool.mypy.overrides]]
+module = ["redream_ai.core.*", "redream_ai.clinical_safety.*"]
+ignore_errors = true
+implicit_reexport = true
