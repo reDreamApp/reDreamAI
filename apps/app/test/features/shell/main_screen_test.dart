@@ -28,9 +28,15 @@ class _FakeAuth extends ChangeNotifier implements IAuthService {
   @override
   Stream<bool> get authChanges => const Stream.empty();
   @override
-  Future<void> signIn({required String email, required String password}) async {}
+  Future<void> signIn({
+    required String email,
+    required String password,
+  }) async {}
   @override
-  Future<void> signUp({required String email, required String password}) async {}
+  Future<void> signUp({
+    required String email,
+    required String password,
+  }) async {}
   @override
   Future<void> sendPasswordReset(String email) async {}
   @override
@@ -43,14 +49,25 @@ class _FakeAuth extends ChangeNotifier implements IAuthService {
 
 class _FakeChatService implements IChatService {
   @override
-  Future<ChatStart> start({required String language}) async =>
-      ChatStart(chatId: 1, language: language, currentStage: IrtStage.recording);
+  Future<ChatStart> start({required String language}) async => ChatStart(
+    chatId: 1,
+    language: language,
+    currentStage: IrtStage.recording,
+  );
   @override
   Future<List<ChatSummary>> listChats() async => [];
   @override
   Future<List<ChatMessage>> listMessages(int chatId) async => [];
   @override
   Future<ChatTurn> sendMessage({required int chatId, required String content}) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Stream<ChatStreamEvent> sendMessageStream({
+    required int chatId,
+    required String content,
+  }) {
     throw UnimplementedError();
   }
 
@@ -70,8 +87,7 @@ class _FakeDreamService implements IDreamService {
     String? rewrittenDream,
     int? intensity,
     bool isNightmare = false,
-  }) =>
-      throw UnimplementedError();
+  }) => throw UnimplementedError();
   @override
   Future<Dream> update(int id, Map<String, dynamic> fields) =>
       throw UnimplementedError();
@@ -87,8 +103,9 @@ class _FakeDreamService implements IDreamService {
 }
 
 void main() {
-  testWidgets('MainScreen mounts and all five tabs render without exceptions',
-      (tester) async {
+  testWidgets('MainScreen mounts and all five tabs render without exceptions', (
+    tester,
+  ) async {
     SharedPreferences.setMockInitialValues({'onboarding_seen': true});
     final chatService = _FakeChatService();
     final dreamService = _FakeDreamService();

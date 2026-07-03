@@ -6,6 +6,8 @@ stateless `apps/ai` service over JSON/HTTPX.
 
 Contract reference:
 - POST /chat            : full conversation history → next stage + response
+- POST /chat/stream     : same request → SSE frames (ADR 0009); the frame
+                          contract is documented in apps/ai's api/chat.py
 - POST /safety/classify : user text → risk classification (ADR 0005)
 - POST /audio/transcribe: multipart audio → transcript (ADR 0010)
 - POST /rehearsal/generate: dream → audio_url + script + duration
@@ -14,6 +16,7 @@ Contract reference:
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator
 from typing import Any, Protocol
 
 import httpx
@@ -31,6 +34,7 @@ class BaseAiClient(Protocol):
     """The chat/audio surface the backend depends on. Tests substitute a fake."""
 
     async def chat(self, payload: dict[str, Any]) -> dict[str, Any]: ...
+    def chat_stream(self, payload: dict[str, Any]) -> AsyncIterator[str]: ...
     async def safety_classify(self, payload: dict[str, Any]) -> dict[str, Any]: ...
     async def transcribe(self, *, file_name: str, audio_bytes: bytes) -> dict[str, Any]: ...
     async def rehearsal_generate(self, payload: dict[str, Any]) -> dict[str, Any]: ...
@@ -57,6 +61,29 @@ class HttpxAiClient:
         if r.status_code >= 300:
             raise AIServiceError(f"/chat failed: {r.status_code} {r.text[:200]}")
         return r.json()
+
+    async def chat_stream(self, payload: dict[str, Any]) -> AsyncIterator[str]:
+        """POST /chat/stream — yields one SSE frame per item (``data: <payload>``,
+        stripped, without the ``\\n\\n`` separator). Raises AIServiceError on a
+        non-2xx status (read fully before any frame is yielded)."""
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            async with client.stream(
+                "POST", self._url("/chat/stream"), json=payload
+            ) as r:
+                if r.status_code >= 300:
+                    body = (await r.aread()).decode(errors="replace")
+                    raise AIServiceError(
+                        f"/chat/stream failed: {r.status_code} {body[:200]}"
+                    )
+                buffer = ""
+                async for chunk in r.aiter_text():
+                    buffer += chunk
+                    while "\n\n" in buffer:
+                        frame, buffer = buffer.split("\n\n", 1)
+                        if frame.strip():
+                            yield frame.strip()
+                if buffer.strip():
+                    yield buffer.strip()
 
     async def safety_classify(self, payload: dict[str, Any]) -> dict[str, Any]:
         async with httpx.AsyncClient(timeout=self._timeout) as client:

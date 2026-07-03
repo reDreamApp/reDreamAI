@@ -145,7 +145,8 @@ class _ChatScreenState extends State<ChatScreen> {
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: const EdgeInsets.all(12),
                         itemCount:
-                            state.messages.length + (state.sending ? 1 : 0),
+                            state.messages.length +
+                            (state.awaitingReply ? 1 : 0),
                         itemBuilder: (_, i) {
                           if (i == state.messages.length) {
                             return const _ThinkingBubble();

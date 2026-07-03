@@ -1,6 +1,6 @@
 # 0009 — Streaming chat via SSE end-to-end
 
-- Status: accepted
+- Status: accepted (AI-side endpoint **implemented 2026-07** — see Amendment below)
 - Date: 2026-05-11
 - Deciders: Daniel
 
@@ -30,3 +30,15 @@ Wire streaming end-to-end in v1:
 - **Non-streaming (legacy)**: rejected — UX cost is real for therapy chat.
 - **WebSocket instead of SSE**: bidirectional unnecessary; SSE is simpler and proxy-friendly.
 - **Polling**: rejected — wasteful.
+
+## Amendment (2026-07-02) — AI-side SSE endpoint implemented
+
+The AI service now exposes `POST /chat/stream` (SSE) alongside the non-streaming
+`POST /chat`. The frame contract is authoritative in
+`apps/ai/src/redream_ai/api/chat.py`'s module docstring: verbatim content chunks →
+optional safety frame → one final `ChatResponse` frame → `data: [DONE]`; the core's
+internal usage frame is folded into `final.usage` and never forwarded. The backend
+proxy `POST /chats/{id}/message/stream` (apps/api) forwards content deltas to the
+Flutter client and persists the turn from the final frame; the Flutter client consumes
+the proxy's frames (`ChatState.send` streaming path). All three layers are implemented
+— frame-shape changes are breaking cross-service changes.

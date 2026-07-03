@@ -18,13 +18,9 @@ Scaleway compute instance (Ubuntu LTS)
 
 ## First-time setup
 
-1. **Provision the instance.** Recommended: Scaleway GP1-S (4 vCPU / 8 GB RAM, Ubuntu 24.04 LTS, Paris). Configure SSH, firewall to allow 22 / 80 / 443.
+1. **Provision the instance.** Handled by `infra/terraform/` (ADR 0012) — creates the Scaleway GP1-S instance (4 vCPU / 8 GB RAM, Ubuntu 24.04 LTS, Paris), firewall (22/80/443), and installs Docker via cloud-init. See `infra/terraform/README.md` for the bootstrap + `terraform apply` steps. Take note of the `instance_public_ip` output.
 
-2. **Install Docker.**
-   ```bash
-   curl -fsSL https://get.docker.com | sh
-   sudo usermod -aG docker $USER
-   ```
+2. ~~Install Docker~~ — done by step 1's cloud-init now.
 
 3. **Install self-hosted Supabase** into `/srv/supabase`. Follow [the official guide](https://supabase.com/docs/guides/self-hosting/docker). Bring it up:
    ```bash
@@ -107,10 +103,12 @@ There is **no auto-deploy on `main`** (ADR conventions). Once a `production` bra
 
 The Supabase Postgres is the single backup target (one Postgres, ADR 0001).
 
-Recommended setup (not yet automated):
-- Nightly `pg_dump` to Scaleway Object Storage with 7-day retention.
-- Weekly snapshot retained 4 weeks.
-- Monthly snapshot retained 12 months.
+The destination bucket and retention policy are provisioned by `infra/terraform/` (ADR 0012) — `nightly/` (7-day), `weekly/` (4-week), `monthly/` (12-month) prefixes with matching lifecycle expiration, output as `backup_bucket_name`.
+
+**Still not automated:** the actual `pg_dump` job that uploads into those prefixes. Needs a cron (or systemd timer) on the box running something like:
+```bash
+pg_dump ... | gzip | scw object cp - "s3://<backup_bucket_name>/nightly/$(date +%F).sql.gz"
+```
 
 Caddy data volumes (`caddy_data`, `caddy_config`) hold the TLS certs — back these up too unless you're happy re-issuing on rebuild.
 

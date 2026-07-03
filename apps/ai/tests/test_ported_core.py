@@ -30,8 +30,10 @@ def test_active_model_strings_pinned():
     assert MODELS["MISTRAL_MEDIUM"].provider == "scaleway"
     assert MODELS["MISTRAL_SMALL"].name == "mistral-small-3.2-24b-instruct-2506"
     assert MODELS["MISTRAL_SMALL"].provider == "scaleway"
-    assert MODELS["MISTRAL_LARGE"].name == "mistral-large-2512"
-    assert MODELS["MISTRAL_LARGE"].provider == "mistral"
+    # Response fallback: deliberately a FLOATING alias (2026-07-02 ADR 0010
+    # exception) — tracks Mistral's current medium, matching the pinned primary.
+    assert MODELS["MISTRAL_MEDIUM_DIRECT"].name == "mistral-medium-latest"
+    assert MODELS["MISTRAL_MEDIUM_DIRECT"].provider == "mistral"
     assert MODELS["MINISTRAL_8B"].name == "ministral-8b-2512"
     assert MODELS["MINISTRAL_8B"].provider == "mistral"
     assert MODELS["MISTRAL_SMALL_DIRECT"].name == "mistral-small-2603"

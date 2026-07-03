@@ -4,13 +4,17 @@ from dotenv import load_dotenv, find_dotenv
 from .models import Conversation, Stage, ChatInput, ChatResponse
 import logging
 import json
-from langfuse.decorators import observe, langfuse_context
 from .prompts import (SYSTEM_PROMPT_TEMPLATES_DE, SYSTEM_PROMPT_TEMPLATES_EN,
                       NIGHTMARE_SUMMARY_PROMPT_DE, NIGHTMARE_SUMMARY_PROMPT_EN,
                       SCOPE_BOUNDARY_DE, SCOPE_BOUNDARY_EN)
 
 # Load environment variables (searches upward from CWD to find project .env)
 load_dotenv(find_dotenv())
+
+# Langfuse decorator API comes from observability (the single SDK entry point).
+# Imported AFTER load_dotenv: observability pulls in config.Settings(), which
+# must see any .env vars injected above (same ordering as the agents below).
+from ..observability import langfuse_context, observe  # noqa: E402
 
 # Language detection removed; language is controlled via override from client
 
@@ -40,14 +44,14 @@ except Exception as e:
     safety_critic = None
     logger.warning(f"SafetyCritic initialization failed: {e}. Safety checks disabled.")
 
-# Configure Langfuse after load_dotenv()
-# Set LANGFUSE_ENABLED=false in .env or environment to disable tracing
-langfuse_context.configure(
-    public_key=os.getenv("LANGFUSE_PUBLIC_KEY"),
-    secret_key=os.getenv("LANGFUSE_SECRET_KEY"),
-    host=os.getenv("LANGFUSE_HOST"),
-    enabled=os.getenv("LANGFUSE_ENABLED", "true").lower() != "false"
-)
+# Langfuse decorator configuration happens ONCE, settings-gated, in
+# observability.configure_decorators() — which runs AT IMPORT of the
+# observability module (imported above), so the gate is already bound before
+# any @observe call, lifespan or not. The main.lifespan call is an idempotent
+# no-op re-assert. Do NOT defer this to lifespan: without the import-time
+# binding the v2 decorators lazily build an ENABLED client from raw env vars
+# (which never read LANGFUSE_ENABLED) — pinned by
+# tests/test_observability.py::test_observe_gating_binds_without_lifespan.
 
 language = "de"
 
@@ -212,6 +216,12 @@ async def process_chat_message_stream(
             usage=final_usage
         )
         
+        # Surface the response-generation token usage to the wire adapter: the
+        # /chat/stream route consumes this frame (never forwards it) and reports
+        # the numbers in its `final` frame, mirroring /chat's ChatResponse.usage.
+        if final_usage:
+            yield f"data: {json.dumps({'usage': final_usage})}\n\n"
+
         if safety_result:
             yield f"data: {json.dumps({'safety': safety_result.to_dict()})}\n\n"
         yield "data: [DONE]\n\n"

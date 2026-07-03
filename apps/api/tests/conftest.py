@@ -49,6 +49,7 @@ class FakeAiClient:
 
     def __init__(self) -> None:
         self._chat: list[dict[str, Any]] = []
+        self._chat_stream: list[Any] = []
         self._safety: list[dict[str, Any]] = []
         self._transcribe: list[dict[str, Any]] = []
         self._rehearsal: list[dict[str, Any]] = []
@@ -56,6 +57,14 @@ class FakeAiClient:
 
     def queue_chat(self, response: dict[str, Any]) -> None:
         self._chat.append(response)
+
+    def queue_chat_stream(self, frames: list[str]) -> None:
+        """Frames exactly as HttpxAiClient.chat_stream yields them: stripped
+        ``data: <payload>`` strings, one per SSE event, no ``\\n\\n``."""
+        self._chat_stream.append(frames)
+
+    def queue_chat_stream_error(self, exc: Exception) -> None:
+        self._chat_stream.append(exc)
 
     def queue_safety(self, response: dict[str, Any]) -> None:
         self._safety.append(response)
@@ -78,6 +87,16 @@ class FakeAiClient:
         if "__raise__" in response:
             raise response["__raise__"]
         return response
+
+    async def chat_stream(self, payload: dict[str, Any]) -> AsyncIterator[str]:
+        self.calls.append({"method": "chat_stream", "payload": payload})
+        if not self._chat_stream:
+            raise RuntimeError("FakeAiClient: no chat stream queued")
+        item = self._chat_stream.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        for frame in item:
+            yield frame
 
     async def safety_classify(self, payload: dict[str, Any]) -> dict[str, Any]:
         self.calls.append({"method": "safety_classify", "payload": payload})

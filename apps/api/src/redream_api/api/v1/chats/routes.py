@@ -16,14 +16,21 @@ Flow for `POST /chats/{id}/message`:
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import re
+from collections.abc import AsyncIterator
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ....core.dependencies import get_current_user, get_db
+from ....db.models.chat import Chat
 from ....db.models.chat_message import ChatMessage
 from ....db.models.dream import Dream
 from ....db.models.safety_event import SafetyEvent
@@ -180,21 +187,39 @@ async def delete_chat(
 
 
 # ---------------------------------------------------------------------------
-# The interesting one.
+# The interesting ones: POST /{chat_id}/message and its SSE sibling.
+# The shared gates (404/409/budget/persist/safety) and the shared post-AI
+# persistence live in _pre_turn / _finalize_ai_turn so the two routes cannot
+# drift semantically.
 # ---------------------------------------------------------------------------
 
 
-@router.post("/{chat_id}/message", response_model=ChatMessageResponse)
-async def send_message(
+@dataclass
+class _TurnSetup:
+    """Everything the AI-call step needs, produced by the shared gates."""
+
+    chat: Chat
+    user_msg: ChatMessage
+    history_msgs: list[ChatMessage]
+    safety_payload: SafetyEventPayload | None  # non-None ⇒ high risk, no AI turn
+
+
+async def _pre_turn(
     chat_id: int,
     body: ChatMessageRequest,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-    ai: BaseAiClient = Depends(get_ai_client),
-) -> ChatMessageResponse:
+    user: User,
+    db: AsyncSession,
+    ai: BaseAiClient,
+) -> _TurnSetup:
+    """Shared pre-AI gates: 404/409 → budget (429) → persist user message →
+    title → safety classifier (ADR 0005, 502 on failure, high-risk short-circuit).
+
+    Raises HTTPException for every failure, so the streaming route runs this
+    BEFORE the response starts and errors arrive as plain JSON, exactly like
+    the non-streaming route.
+    """
     chat_repo = ChatRepo(db)
     msg_repo = ChatMessageRepo(db)
-    safety_repo = SafetyEventRepo(db)
 
     chat = await chat_repo.get_for_user(user.id, chat_id)
     if chat is None:
@@ -249,10 +274,11 @@ async def send_message(
     except AIServiceError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"safety: {exc}") from exc
 
+    safety_payload: SafetyEventPayload | None = None
     if safety.get("risk") == "high":
         user_msg.safety_flagged = True
         await db.commit()
-        await safety_repo.create(
+        await SafetyEventRepo(db).create(
             SafetyEvent(
                 user_id=user.id,
                 chat_id=chat.id,
@@ -264,25 +290,27 @@ async def send_message(
                 prompt_version=str(safety.get("prompt_version", "unknown")),
             )
         )
-        return ChatMessageResponse(
-            chat_id=chat.id,
-            user_message=_to_message_out(user_msg),
-            ai_message=None,
-            stage=chat.current_stage,
-            is_done=chat.is_done,
-            safety_event=SafetyEventPayload(
-                risk="high",
-                categories=list(safety.get("categories", [])),
-                confidence=float(safety.get("confidence", 0.0)),
-                message=_HELPLINE_MESSAGE.get(chat.language, _HELPLINE_MESSAGE["en"]),
-            ),
+        safety_payload = SafetyEventPayload(
+            risk="high",
+            categories=list(safety.get("categories", [])),
+            confidence=float(safety.get("confidence", 0.0)),
+            message=_HELPLINE_MESSAGE.get(chat.language, _HELPLINE_MESSAGE["en"]),
         )
 
-    # ---- forward full history to AI /chat (stateless AI — ADR 0002) ------
-    # Safety-flagged messages got a helpline, not an AI turn — replaying them
-    # into later prompts would re-inject crisis content the flow already
-    # short-circuited on.
-    payload = {
+    return _TurnSetup(
+        chat=chat, user_msg=user_msg, history_msgs=history_msgs,
+        safety_payload=safety_payload,
+    )
+
+
+def _ai_chat_payload(chat: Chat, history_msgs: list[ChatMessage]) -> dict[str, Any]:
+    """The stateless AI request (ADR 0002): full visible history + echo state.
+
+    Safety-flagged messages got a helpline, not an AI turn — replaying them
+    into later prompts would re-inject crisis content the flow already
+    short-circuited on.
+    """
+    return {
         "messages": [
             {
                 "role": m.role,
@@ -295,22 +323,29 @@ async def send_message(
         ],
         "language": chat.language,
         "session_id": str(chat.id),
+        # Echo the once-generated nightmare summary back to the stateless AI
+        # so it never regenerates it (None on the first turns is fine).
+        "nightmare_summary": chat.nightmare_summary,
     }
 
-    try:
-        ai_resp = await ai.chat(payload)
-    except AIServiceError as exc:
-        # Drop the just-persisted user message: leaving it orphaned (no AI
-        # reply) would replay it into the next turn's history alongside the
-        # client's retry of the same text.
-        await msg_repo.delete(user_msg)
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"chat: {exc}") from exc
 
+async def _finalize_ai_turn(
+    *,
+    db: AsyncSession,
+    user: User,
+    chat: Chat,
+    history_msgs: list[ChatMessage],
+    ai_resp: dict[str, Any],
+) -> ChatMessage:
+    """Shared post-AI persistence: AI message row, chat advance (incl. the
+    nightmare-summary echo), Dream upsert (ADR 0003), usage accounting (ADR 0008).
+    """
     ai_stage = str(ai_resp.get("stage", chat.current_stage))
     ai_text = str(ai_resp.get("response", ""))
     structured = ai_resp.get("structured")
     usage = ai_resp.get("usage", {}) or {}
     prompt_version = str(ai_resp.get("prompt_version", "unknown"))
+    nightmare_summary = ai_resp.get("nightmare_summary")
 
     # ---- persist AI message ----------------------------------------------
     ai_msg = ChatMessage(
@@ -320,15 +355,17 @@ async def send_message(
         stage=ai_stage,
         prompt_version=prompt_version,
     )
-    await msg_repo.create(ai_msg)
+    await ChatMessageRepo(db).create(ai_msg)
 
     # ---- advance chat state ----------------------------------------------
     chat.current_stage = ai_stage
     chat.is_done = ai_stage == "final"
     if ai_stage == "intensity" and chat.is_nightmare is not True:
         chat.is_nightmare = True
+    if isinstance(nightmare_summary, str) and nightmare_summary:
+        chat.nightmare_summary = nightmare_summary
     chat.updated_at = datetime.now(timezone.utc)
-    await chat_repo.save(chat)
+    await ChatRepo(db).save(chat)
 
     # ---- structured-summary -> Dream (ADR 0003) --------------------------
     if structured and ai_stage in ("summary", "final"):
@@ -348,14 +385,193 @@ async def send_message(
         input_tokens=int(usage.get("input_tokens", 0)),
         output_tokens=int(usage.get("output_tokens", 0)),
     )
+    return ai_msg
 
+
+@router.post("/{chat_id}/message", response_model=ChatMessageResponse)
+async def send_message(
+    chat_id: int,
+    body: ChatMessageRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    ai: BaseAiClient = Depends(get_ai_client),
+) -> ChatMessageResponse:
+    setup = await _pre_turn(chat_id, body, user, db, ai)
+    chat = setup.chat
+
+    if setup.safety_payload is not None:
+        return ChatMessageResponse(
+            chat_id=chat.id,
+            user_message=_to_message_out(setup.user_msg),
+            ai_message=None,
+            stage=chat.current_stage,
+            is_done=chat.is_done,
+            safety_event=setup.safety_payload,
+        )
+
+    try:
+        ai_resp = await ai.chat(_ai_chat_payload(chat, setup.history_msgs))
+    except AIServiceError as exc:
+        # Drop the just-persisted user message: leaving it orphaned (no AI
+        # reply) would replay it into the next turn's history alongside the
+        # client's retry of the same text.
+        await ChatMessageRepo(db).delete(setup.user_msg)
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"chat: {exc}") from exc
+
+    ai_msg = await _finalize_ai_turn(
+        db=db, user=user, chat=chat, history_msgs=setup.history_msgs, ai_resp=ai_resp
+    )
     return ChatMessageResponse(
         chat_id=chat.id,
-        user_message=_to_message_out(user_msg),
+        user_message=_to_message_out(setup.user_msg),
         ai_message=_to_message_out(ai_msg),
-        stage=ai_stage,
+        stage=chat.current_stage,
         is_done=chat.is_done,
         safety_event=None,
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /{chat_id}/message/stream — SSE to the Flutter client (ADR 0009).
+#
+# Frame contract (each frame is one `data: <payload>\n\n` event):
+#   1. data: {"user_message": <ChatMessageOut>}            — always first
+#   2a. high-risk: data: {"safety_event": <SafetyEventPayload>}  then [DONE]
+#   2b. normal:    data: {"content": "<delta>", ...}       — passed through
+#                  from the AI service; clients append `.content` in order
+#   3b.            data: {"done": {"chat_id", "ai_message": <ChatMessageOut>,
+#                                  "stage", "is_done"}}    — persisted turn
+#   4. data: [DONE]                                        — always terminal
+# Mid-stream failure: data: {"error": "<msg>"} then [DONE]; the user message
+# was rolled back (parity with the non-streaming 502 path) so the client's
+# retry flow can resend it. Pre-stream failures (404/409/429/502) raise before
+# streaming starts and arrive as plain JSON errors, same as /message.
+# The AI's internal frames that are not part of this contract (its own `final`,
+# clinical `safety`, `[DONE]`) are consumed here and never forwarded.
+# ---------------------------------------------------------------------------
+
+_SSE_DONE = "data: [DONE]\n\n"
+
+
+def _sse(payload: dict[str, Any]) -> str:
+    return f"data: {json.dumps(payload)}\n\n"
+
+
+async def _stream_ai_turn(
+    db: AsyncSession,
+    ai: BaseAiClient,
+    user: User,
+    setup: _TurnSetup,
+) -> AsyncIterator[str]:
+    chat = setup.chat
+    # Snapshot for error paths: after a failed flush the session is poisoned
+    # and rollback expires ORM attributes — touching chat.id in a handler
+    # would itself raise PendingRollbackError.
+    chat_id = chat.id
+    finalize_started = False
+
+    async def _rollback_user_msg() -> None:
+        """Best-effort removal of the pre-persisted user message.
+
+        Resets the session first: after a failed flush every ORM access raises
+        until Session.rollback() runs. Must never raise itself."""
+        try:
+            await db.rollback()
+            await ChatMessageRepo(db).delete(setup.user_msg)
+        except Exception:
+            log.exception("failed to roll back user message for chat %s", chat_id)
+
+    final: dict[str, Any] | None = None
+    try:
+        yield _sse(
+            {"user_message": _to_message_out(setup.user_msg).model_dump(mode="json")}
+        )
+
+        if setup.safety_payload is not None:
+            yield _sse({"safety_event": setup.safety_payload.model_dump(mode="json")})
+            yield _SSE_DONE
+            return
+
+        async for frame in ai.chat_stream(_ai_chat_payload(chat, setup.history_msgs)):
+            body = frame.removeprefix("data:").strip()
+            if body == "[DONE]":
+                break
+            try:
+                data = json.loads(body)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(data, dict):
+                continue
+            if "error" in data:
+                raise AIServiceError(str(data["error"]))
+            if isinstance(data.get("final"), dict):
+                final = data["final"]
+            elif "content" in data:
+                yield f"data: {body}\n\n"
+            # anything else (e.g. the clinical safety frame) is internal — the
+            # non-streaming route doesn't surface it to the client either
+        if final is None:
+            raise AIServiceError("AI stream ended without a final frame")
+        finalize_started = True
+        ai_msg = await _finalize_ai_turn(
+            db=db, user=user, chat=chat, history_msgs=setup.history_msgs, ai_resp=final
+        )
+        yield _sse(
+            {
+                "done": {
+                    "chat_id": chat.id,
+                    "ai_message": _to_message_out(ai_msg).model_dump(mode="json"),
+                    "stage": chat.current_stage,
+                    "is_done": chat.is_done,
+                }
+            }
+        )
+    except (asyncio.CancelledError, GeneratorExit):
+        # Client disconnected / abandoned the turn mid-stream (chat switch,
+        # app kill, network loss). These are BaseExceptions — an
+        # `except Exception` never sees them. No frames can be emitted; the
+        # only question is DB state: before finalize, remove the user message
+        # so the orphan is never replayed into the next turn's history; once
+        # finalize has begun, keep whatever committed (the client's refetch
+        # shows the completed turn). The high-risk safety path never rolls
+        # back: the flagged message + safety_events row are moderation
+        # records (ADR 0005) and must survive a disconnect.
+        if setup.safety_payload is None and not finalize_started:
+            await _rollback_user_msg()
+        raise
+    except Exception as exc:
+        # Headers are already sent — surface the failure as an error frame.
+        log.exception("mid-stream failure in /chats/%s/message/stream", chat_id)
+        if finalize_started:
+            # _finalize_ai_turn commits step by step: the AI message (and
+            # possibly the stage advance) may already be persisted. Deleting
+            # the user message now would orphan the REPLY — keep both rows,
+            # exactly like the non-streaming route's 500 on the same failure.
+            try:
+                await db.rollback()  # un-poison the session; keep committed rows
+            except Exception:
+                log.exception("session rollback failed for chat %s", chat_id)
+        else:
+            # AI stream failed before anything beyond the user message was
+            # written — same rollback as the non-streaming 502 path.
+            await _rollback_user_msg()
+        yield _sse({"error": str(exc)})
+    yield _SSE_DONE
+
+
+@router.post("/{chat_id}/message/stream")
+async def send_message_stream(
+    chat_id: int,
+    body: ChatMessageRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    ai: BaseAiClient = Depends(get_ai_client),
+) -> StreamingResponse:
+    """Streaming variant of /message (ADR 0009). Frame contract: see above."""
+    setup = await _pre_turn(chat_id, body, user, db, ai)
+    return StreamingResponse(
+        _stream_ai_turn(db, ai, user, setup),
+        media_type="text/event-stream",
     )
 
 

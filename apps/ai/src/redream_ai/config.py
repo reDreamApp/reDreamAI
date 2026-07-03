@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -16,8 +16,7 @@ class Settings(BaseSettings):
     scaleway_api_key: str = Field(default="", description="Scaleway API key (primary path)")
 
     # Pinned model IDs (ADR 0010 — never floating aliases for prod models).
-    mistral_response_model: str = "mistral-small-4-0-26-03"
-    mistral_routing_model: str = "ministral-8b-2512"
+    # Chat/routing/safety-critic IDs live in core/agent.py::MODELS, not here.
     mistral_safety_model: str = "ministral-8b-2512"
     voxtral_tts_model: str = "voxtral-mini-tts-2603"
     voxtral_stt_model: str = "voxtral-mini-latest"
@@ -32,9 +31,21 @@ class Settings(BaseSettings):
     langfuse_host: str = ""
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
+    # Explicit off-switch (LANGFUSE_ENABLED=false) for all tracing — helpers and
+    # @observe decorators alike. Tracing is also off whenever host/keys are unset.
+    langfuse_enabled: bool = True
 
     environment: str = "development"
     log_level: str = "INFO"
+
+    @field_validator("langfuse_enabled", mode="before")
+    @classmethod
+    def _empty_means_default(cls, v: object) -> object:
+        # A blank `LANGFUSE_ENABLED=` line (the pattern of every other var in
+        # .env.example) must not fail service boot — treat it as unset.
+        if isinstance(v, str) and not v.strip():
+            return True
+        return v
 
     model_config = SettingsConfigDict(
         env_file=".env",

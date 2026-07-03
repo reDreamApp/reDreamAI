@@ -107,8 +107,9 @@ class UsageStats(BaseModel):
 class ChatResponse(BaseModel):
     """Non-streaming chat response.
 
-    For streaming (ADR 0009), the SSE event stream emits text chunks followed by
-    a final `done` event carrying `{stage, structured, usage, prompt_version}`.
+    For streaming (ADR 0009), POST /chat/stream emits content chunks, then one
+    ``data: {"final": <this model as JSON>}`` frame, then the ``data: [DONE]``
+    sentinel — full frame contract in ``redream_ai.api.chat``'s module docstring.
     """
 
     stage: Stage

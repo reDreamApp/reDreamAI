@@ -4,7 +4,8 @@ Stateless Python service. Receives the full conversation history per request and
 
 ## Endpoints
 
-- `POST /chat` — IRT routing + response (streaming SSE in v1, ADR 0009)
+- `POST /chat` — IRT routing + response, non-streaming
+- `POST /chat/stream` — same turn as SSE (ADR 0009); frame contract lives in `src/redream_ai/api/chat.py`'s module docstring
 - `POST /safety/classify` — crisis pre-classifier; backend calls this **before** `/chat` (ADR 0005)
 - `POST /audio/transcribe` — Voxtral STT for voice journaling (ADR 0010)
 - `POST /rehearsal/generate` — Voxtral TTS for audio rehearsal; uploads to Supabase Storage
@@ -13,11 +14,13 @@ Stateless Python service. Receives the full conversation history per request and
 ## Local dev
 
 ```bash
-cp .env.example .env       # fill in MISTRAL_API_KEY etc.
+cp .env.example .env       # fill in the API keys
 uv sync
 make ai-dev                # from repo root, or:
 uv run uvicorn redream_ai.main:app --reload --port 8080
 ```
+
+`SCALEWAY_API_KEY` **and** `MISTRAL_API_KEY` are both required for `/chat` (Scaleway primary, direct-Mistral fallback). `LANGFUSE_*` is optional; `LANGFUSE_ENABLED=false` is the tracing off-switch.
 
 ## Tests
 
@@ -25,14 +28,14 @@ uv run uvicorn redream_ai.main:app --reload --port 8080
 make ai-test
 ```
 
-Tests run against `FakeLlmClient` — no live Mistral calls, no API key required.
+Tests run fully offline (`FakeLlmClient` + monkeypatched core agents) — no live calls, no API keys required.
 
 ## Architecture
 
-- `redream_ai.llm.base` — `LlmClient` protocol; swap providers behind it.
-- `redream_ai.llm.mistral_client` — Mistral SDK adapter (production).
-- `redream_ai.llm.fake_client` — fake implementation for tests + offline dev.
-- `redream_ai.irt` — IRT 5-stage state machine + guardrails.
+- `redream_ai.core` — ported IRT chatbot engine (routing + response agents, Scaleway primary with direct-Mistral fallback). Chat/routing/safety-critic model IDs are pinned in `core/agent.py::MODELS` — see ADR 0010's 2026-07-01 amendment, don't duplicate them elsewhere.
+- `redream_ai.clinical_safety` — neuro-symbolic `SafetyCritic`; runs inside the core during the rewriting stage.
+- `redream_ai.api` — FastAPI routes (`chat`, `safety`, `audio`, `health`).
+- `redream_ai.llm` — `LlmClient` protocol + Mistral/fake adapters; now used only by the crisis classifier route.
 - `redream_ai.safety.classifier` — Ministral 8B JSON-mode crisis classifier.
 - `redream_ai.audio.tts` — Voxtral TTS + Supabase Storage upload (stubbed pending voice source).
 - `redream_ai.audio.stt` — Voxtral STT (stubbed pending Mistral SDK wiring).

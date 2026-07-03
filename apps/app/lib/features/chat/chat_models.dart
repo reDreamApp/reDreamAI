@@ -34,12 +34,12 @@ class ChatMessage {
   bool get isUser => role == 'user';
 
   static ChatMessage fromJson(Map<String, dynamic> json) => ChatMessage(
-        id: json['id'].toString(),
-        role: json['role'] as String,
-        content: json['content'] as String,
-        stage: json['stage'] as String?,
-        createdAt: DateTime.parse(json['created_at'] as String),
-      );
+    id: json['id'].toString(),
+    role: json['role'] as String,
+    content: json['content'] as String,
+    stage: json['stage'] as String?,
+    createdAt: DateTime.parse(json['created_at'] as String),
+  );
 }
 
 /// One row of `GET /api/v1/chats` (backend `ChatOut`) — used by the
@@ -66,15 +66,15 @@ class ChatSummary {
   final DateTime updatedAt;
 
   static ChatSummary fromJson(Map<String, dynamic> json) => ChatSummary(
-        id: json['id'] as int,
-        language: json['language'] as String,
-        currentStage: stageFromString(json['current_stage'] as String),
-        isDone: json['is_done'] as bool? ?? false,
-        isNightmare: json['is_nightmare'] as bool?,
-        title: json['title'] as String?,
-        createdAt: DateTime.parse(json['created_at'] as String),
-        updatedAt: DateTime.parse(json['updated_at'] as String),
-      );
+    id: json['id'] as int,
+    language: json['language'] as String,
+    currentStage: stageFromString(json['current_stage'] as String),
+    isDone: json['is_done'] as bool? ?? false,
+    isNightmare: json['is_nightmare'] as bool?,
+    title: json['title'] as String?,
+    createdAt: DateTime.parse(json['created_at'] as String),
+    updatedAt: DateTime.parse(json['updated_at'] as String),
+  );
 }
 
 class SafetyEvent {
@@ -93,25 +93,156 @@ class SafetyEvent {
   final String? message;
 
   static SafetyEvent fromJson(Map<String, dynamic> json) => SafetyEvent(
-        risk: json['risk'] as String,
-        categories: (json['categories'] as List).cast<String>(),
-        confidence: (json['confidence'] as num).toDouble(),
-        message: json['message'] as String?,
-      );
+    risk: json['risk'] as String,
+    categories: (json['categories'] as List).cast<String>(),
+    confidence: (json['confidence'] as num).toDouble(),
+    message: json['message'] as String?,
+  );
 }
 
 class ChatStart {
-  ChatStart({required this.chatId, required this.language, required this.currentStage});
+  ChatStart({
+    required this.chatId,
+    required this.language,
+    required this.currentStage,
+  });
 
   final int chatId;
   final String language;
   final IrtStage currentStage;
 
   static ChatStart fromJson(Map<String, dynamic> json) => ChatStart(
-        chatId: json['chat_id'] as int,
-        language: json['language'] as String,
-        currentStage: stageFromString(json['current_stage'] as String),
+    chatId: json['chat_id'] as int,
+    language: json['language'] as String,
+    currentStage: stageFromString(json['current_stage'] as String),
+  );
+}
+
+/// One parsed SSE frame from `POST /chats/{id}/message/stream`.
+///
+/// `data: [DONE]` is handled by the SSE parser (it terminates the stream)
+/// and never surfaces as an event.
+sealed class ChatStreamEvent {
+  const ChatStreamEvent();
+
+  /// Maps a decoded SSE JSON frame to an event, or null for frames with no
+  /// known key or a malformed known frame (per contract: ignore, don't
+  /// crash). Extra keys inside a known frame (`stages`, `language`,
+  /// `chat_id`, ...) are ignored.
+  static ChatStreamEvent? fromJson(Map<String, dynamic> json) {
+    final userMessage = json['user_message'];
+    if (userMessage is Map<String, dynamic>) {
+      final message = _messageOrNull(userMessage);
+      return message == null ? null : UserMessageEvent(message);
+    }
+    final safetyEvent = json['safety_event'];
+    if (safetyEvent is Map<String, dynamic>) {
+      final event = _safetyEventOrNull(safetyEvent);
+      return event == null ? null : SafetyEventEvent(event);
+    }
+    final content = json['content'];
+    if (content is String) return ContentDeltaEvent(content);
+    final done = json['done'];
+    if (done is Map<String, dynamic>) {
+      final Object? aiMessage = done['ai_message'];
+      final Object? stage = done['stage'];
+      final Object? isDone = done['is_done'];
+      final message = aiMessage is Map<String, dynamic>
+          ? _messageOrNull(aiMessage)
+          : null;
+      if (message == null || stage is! String) return null;
+      return DoneEvent(
+        aiMessage: message,
+        stage: stageFromString(stage),
+        isDone: isDone is bool && isDone,
       );
+    }
+    final error = json['error'];
+    if (error is String) return ErrorEvent(error);
+    return null;
+  }
+
+  /// [ChatMessage.fromJson] with `is` checks instead of casts: returns null
+  /// for malformed payloads instead of throwing a [TypeError].
+  static ChatMessage? _messageOrNull(Map<String, dynamic> json) {
+    final Object? id = json['id'];
+    final Object? role = json['role'];
+    final Object? content = json['content'];
+    final Object? stage = json['stage'];
+    final Object? createdAt = json['created_at'];
+    if (id == null || role is! String || content is! String) return null;
+    if (stage is! String?) return null;
+    if (createdAt is! String) return null;
+    final created = DateTime.tryParse(createdAt);
+    if (created == null) return null;
+    return ChatMessage(
+      id: id.toString(),
+      role: role,
+      content: content,
+      stage: stage,
+      createdAt: created,
+    );
+  }
+
+  /// [SafetyEvent.fromJson] with `is` checks instead of casts: returns null
+  /// for malformed payloads instead of throwing a [TypeError].
+  static SafetyEvent? _safetyEventOrNull(Map<String, dynamic> json) {
+    final Object? risk = json['risk'];
+    final Object? categories = json['categories'];
+    final Object? confidence = json['confidence'];
+    final Object? message = json['message'];
+    if (risk is! String || categories is! List || confidence is! num) {
+      return null;
+    }
+    if (message is! String?) return null;
+    if (categories.any((c) => c is! String)) return null;
+    return SafetyEvent(
+      risk: risk,
+      categories: categories.cast<String>(),
+      confidence: confidence.toDouble(),
+      message: message,
+    );
+  }
+}
+
+/// The persisted user message — always the first frame of a stream.
+class UserMessageEvent extends ChatStreamEvent {
+  const UserMessageEvent(this.message);
+  final ChatMessage message;
+}
+
+/// One incremental piece of the assistant's reply; append in order.
+class ContentDeltaEvent extends ChatStreamEvent {
+  const ContentDeltaEvent(this.delta);
+  final String delta;
+}
+
+/// Terminal frame of the normal path: the persisted AI message plus the
+/// resulting stage / done flag (same fields as [ChatTurn]).
+class DoneEvent extends ChatStreamEvent {
+  const DoneEvent({
+    required this.aiMessage,
+    required this.stage,
+    required this.isDone,
+  });
+
+  final ChatMessage aiMessage;
+  final IrtStage stage;
+  final bool isDone;
+}
+
+/// Terminal frame of the high-risk safety path: no AI turn, the stage does
+/// NOT advance (ADR 0005 — same semantics as the non-stream safety_event).
+class SafetyEventEvent extends ChatStreamEvent {
+  const SafetyEventEvent(this.safetyEvent);
+  final SafetyEvent safetyEvent;
+}
+
+/// Mid-stream failure. The backend has rolled back the user message, so the
+/// client marks the local message failed and offers the existing retry flow.
+class ErrorEvent extends ChatStreamEvent {
+  const ErrorEvent(this.message);
+  final String message;
 }
 
 class ChatTurn {
@@ -130,14 +261,16 @@ class ChatTurn {
   final SafetyEvent? safetyEvent;
 
   static ChatTurn fromJson(Map<String, dynamic> json) => ChatTurn(
-        userMessage: ChatMessage.fromJson(json['user_message'] as Map<String, dynamic>),
-        aiMessage: json['ai_message'] == null
-            ? null
-            : ChatMessage.fromJson(json['ai_message'] as Map<String, dynamic>),
-        stage: stageFromString(json['stage'] as String),
-        isDone: json['is_done'] as bool,
-        safetyEvent: json['safety_event'] == null
-            ? null
-            : SafetyEvent.fromJson(json['safety_event'] as Map<String, dynamic>),
-      );
+    userMessage: ChatMessage.fromJson(
+      json['user_message'] as Map<String, dynamic>,
+    ),
+    aiMessage: json['ai_message'] == null
+        ? null
+        : ChatMessage.fromJson(json['ai_message'] as Map<String, dynamic>),
+    stage: stageFromString(json['stage'] as String),
+    isDone: json['is_done'] as bool,
+    safetyEvent: json['safety_event'] == null
+        ? null
+        : SafetyEvent.fromJson(json['safety_event'] as Map<String, dynamic>),
+  );
 }

@@ -35,3 +35,14 @@ infra/env/
 # Supabase CLI local state
 supabase/.branches/
 supabase/.temp/
+
+# Terraform (infra/terraform/) — state lives remotely on Scaleway Object
+# Storage; nothing local should ever be committed.
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/*.tfvars
+!infra/terraform/*.tfvars.example
+infra/terraform/crash.log
+infra/terraform/override.tf
+infra/terraform/override.tf.json

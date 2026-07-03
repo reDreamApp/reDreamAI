@@ -12,8 +12,8 @@ class ApiClient {
     required TokenProvider tokenProvider,
     http.Client? httpClient,
   }) : _baseUrl = baseUrl.endsWith('/')
-            ? baseUrl.substring(0, baseUrl.length - 1)
-            : baseUrl,
+           ? baseUrl.substring(0, baseUrl.length - 1)
+           : baseUrl,
        _tokenProvider = tokenProvider,
        _http = httpClient ?? http.Client();
 
@@ -33,6 +33,24 @@ class ApiClient {
       body: body == null ? null : jsonEncode(body),
     );
     return _decode(res);
+  }
+
+  /// POSTs [body] and yields the response body as utf8-decoded text chunks
+  /// (for `text/event-stream` endpoints).
+  ///
+  /// Non-2xx responses are read in full and thrown as the exact same
+  /// [ApiException] the JSON [post] path produces (including the
+  /// `Retry-After` seconds on 429).
+  Stream<String> postStream(String path, Object? body) async* {
+    final request = http.Request('POST', _uri(path))
+      ..headers.addAll(_headers(json: true))
+      ..headers['Accept'] = 'text/event-stream';
+    if (body != null) request.body = jsonEncode(body);
+    final res = await _http.send(request);
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      _throwApiException(await http.Response.fromStream(res));
+    }
+    yield* res.stream.transform(utf8.decoder);
   }
 
   Future<Map<String, dynamic>> put(String path, Object? body) async {
@@ -62,7 +80,10 @@ class ApiClient {
     final res = await _http.get(_uri(path), headers: _headers());
     final decoded = _decodeRaw(res);
     if (decoded is! List) {
-      throw ApiException(res.statusCode, 'Expected list, got ${decoded.runtimeType}');
+      throw ApiException(
+        res.statusCode,
+        'Expected list, got ${decoded.runtimeType}',
+      );
     }
     return decoded;
   }
@@ -87,7 +108,10 @@ class ApiClient {
   Map<String, dynamic> _decode(http.Response res) {
     final raw = _decodeRaw(res);
     if (raw is! Map<String, dynamic>) {
-      throw ApiException(res.statusCode, 'Expected object, got ${raw.runtimeType}');
+      throw ApiException(
+        res.statusCode,
+        'Expected object, got ${raw.runtimeType}',
+      );
     }
     return raw;
   }
@@ -97,6 +121,10 @@ class ApiClient {
       if (res.body.isEmpty) return <String, dynamic>{};
       return jsonDecode(res.body);
     }
+    _throwApiException(res);
+  }
+
+  Never _throwApiException(http.Response res) {
     String message = res.body;
     try {
       final decoded = jsonDecode(res.body);

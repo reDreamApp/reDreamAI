@@ -330,7 +330,12 @@ MODELS = {
     # logprobs, which Scaleway supports.
     "MISTRAL_SMALL": ModelConfig(name="mistral-small-3.2-24b-instruct-2506", provider="scaleway"),
     # --- Direct Mistral API (fallback path) ---
-    "MISTRAL_LARGE": ModelConfig(name="mistral-large-2512", provider="mistral"),        # response fallback
+    # Response fallback. Deliberately a FLOATING alias (user decision 2026-07-02,
+    # recorded exception to ADR 0010's pinning rule): the rarely-hit fallback
+    # tracks Mistral's current medium so it stays close to the pinned Scaleway
+    # primary (mistral-medium-3.5) instead of aging out on a fixed version.
+    "MISTRAL_MEDIUM_DIRECT": ModelConfig(name="mistral-medium-latest", provider="mistral"),
+    "MISTRAL_LARGE": ModelConfig(name="mistral-large-2512", provider="mistral"),        # unused at runtime
     "MINISTRAL_8B": ModelConfig(name="ministral-8b-2512", provider="mistral"),          # routing/segmenter fallback
     "MISTRAL_SMALL_DIRECT": ModelConfig(name="mistral-small-2603", provider="mistral"), # classifier fallback (supports logprobs)
     # --- OpenRouter mirrors (unused at runtime; OpenRouter does not support logprobs) ---
@@ -343,7 +348,7 @@ DEFAULT_ROUTING_MODEL_KEY = "MISTRAL_SMALL"
 DEFAULT_RESPONSE_MODEL_KEY = "MISTRAL_MEDIUM"
 # Cross-provider fallbacks (direct Mistral API) used when the Scaleway primary fails.
 ROUTING_FALLBACK_MODEL_KEY = "MINISTRAL_8B"
-RESPONSE_FALLBACK_MODEL_KEY = "MISTRAL_LARGE"
+RESPONSE_FALLBACK_MODEL_KEY = "MISTRAL_MEDIUM_DIRECT"
 
 # Create agent instances (will fail if API keys are not set)
 try:
@@ -352,7 +357,7 @@ try:
         MODELS[DEFAULT_ROUTING_MODEL_KEY], ROUTING_PROMPT, temperature=0.1,
         fallback_model_config=MODELS[ROUTING_FALLBACK_MODEL_KEY],
     )
-    # Responses: Mistral Medium 3.5 on Scaleway, falling back to Mistral Large 3 on Mistral.
+    # Responses: Mistral Medium 3.5 on Scaleway, falling back to mistral-medium-latest on Mistral.
     response_agent = Agent(
         MODELS[DEFAULT_RESPONSE_MODEL_KEY], "your_response_prompt", temperature=0.1,
         fallback_model_config=MODELS[RESPONSE_FALLBACK_MODEL_KEY],

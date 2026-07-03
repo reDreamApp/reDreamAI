@@ -60,13 +60,20 @@ superseded as follows (Voxtral TTS/STT rows above are unchanged):
 
 | Role | Primary (Scaleway) | Fallback (direct Mistral) | Logprobs |
 |---|---|---|---|
-| Response (IRT chat) | `mistral-medium-3.5-128b` | `mistral-large-2512` | no |
+| Response (IRT chat) | `mistral-medium-3.5-128b` | `mistral-medium-latest`¹ | no |
 | Stage routing | `mistral-small-3.2-24b-instruct-2506` | `ministral-8b-2512` | no |
 | Safety segmenter | `mistral-small-3.2-24b-instruct-2506` | `ministral-8b-2512` | no |
 | Safety classifier | `mistral-small-3.2-24b-instruct-2506` | `mistral-small-2603` | **yes** |
 
 The classifier's fallback is deliberately `mistral-small-2603` (not `ministral-8b`) because
 the logprob-based confidence gate needs a fallback that returns logprobs.
+
+¹ **Amended 2026-07-02:** the response fallback moved from `mistral-large-2512` to
+`mistral-medium-latest` — a deliberate, recorded **exception** to this ADR's floating-alias
+ban (explicit user decision): the fallback only serves when the Scaleway primary fails, and
+tracking Mistral's current medium keeps its behaviour close to the pinned primary instead of
+aging out on a fixed version. Accepted risk: Mistral can silently change what the alias
+serves. The primary and all other roles stay pinned.
 
 These IDs live in the ported `redream_ai/core/agent.py::MODELS` registry (pinned; a typo
 fails `tests/test_ported_core.py`). Base URLs `https://api.scaleway.ai/v1` and

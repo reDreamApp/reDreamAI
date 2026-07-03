@@ -36,6 +36,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
     log = logging.getLogger("redream_ai.startup")
 
+    # One gated Langfuse setup (ADR 0007): configure the @observe decorator
+    # context from settings. When LANGFUSE_HOST / keys are unset (or
+    # LANGFUSE_ENABLED=false) every decorator is a true no-op — no network.
+    obs.configure_decorators()
+
     # Crisis classifier (ADR 0005) still uses the direct-Mistral LlmClient.
     app.state.llm_client = _build_llm_client()
 
