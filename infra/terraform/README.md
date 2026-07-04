@@ -1,69 +1,65 @@
-# Terraform — Scaleway infra provisioning
+# Terraform — Scaleway Object Storage only
 
-Provisions the Scaleway resource layer only: compute instance, firewall, backup
-bucket. It does **not** deploy the app — that's still `infra/docker-compose.yml`
-via `.github/workflows/deploy.yml`, unchanged. See ADR 0012
-(`docs/decisions/0012-terraform-scaleway.md`) for the full reasoning.
+Provisions **only the backup bucket** (+ its lifecycle/retention rules) — see
+`storage.tf`. The compute instance, firewall, and DNS are provisioned by hand
+per the runbook in `../README.md` ("First-time setup" step 1) with
+`../cloud-init.yaml` as user-data.
 
-## Bootstrap (one-time, before the first `terraform init`)
+Scope was narrowed on 2026-07-02 (ADR 0012 amendment): a one-box estate doesn't
+repay instance-level IaC — the live box would need importing or recreating, and
+solo-operator console hotfixes make state drift (and `plan`-proposed instance
+replacement) a real footgun. The bucket is the piece where config-as-code
+genuinely pays: greenfield (no import), zero blast radius, drift-immune, and
+its lifecycle rules ARE the data-retention policy.
 
-This config stores its own state in a Scaleway Object Storage bucket, which
-means that bucket can't be created by this config (chicken-and-egg). Create
-it once, by hand:
-
-```bash
-scw object bucket create name=redreamai-terraform-state region=fr-par
-```
-
-Enable versioning on it (console or `scw` CLI) so a corrupted state write is
-recoverable.
-
-Then export credentials for a Scaleway API key (IAM application scoped to
-this project, not your personal key, if you want to be tidy about it):
+## Usage
 
 ```bash
-export SCW_ACCESS_KEY=...
+export SCW_ACCESS_KEY=...        # IAM application key, not your personal key
 export SCW_SECRET_KEY=...
-export SCW_DEFAULT_PROJECT_ID=...
-```
-
-## First apply
-
-```bash
-cp terraform.tfvars.example terraform.tfvars   # fill in project_id at minimum
+cp terraform.tfvars.example terraform.tfvars   # fill in project_id
 terraform init
 terraform plan
 terraform apply
 ```
 
-Take the `instance_public_ip` output and continue from `infra/README.md`
-step 3 onward (Supabase install, env files, DNS, `docker compose up`).
+Outputs feed the host's `backup.env` (see `../backup/README.md`):
+`backup_bucket_name` → `BACKUP_BUCKET`, `backup_s3_endpoint` → `S3_ENDPOINT`.
 
-## Adopting the existing hand-provisioned instance
+## State
 
-If a Scaleway instance from the old manual process is already running,
-prefer importing it over recreating it (avoids downtime and TLS
-re-issuance):
+Local and gitignored — deliberate (see `versions.tf`). With one bucket under
+management, a remote-state bucket would mean running a second bucket to track
+the first. If the state file is ever lost:
 
 ```bash
-terraform import scaleway_instance_server.prod <zone>/<server-id>
-terraform import scaleway_instance_ip.prod <zone>/<ip-id>
-terraform import scaleway_instance_security_group.prod <zone>/<security-group-id>
-terraform plan   # review the diff against the existing resource before applying anything
+terraform import scaleway_object_bucket.backups <region>/<bucket-name>
 ```
 
-If the drift is too large to reconcile cleanly, the alternative is a
-one-time cutover: `terraform apply` to create a fresh instance, re-run
-`infra/README.md` steps 3+ on it, move DNS over, then decommission the old
-box.
+### ⚠️ Migrating from the pre-narrowing config (one-time)
 
-## Notes
+If `terraform apply` was ever run with the ORIGINAL full-scope config (remote
+S3 backend + compute/network resources), do this before the first plan against
+the narrowed config — **resources that are in state but no longer in config
+get PROPOSED FOR DESTRUCTION by `terraform plan`**:
 
-- `image_name` (`variables.tf`) is resolved via a data source lookup, not a
-  hardcoded image ID. If it fails to resolve, check the exact current label
-  with `scw marketplace image list name=ubuntu`.
-- Default SSH login on Scaleway's Ubuntu marketplace images is `root` via
-  your account's registered SSH key — the cloud-init here doesn't create a
-  separate user.
-- `ssh_allowed_ip_range` defaults to `0.0.0.0/0`, matching the current
-  unrestricted manual setup. Tighten it in `terraform.tfvars` if desired.
+```bash
+terraform init -migrate-state        # pull state out of the old S3 backend
+terraform state list                 # inspect what's tracked
+# For anything that is NOT scaleway_object_bucket.backups (instance, IP,
+# security group): remove it from state WITHOUT touching the real resource:
+terraform state rm scaleway_instance_server.prod        # (if present)
+terraform state rm scaleway_instance_ip.prod            # (if present)
+terraform state rm scaleway_instance_security_group.prod # (if present)
+terraform plan                       # must now show: no changes
+```
+
+If the bucket was instead created by hand (or the old config was never
+applied), skip this — `terraform import` the bucket (command above) or just
+`apply` greenfield.
+
+## Revisit triggers (full IaC again)
+
+Re-open the ADR if any of these happen: a second box (staging), the estate
+passing ~10 resources, or a console fat-finger that a `terraform plan` diff
+would have caught.

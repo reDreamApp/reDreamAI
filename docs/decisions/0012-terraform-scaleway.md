@@ -1,6 +1,6 @@
 # 0012 — Terraform for Scaleway infra provisioning
 
-- Status: proposed
+- Status: accepted with narrowed scope (see Amendment, 2026-07-02)
 - Date: 2026-07-02
 - Deciders: Daniel
 
@@ -45,3 +45,44 @@ Terraform owns cloud *resources* only. It does not touch app deployment (`docker
 - **Pulumi**: same IaC benefits, real programming language instead of HCL. Rejected for this scope — a single instance + firewall + one bucket doesn't need general-purpose-language complexity, and Terraform's Scaleway provider has better community coverage than Pulumi's.
 - **Ansible instead of Terraform**: Ansible is configuration management (install Docker, push config), not resource provisioning (create the instance itself) — it solves a different problem. Could be layered on top of Terraform later for the Docker-install step currently done by hand; out of scope for this ADR.
 - **Bring the app-deploy workflow into Terraform too** (e.g. `terraform apply` also runs `docker compose up`): rejected — conflates infrequent infra changes with frequent app deploys, and breaks the existing manual-only deploy gate (no auto-deploy on `main`) that's already an accepted convention.
+
+## Amendment (2026-07-02) — scope narrowed to Object Storage only
+
+Before first apply, the scope was reconsidered and narrowed: Terraform manages
+**only the Object Storage layer** (`storage.tf` — the backup bucket and its
+lifecycle/retention rules). Compute, network, and DNS stay hand-provisioned,
+now against an exact written spec: `infra/README.md` "First-time setup" step 1
+carries the full instance/security-group runbook, and `infra/cloud-init.yaml`
+(moved out of the Terraform module) is pasted as user-data at instance creation.
+
+Why the original scope lost on reflection:
+
+- **The estate is one box changing a few times a year.** IaC value compounds
+  with resource count and change frequency; both are deliberately minimal here
+  (single-box compose, staging deferred, single Postgres per ADR 0001) — and
+  the DR delta is small because steps 3+ (Supabase, env files, compose, DNS)
+  stay manual either way. The runbook is needed regardless; Terraform would
+  only replace ~20 console-minutes of it, on a once-in-years event.
+- **The cutover problem.** The production box already exists, hand-built.
+  Until it is imported (fiddly, and the first `plan` against imported reality
+  is a minefield) or destroyed and recreated (downtime for no functional gain),
+  `compute.tf` would describe a box that doesn't exist — a repo that lies about
+  how prod was made is worse than one that says "by hand, here's the exact spec".
+- **Solo-operator drift is not hypothetical.** A console hotfix followed months
+  later by a `terraform plan` that proposes to "correct" it — where
+  instance-level corrections can mean **replacement** — is the standard way
+  stale IaC destroys a production box. Avoiding that requires a
+  never-touch-the-console discipline that solo operation makes unrealistic.
+- **The bucket is where config-as-code genuinely pays**: its lifecycle rules
+  are the data-retention policy (invisible console state otherwise), it is
+  greenfield (no import), nobody hotfixes lifecycle rules at 2 a.m., and the
+  blast radius of an apply is nil.
+
+Consequences of the narrowing: the remote-state backend (and its
+chicken-and-egg bootstrap bucket, flagged in the negatives above) is dropped —
+state is local and gitignored, acceptable because losing it costs one
+`terraform import` of a single bucket.
+
+**Revisit triggers** (re-open toward the original full scope): a second box
+(staging), the estate passing ~10 resources, or the first console fat-finger
+that a `terraform plan` diff would have caught.

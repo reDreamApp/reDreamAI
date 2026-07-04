@@ -1,0 +1,9 @@
+[Unit]
+Description=Postgres backup to Scaleway Object Storage (reDreamAI)
+Wants=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/srv/redreamai/infra/backup/pg-backup.sh
+# The script sources /srv/redreamai/infra/env/backup.env itself.

@@ -1,7 +1,0 @@
-#cloud-config
-# Replaces the manual Docker install in infra/README.md step 2.
-package_update: true
-runcmd:
-  - curl -fsSL https://get.docker.com | sh
-  - systemctl enable docker
-  - systemctl start docker

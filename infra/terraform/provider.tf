@@ -1,7 +1,6 @@
 provider "scaleway" {
   project_id = var.project_id
   region     = var.region
-  zone       = var.zone
 
   # access_key / secret_key are intentionally NOT set here. Provide them via
   # SCW_ACCESS_KEY / SCW_SECRET_KEY env vars (or $HOME/.config/scw/config.yaml).
