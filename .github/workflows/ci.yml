@@ -56,6 +56,23 @@ jobs:
         run: uv run mypy src
         continue-on-error: true
 
+  migrations:
+    name: supabase migrations apply from zero
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: 2.109.0
+      # `db start` boots the Supabase Postgres image (auth/storage schemas
+      # included — plain postgres would reject the auth.users FKs), then
+      # `migration up --local` applies supabase/migrations/ from zero.
+      # This replaces the Supabase-dashboard GitHub integration as the
+      # migration gate (the free-tier cloud project auto-pauses; see
+      # RELEASING.md).
+      - run: supabase db start
+      - run: supabase migration up --local
+
   app:
     name: apps/app — flutter test (analyze informational)
     runs-on: ubuntu-latest

@@ -1,11 +1,18 @@
 # Releasing
 
-Decided 2026-07-02. Two long-lived branches, one release gate:
+Decided 2026-07-02 (amended 2026-07-06). Two long-lived branches, one release
+gate:
 
-- **`main`** — development. The Supabase **Cloud** project (dev DB,
-  `niypesvrzqkkylpnbksq`) is connected to this branch via the GitHub
-  integration: a migration merged to main auto-applies to the dev DB.
-  Pushing main never deploys anything.
+- **`main`** — development. The dev database is the **local Supabase stack**
+  (`supabase start`, see docs/LOCAL_TESTING.md); CI's `migrations` job proves
+  every push applies `supabase/migrations/` cleanly from zero. Pushing main
+  never deploys anything.
+  *(2026-07-06: this replaces the original plan of wiring the Supabase Cloud
+  project `niypesvrzqkkylpnbksq` to main via the dashboard GitHub integration —
+  that free-tier project auto-pauses after inactivity (found paused, DNS gone),
+  which makes it useless as an always-on dev DB or migration gate. It stays
+  paused as a cold backup; restore via the dashboard if anything in it is ever
+  needed.)*
 - **`production`** — the release gate. Pushing it runs
   `.github/workflows/deploy.yml`, which rsyncs the repo to the Scaleway host,
   **applies pending migrations to the self-hosted Postgres first**, then
@@ -15,19 +22,18 @@ Decided 2026-07-02. Two long-lived branches, one release gate:
 ## How a schema change ships
 
 1. Create it: `make db-new-migration NAME=feature_x`, edit the SQL, test
-   locally (`make db-migrate` against the local stack, or a Supabase preview
-   branch if on a paid plan — each PR touching `supabase/migrations/` gets an
-   ephemeral database).
-2. Merge to `main` → the Cloud dev DB gets it automatically.
+   locally against the local stack (`supabase migration up --local`, or
+   `supabase db reset` for a from-zero check).
+2. Merge to `main` → CI's `migrations` job re-proves the full chain applies
+   from zero on the Supabase Postgres image.
 3. Release: fast-forward `production` to main and push:
    `git push origin main:production`
    → migrations apply to the self-hosted DB, then containers rebuild.
 
-## One-time setup (manual, Supabase dashboard + host)
+## One-time setup (manual, host)
 
-- [ ] Supabase dashboard → project `niypesvrzqkkylpnbksq` → GitHub integration:
-      connect to **`main`** (the previously connected `deploy` branch no longer
-      exists — the integration is dangling until this is done).
+- ~~Supabase dashboard → GitHub integration to `main`~~ — superseded
+  2026-07-06 by the CI `migrations` job (cloud project paused; see above).
 - [ ] Create the branch: `git branch production && git push origin production`.
 - [ ] On the Scaleway host: install the Supabase CLI and create
       `/srv/redreamai/infra/env/deploy.env` containing
@@ -36,11 +42,9 @@ Decided 2026-07-02. Two long-lived branches, one release gate:
       The CLI requires the connection string to be **percent-encoded** — if the
       password contains special characters (`@ : / # ?` …), encode them
       (e.g. `p@ss` → `p%40ss`) or the push fails with a parse error.
-- [ ] Backfill: the dev DB predates the integration switch — apply any
-      missing migrations once via the dashboard SQL editor or
-      `supabase db push --db-url <dev-db-url>` (as of this doc:
-      `20260511000001_initial.sql` status unverified, and
-      `20260702000001_chats_nightmare_summary.sql` is new).
+- ~~Backfill the Cloud dev DB~~ — moot since 2026-07-06 (cloud project
+  demoted/paused; the local stack always builds from the full migration
+  chain).
 
 ## Caveats
 
