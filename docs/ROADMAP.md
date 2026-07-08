@@ -20,6 +20,11 @@ decisions in `docs/decisions/`.
 3. **DNS ownership note** (5 min). `infra/README.md` says "point three
    A records" but not where the domain is registered, under which account, or
    who renews it. One paragraph; batch into the next infra commit.
+4. **Old Supabase Cloud project: dump + delete before ~2026-10-01** (minutes,
+   €0). One-click restore expires 90 days after the early-July pause; after
+   that only a "download before deletion" option with UNPUBLISHED deletion
+   timing remains. Restore once → `supabase db dump` + download storage →
+   store offline → delete project (COMPLIANCE.md §4).
 
 ## Next — needs an ADR before the work
 
@@ -36,18 +41,31 @@ decisions in `docs/decisions/`.
 
 ## Launch gates — must be done before real users, no ADR needed
 
-Tracked here so they don't live only in session memory:
+Tracked here so they don't live only in session memory. Regulatory details and
+sources: `docs/COMPLIANCE.md` (researched 2026-07-06).
 
-- **Vendor DPAs**: sign/collect data-processing agreements with Mistral and
-  Scaleway (both offer standard/self-serve DPAs). Legal paperwork, not
-  architecture.
+- **Wording check** — BEFORE store listing, website, or clinic flyers go
+  public: check the exact DE+EN copy against the self-help framing (ADR
+  0004): no condition names, no effect claims, no therapy wording.
+- **DPIA (Art. 35)** — written data-protection impact assessment; health apps
+  are on the DSK must-list. Biggest missing compliance artifact.
+- **Art. 9 consent flow** — explicit in-app consent (Art. 9(2)(a)) +
+  Verzeichnis von Verarbeitungstätigkeiten + documented TOMs.
+- **Vendor DPAs**: sign/collect Scaleway + Mistral DPAs (both self-serve);
+  request Mistral zero-data-retention, disclose their 30-day abuse-monitoring
+  window in the privacy policy until granted.
 - **Langfuse erasure path**: `delete_langfuse_user_data()` is still a no-op —
   implement deletion by `session_id` (GDPR purge must reach traces).
 - **Langfuse retention TTL** (30–90 d) on traces.
-- **DPO/lawyer pass** on the special-category (Art. 9) data handling.
 - **Edge rate limiting**: Caddy has no request-flood protection (the ADR 0008
   token budget only caps per-user LLM cost). Needs the non-bundled Caddy
   rate-limit module — a deliberate image build change, ~half a day.
+- **Crisis feature UX**: user-visible behavior must be signposting only
+  (locale-correct hotline numbers, e.g. Telefonseelsorge 0800 111 0 111) —
+  never a risk score or "crisis detected" label (COMPLIANCE.md §1).
+- **At launch: DB → Scaleway Managed PostgreSQL** (Art. 32 upgrade; Supabase
+  components keep running self-hosted against it). Test pgcrypto/pgjwt/role
+  availability on Managed PG first.
 
 ## Deferred deliberately
 
