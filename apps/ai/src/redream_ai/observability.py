@@ -124,10 +124,15 @@ def start_trace(
     name: str,
     *,
     session_id: str | None = None,
+    user_id: str | None = None,
     input: Any = None,
     metadata: dict[str, Any] | None = None,
 ) -> Trace:
-    """Begin a trace for one AI request. Returns ``None`` when tracing is disabled."""
+    """Begin a trace for one AI request. Returns ``None`` when tracing is disabled.
+
+    ``user_id`` matters beyond analytics: the backend's GDPR purge deletes
+    Langfuse traces by userId, so an untagged trace is an unerasable one.
+    """
     client = _get_client()
     if client is None:
         return None
@@ -135,6 +140,7 @@ def start_trace(
         return client.trace(
             name=name,
             session_id=session_id,
+            user_id=user_id,
             input=input,
             metadata=metadata,
         )

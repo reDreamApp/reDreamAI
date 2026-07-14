@@ -69,6 +69,13 @@ class ChatRequest(BaseModel):
         default=None,
         description="Optional opaque ID for Langfuse trace grouping. Not used for state.",
     )
+    user_id: str | None = Field(
+        default=None,
+        description=(
+            "Optional opaque end-user ID stamped on Langfuse traces so the GDPR "
+            "purge can find and delete them by userId. Not used for state."
+        ),
+    )
     nightmare_summary: str | None = Field(
         default=None,
         description=(
@@ -168,6 +175,17 @@ class SafetyRequest(BaseModel):
         description=(
             "The assistant message the user is replying to. Without it, terse "
             "answers ('It is an 8 out of 10.') are uninterpretable."
+        ),
+    )
+    session_id: str | None = Field(
+        default=None,
+        description="Optional opaque ID for Langfuse trace grouping. Not used for state.",
+    )
+    user_id: str | None = Field(
+        default=None,
+        description=(
+            "Optional opaque end-user ID stamped on Langfuse traces so the GDPR "
+            "purge can find and delete them by userId. Not used for state."
         ),
     )
 

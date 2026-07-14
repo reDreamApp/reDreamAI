@@ -42,6 +42,16 @@ class ChatMessageRequest(BaseModel):
     content: str = Field(min_length=1, max_length=10_000)
 
 
+class ChatIntensityRequest(BaseModel):
+    intensity: int = Field(ge=0, le=10)
+
+
+class ChatIntensityResponse(BaseModel):
+    chat_id: int
+    dream_id: int
+    intensity: int
+
+
 class SafetyEventPayload(BaseModel):
     risk: str
     categories: list[str]

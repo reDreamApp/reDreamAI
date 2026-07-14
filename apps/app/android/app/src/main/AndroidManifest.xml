@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Voice journaling: record dream narration for transcription (audio is
+         never stored — see the STT storage policy in apps/ai). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <application
         android:label="redream_app"
         android:name="${applicationName}"

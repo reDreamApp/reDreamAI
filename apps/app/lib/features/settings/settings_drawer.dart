@@ -6,6 +6,7 @@ import '../../core/language/language_provider.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/theme_provider.dart';
 import '../../l10n/generated/app_localizations.dart';
+import '../consent/consent_state.dart';
 import 'change_email_screen.dart';
 import 'change_password_screen.dart';
 import 'contact_support_screen.dart';
@@ -28,11 +29,40 @@ class SettingsDrawer extends StatelessWidget {
     );
   }
 
+  /// Withdrawing must be as easy as granting (Art. 7(3)) — one confirm
+  /// dialog. On confirm the ConsentGate re-blocks the app behind the
+  /// consent screen; the user's data stays untouched.
+  Future<void> _confirmWithdrawConsent(
+    BuildContext context,
+    AppLocalizations l10n,
+  ) async {
+    final consent = context.read<ConsentState>();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(l10n.withdrawConsentTitle),
+        content: Text(l10n.withdrawConsentBody),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: Text(l10n.withdrawConsentCancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: Text(l10n.withdrawConsentConfirm),
+          ),
+        ],
+      ),
+    );
+    if (confirmed ?? false) await consent.withdraw();
+  }
+
   Future<void> _pickLanguage(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;
     final language = context.read<LanguageProvider>();
-    final current =
-        language.localeOverride == null ? null : language.selectedLanguage;
+    final current = language.localeOverride == null
+        ? null
+        : language.selectedLanguage;
 
     final choice = await showDialog<String>(
       context: context,
@@ -45,7 +75,8 @@ class SettingsDrawer extends StatelessWidget {
             ('de', l10n.settingsLanguageGerman),
           ])
             SimpleDialogOption(
-              onPressed: () => Navigator.of(dialogContext).pop(code ?? 'system'),
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(code ?? 'system'),
               child: Row(
                 children: [
                   Icon(
@@ -164,8 +195,10 @@ class SettingsDrawer extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  subtitle:
-                      const Text('••••••••', style: TextStyle(fontSize: 14)),
+                  subtitle: const Text(
+                    '••••••••',
+                    style: TextStyle(fontSize: 14),
+                  ),
                   trailing: Icon(Icons.edit, color: scheme.primary, size: 20),
                   onTap: () => _push(context, const ChangePasswordScreen()),
                 ),
@@ -429,6 +462,25 @@ class SettingsDrawer extends StatelessWidget {
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _push(context, const PrivacyPolicyScreen()),
                 ),
+                ListTile(
+                  leading: SettingsLeadingIcon(
+                    icon: Icons.do_not_disturb_on_outlined,
+                    tint: scheme.secondaryContainer,
+                    color: scheme.secondary,
+                  ),
+                  title: Text(
+                    l10n.settingsWithdrawConsent,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  subtitle: Text(
+                    l10n.settingsWithdrawConsentSubtitle,
+                    style: const TextStyle(fontSize: 14),
+                  ),
+                  onTap: () => _confirmWithdrawConsent(context, l10n),
+                ),
               ],
             ),
 
@@ -436,8 +488,9 @@ class SettingsDrawer extends StatelessWidget {
             Card(
               margin: const EdgeInsets.only(bottom: 16),
               elevation: 2,
-              shape:
-                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               child: ListTile(
                 leading: SettingsLeadingIcon(
                   icon: Icons.logout,

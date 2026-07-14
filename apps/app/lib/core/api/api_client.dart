@@ -53,6 +53,24 @@ class ApiClient {
     yield* res.stream.transform(utf8.decoder);
   }
 
+  /// POSTs [bytes] as a multipart file upload (form field `file`).
+  ///
+  /// Errors surface as the same [ApiException] the JSON [post] path
+  /// produces (including `Retry-After` seconds on 429).
+  Future<Map<String, dynamic>> postMultipart(
+    String path, {
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    final request = http.MultipartRequest('POST', _uri(path))
+      ..headers.addAll(_headers())
+      ..files.add(
+        http.MultipartFile.fromBytes('file', bytes, filename: fileName),
+      );
+    final res = await http.Response.fromStream(await _http.send(request));
+    return _decode(res);
+  }
+
   Future<Map<String, dynamic>> put(String path, Object? body) async {
     final res = await _http.put(
       _uri(path),

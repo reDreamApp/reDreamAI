@@ -26,10 +26,12 @@ async def safety_classify(
     if not req.text.strip():
         raise HTTPException(400, "text must not be empty")
 
-    # SafetyRequest carries no session_id (not part of the contract), so these
-    # traces aren't session-grouped — they're still searchable by name/tag.
+    # session_id groups the trace with its chat; user_id makes it reachable by
+    # the backend's GDPR purge (traces contain the user's raw text).
     trace = obs.start_trace(
         "safety-classify",
+        session_id=req.session_id,
+        user_id=req.user_id,
         input={"text": req.text, "stage": req.stage.value if req.stage else None},
         metadata={"language": req.language.value},
     )

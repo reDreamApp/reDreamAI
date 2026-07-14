@@ -67,13 +67,13 @@ class _ChatScreenState extends State<ChatScreen> {
       return _FinishedPanel(
         readOnly: state.resumedDone,
         onStartNew: () => _startChat(state),
-      );
-    }
-    if (state.stage == IrtStage.intensity && !state.hasSubmittedIntensity) {
-      return _IntensityComposer(
-        key: ValueKey(state.chatId),
-        enabled: !state.sending,
-        onSubmit: state.submitIntensity,
+        intensityCard: state.resumedDone || state.intensitySubmitted
+            ? null
+            : _IntensityCard(
+                key: ValueKey(state.chatId),
+                enabled: !state.intensitySaving,
+                onSubmit: state.submitIntensity,
+              ),
       );
     }
     return Padding(
@@ -84,7 +84,9 @@ class _ChatScreenState extends State<ChatScreen> {
             child: TextField(
               controller: _input,
               decoration: InputDecoration(
-                hintText: l10n.chatInputHint,
+                hintText: state.recording
+                    ? l10n.chatMicRecording
+                    : l10n.chatInputHint,
                 border: const OutlineInputBorder(),
               ),
               minLines: 1,
@@ -92,9 +94,13 @@ class _ChatScreenState extends State<ChatScreen> {
               enabled: !state.sending,
             ),
           ),
+          if (state.voiceInputAvailable) ...[
+            const SizedBox(width: 4),
+            _MicButton(state: state, onTranscript: _appendToInput),
+          ],
           const SizedBox(width: 8),
           FilledButton(
-            onPressed: state.sending
+            onPressed: state.sending || state.recording || state.transcribing
                 ? null
                 : () async {
                     final text = _input.text;
@@ -106,6 +112,12 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
     );
+  }
+
+  void _appendToInput(String transcript) {
+    final existing = _input.text.trimRight();
+    _input.text = existing.isEmpty ? transcript : '$existing $transcript';
+    _input.selection = TextSelection.collapsed(offset: _input.text.length);
   }
 
   @override
@@ -123,21 +135,32 @@ class _ChatScreenState extends State<ChatScreen> {
               onDismiss: state.dismissSafetyEvent,
             ),
           if (state.retryAfterSeconds != null)
-            _BudgetBanner(seconds: state.retryAfterSeconds!, onDismiss: state.dismissError),
+            _BudgetBanner(
+              seconds: state.retryAfterSeconds!,
+              onDismiss: state.dismissError,
+            ),
           if (state.errorMessage != null && state.retryAfterSeconds == null)
             _ErrorBanner(
-              body: state.startFailed ? l10n.chatStartErrorBody : l10n.chatErrorBody,
+              body: state.startFailed
+                  ? l10n.chatStartErrorBody
+                  : l10n.chatErrorBody,
               retryLabel: state.startFailed ? l10n.chatRetry : null,
               onRetry: state.startFailed ? () => _resumeOrStart(state) : null,
+              onDismiss: state.dismissError,
+            ),
+          if (state.micPermissionDenied)
+            _ErrorBanner(
+              body: l10n.chatMicPermissionDenied,
               onDismiss: state.dismissError,
             ),
           Expanded(
             child: _starting
                 ? const Center(child: CircularProgressIndicator())
                 : RefreshIndicator(
-                    onRefresh: () => context
-                        .read<ChatState>()
-                        .refreshCurrentChat(welcomeMessage: l10n.chatWelcomeMessage),
+                    onRefresh: () =>
+                        context.read<ChatState>().refreshCurrentChat(
+                          welcomeMessage: l10n.chatWelcomeMessage,
+                        ),
                     child: AnimatedOpacity(
                       opacity: state.loadingChat ? 0.4 : 1.0,
                       duration: const Duration(milliseconds: 200),
@@ -193,10 +216,13 @@ class _Bubble extends StatelessWidget {
             ? Border.all(color: Theme.of(context).colorScheme.error)
             : null,
       ),
-      constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width * 0.75,
+      ),
       child: Column(
-        crossAxisAlignment:
-            isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: isUser
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(message.content),
@@ -205,8 +231,8 @@ class _Bubble extends StatelessWidget {
             Text(
               l10n.chatMessageFailed,
               style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.error,
-                  ),
+                color: Theme.of(context).colorScheme.error,
+              ),
             ),
           ],
         ],
@@ -285,7 +311,10 @@ class _SafetyBanner extends StatelessWidget {
       backgroundColor: Theme.of(context).colorScheme.errorContainer,
       content: Text('${l10n.safetyHelplineTitle}\n$body'),
       actions: [
-        TextButton(onPressed: onDismiss, child: Text(l10n.safetyHelplineButton)),
+        TextButton(
+          onPressed: onDismiss,
+          child: Text(l10n.safetyHelplineButton),
+        ),
       ],
     );
   }
@@ -305,6 +334,47 @@ class _BudgetBanner extends StatelessWidget {
       actions: [
         TextButton(onPressed: onDismiss, child: const Text('OK')),
       ],
+    );
+  }
+}
+
+/// Mic toggle in the composer: idle → start recording; recording → stop,
+/// transcribe, and hand the transcript to [onTranscript] (appended to the
+/// input field — the user reviews and sends it like typed text).
+class _MicButton extends StatelessWidget {
+  const _MicButton({required this.state, required this.onTranscript});
+
+  final ChatState state;
+  final ValueChanged<String> onTranscript;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    if (state.transcribing) {
+      return const Padding(
+        padding: EdgeInsets.all(12),
+        child: SizedBox(
+          width: 24,
+          height: 24,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        ),
+      );
+    }
+    final recording = state.recording;
+    return IconButton(
+      tooltip: recording ? l10n.chatMicStop : l10n.chatMicRecord,
+      color: recording ? Theme.of(context).colorScheme.error : null,
+      icon: Icon(recording ? Icons.stop_circle : Icons.mic),
+      onPressed: state.sending
+          ? null
+          : () async {
+              if (recording) {
+                final transcript = await state.stopRecording();
+                if (transcript != null) onTranscript(transcript);
+              } else {
+                await state.startRecording();
+              }
+            },
     );
   }
 }
@@ -337,64 +407,77 @@ class _ErrorBanner extends StatelessWidget {
   }
 }
 
-class _IntensityComposer extends StatefulWidget {
-  const _IntensityComposer({required this.enabled, required this.onSubmit, super.key});
+/// 0-10 rating card shown on the finished panel. The routed chat no longer
+/// elicits the rating, so the app collects it here and saves it onto the
+/// dream created from this chat (`PUT /chats/{id}/intensity`).
+class _IntensityCard extends StatefulWidget {
+  const _IntensityCard({
+    required this.enabled,
+    required this.onSubmit,
+    super.key,
+  });
   final bool enabled;
   final Future<void> Function(int value) onSubmit;
 
   @override
-  State<_IntensityComposer> createState() => _IntensityComposerState();
+  State<_IntensityCard> createState() => _IntensityCardState();
 }
 
-class _IntensityComposerState extends State<_IntensityComposer> {
+class _IntensityCardState extends State<_IntensityCard> {
   int _value = 5;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                l10n.intensityTitle,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.titleSmall,
-              ),
-              Slider(
-                value: _value.toDouble(),
-                max: 10,
-                divisions: 10,
-                label: '$_value',
-                onChanged: widget.enabled
-                    ? (v) => setState(() => _value = v.round())
-                    : null,
-              ),
-              FilledButton(
-                onPressed:
-                    widget.enabled ? () => widget.onSubmit(_value) : null,
-                child: Text(l10n.intensitySubmit),
-              ),
-            ],
-          ),
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              l10n.intensityTitle,
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.titleSmall,
+            ),
+            Slider(
+              value: _value.toDouble(),
+              max: 10,
+              divisions: 10,
+              label: '$_value',
+              onChanged: widget.enabled
+                  ? (v) => setState(() => _value = v.round())
+                  : null,
+            ),
+            FilledButton(
+              onPressed: widget.enabled ? () => widget.onSubmit(_value) : null,
+              child: Text(l10n.intensitySubmit),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-/// Bottom panel for a finished session. Live finish: "new dream" card +
-/// notice + new-session button. Resumed finished chat: read-only notice
-/// only (legacy: finished sessions can only be viewed).
+/// Bottom panel for a finished session. Live finish: intensity rating card
+/// (until submitted) + "new dream" card + notice + new-session button.
+/// Resumed finished chat: read-only notice only (legacy: finished sessions
+/// can only be viewed).
 class _FinishedPanel extends StatelessWidget {
-  const _FinishedPanel({required this.readOnly, required this.onStartNew});
+  const _FinishedPanel({
+    required this.readOnly,
+    required this.onStartNew,
+    this.intensityCard,
+  });
+
   final bool readOnly;
   final VoidCallback onStartNew;
+
+  /// Non-null while the just-finished session's dream still wants its
+  /// 0-10 rating; null once submitted or on read-only resumes.
+  final Widget? intensityCard;
 
   @override
   Widget build(BuildContext context) {
@@ -415,6 +498,10 @@ class _FinishedPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (intensityCard != null) ...[
+            intensityCard!,
+            const SizedBox(height: 8),
+          ],
           const _NewDreamCard(),
           const SizedBox(height: 8),
           Text(

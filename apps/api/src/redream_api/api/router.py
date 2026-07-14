@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from .internal import moderation
 from .v1 import (
+    audio,
     auth,
     chats,
     dreams,
@@ -25,6 +26,7 @@ router_v1.include_router(users.router)
 router_v1.include_router(profile.router)
 router_v1.include_router(dreams.router)
 router_v1.include_router(chats.router)
+router_v1.include_router(audio.router)
 router_v1.include_router(progress.router)
 router_v1.include_router(reports.router)
 router_v1.include_router(exports.router)

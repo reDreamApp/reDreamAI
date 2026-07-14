@@ -6,13 +6,11 @@ decisions in `docs/decisions/`.
 
 ## Now — concrete work, no decision needed
 
-1. **CI test pipeline** (~half a day). `.github/workflows/` has only
-   `deploy.yml`; nothing stops a broken PR from merging. Add a workflow running
-   on PR + push to main: `pytest` for apps/ai and apps/api, `flutter test` via
-   FVM. Gate on **tests + apps/ai lint only** — apps/api ruff/mypy (80/15
-   errors) and the Flutter analyzer (366 infos) are red at baseline; pin those
-   counts as "no new errors" checks or leave them non-blocking until the
-   cleanup pass below, otherwise CI is red on day one and gets ignored.
+1. ~~**CI test pipeline**~~ DONE (`.github/workflows/ci.yml`): tests for all
+   three apps + apps/ai lint gate on PR + push to main; apps/api lint and the
+   Flutter analyzer run informational (`continue-on-error`) until the
+   lint-baseline cleanup below; plus a migrations-from-zero job
+   (`supabase db start` + `migration up --local`).
 2. **Backup job + restore rehearsal** (~a day). Bucket + retention exist; still
    missing: the scheduled `pg_dump` upload (cron/systemd timer on the host) and
    a written restore runbook that has been **rehearsed once** against a scratch
@@ -41,6 +39,17 @@ decisions in `docs/decisions/`.
 
 ## Launch gates — must be done before real users, no ADR needed
 
+- **RE-ENABLE THE CRISIS CLASSIFIER + fix its false positive.** Disabled in
+  local dev only 2026-07-13 (`SAFETY_CLASSIFIER_ENABLED=false` in
+  apps/api/.env — the code default stays true). Reason: reproducible false
+  positive in safety-v0.3.0 — frustrated meta-questions at the bot ("who are
+  you even") classify as high/0.95 WHEN stage+context are supplied; same text
+  without context is none. Fix the classifier prompt (frustration at the
+  assistant, meta-questions, and off-topic remarks are NOT risk signals; add
+  few-shot negatives + regression test with the 2026-07-13 transcript), bump
+  to safety-v0.3.1, verify, re-enable. Shipping with the classifier off
+  violates ADR 0005.
+
 Tracked here so they don't live only in session memory. Regulatory details and
 sources: `docs/COMPLIANCE.md` (researched 2026-07-06).
 
@@ -49,13 +58,22 @@ sources: `docs/COMPLIANCE.md` (researched 2026-07-06).
   0004): no condition names, no effect claims, no therapy wording.
 - **DPIA (Art. 35)** — written data-protection impact assessment; health apps
   are on the DSK must-list. Biggest missing compliance artifact.
-- **Art. 9 consent flow** — explicit in-app consent (Art. 9(2)(a)) +
-  Verzeichnis von Verarbeitungstätigkeiten + documented TOMs.
+- **Art. 9 consent flow** — CODE DONE 2026-07-10 (one bundled consent,
+  Daniel's decision): `user_consents` proof log (migration
+  20260710000001), grant/withdraw endpoints, `require_consent` gate on
+  health-data routes, blocking consent screen after sign-in + settings
+  withdrawal, DE+EN copy near-final. STILL OPEN: Verzeichnis von Verarbeitungstätigkeiten,
+  documented TOMs.
 - **Vendor DPAs**: sign/collect Scaleway + Mistral DPAs (both self-serve);
   request Mistral zero-data-retention, disclose their 30-day abuse-monitoring
   window in the privacy policy until granted.
-- **Langfuse erasure path**: `delete_langfuse_user_data()` is still a no-op —
-  implement deletion by `session_id` (GDPR purge must reach traces).
+- ~~**Langfuse erasure path**~~ DONE 2026-07-09: apps/ai stamps every trace
+  (chat + safety-classify) with the backend-sent `user_id`/`session_id`, and
+  `delete_user_traces` really deletes now — paginated
+  `GET /api/public/traces?userId=` then bulk `DELETE {"traceIds": [...]}`
+  (there is no delete-by-user endpoint; verified against the Langfuse OpenAPI
+  spec). Traces recorded before this change carry no userId, but Langfuse keys
+  were never set in prod, so none exist.
 - **Langfuse retention TTL** (30–90 d) on traces.
 - **Edge rate limiting**: Caddy has no request-flood protection (the ADR 0008
   token budget only caps per-user LLM cost). Needs the non-bundled Caddy
@@ -69,6 +87,12 @@ sources: `docs/COMPLIANCE.md` (researched 2026-07-06).
 
 ## Deferred deliberately
 
+- **TTS / rehearsal audio (voice-source decision)** — parked 2026-07-10.
+  Voxtral TTS has NO preset voices; every voice is a clone from reference
+  audio (ADR 0010 amendment has the details). Open question when resumed:
+  one app voice per language (record Daniel vs. hire a speaker) vs. user's
+  own voice (adds Art. 9 biometric consent + purge scope). STT is live and
+  unaffected; `audio/tts.py` stays stubbed.
 - **Staging environment** — the release topology (RELEASING.md: preview
   branches / local stack for schema, `production` as the only deploy gate)
   covers pre-launch risk. A standing staging box is a solo-dev time sink;

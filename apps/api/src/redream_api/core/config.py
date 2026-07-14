@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_anon_key: str = ""
     supabase_service_role_key: str = ""
+    # Rehearsal-audio bucket targeted by the GDPR purge's storage cleanup
+    # (storage_service). Mirrors apps/ai's setting of the same name.
+    supabase_storage_bucket: str = "rehearsal-audio"
 
     # Supabase JWT verification
     supabase_jwt_iss: str = ""
@@ -47,9 +50,19 @@ class Settings(BaseSettings):
     # Token budget (ADR 0008)
     daily_llm_token_budget: int = 100_000
 
+    # Art. 9 consent — the consent-text version users must have granted.
+    # Bump ONLY on material changes to the consent copy (new processor, new
+    # purpose): a bump forces every user through re-consent on next launch.
+    consent_version: str = "2026-07-10"
+
     # AI service
     ai_service_url: str = "http://localhost:8080"
     ai_request_timeout: float = 90.0
+    # DEV-ONLY escape hatch for the crisis pre-classifier (ADR 0005). Set
+    # false ONLY in local dev while the classifier prompt misfires (known
+    # false positive, 2026-07-13). MUST be true (default) in production —
+    # docs/ROADMAP.md tracks the re-enable gate.
+    safety_classifier_enabled: bool = True
 
     # Langfuse (ADR 0007 — used by GDPR purge path)
     langfuse_host: str = ""

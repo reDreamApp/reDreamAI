@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -70,6 +72,18 @@ class _FakeChatService implements IChatService {
   }) {
     throw UnimplementedError();
   }
+
+  @override
+  Future<void> setDreamIntensity({
+    required int chatId,
+    required int value,
+  }) async {}
+
+  @override
+  Future<String> transcribeAudio({
+    required Uint8List bytes,
+    required String fileName,
+  }) async => '';
 
   @override
   Future<void> deleteChat(int chatId) async {}

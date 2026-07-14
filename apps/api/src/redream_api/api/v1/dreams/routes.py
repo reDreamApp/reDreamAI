@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ....core.dependencies import get_current_user, get_db
+from ....core.dependencies import get_current_user, get_db, require_consent
 from ....db.models.dream import Dream
 from ....db.models.user import User
 from ....db.repositories.dream_repo import DreamRepo
@@ -61,7 +61,12 @@ async def get_dream(
     return _to_out(dream)
 
 
-@router.post("", response_model=DreamOut, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=DreamOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_consent)],
+)
 async def create_dream(
     body: DreamCreate,
     user: User = Depends(get_current_user),
@@ -72,7 +77,11 @@ async def create_dream(
     return _to_out(created)
 
 
-@router.put("/{dream_id}", response_model=DreamOut)
+@router.put(
+    "/{dream_id}",
+    response_model=DreamOut,
+    dependencies=[Depends(require_consent)],
+)
 async def update_dream(
     dream_id: int,
     body: DreamUpdate,

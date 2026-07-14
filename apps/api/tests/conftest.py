@@ -15,19 +15,22 @@ from uuid import UUID, uuid4
 
 # Set env BEFORE importing redream_api so the global Settings constructs cleanly.
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
-os.environ.setdefault(
-    "REPORT_NOTIFICATION_HMAC_SECRET", "test-secret-do-not-use-in-prod"
-)
+os.environ.setdefault("REPORT_NOTIFICATION_HMAC_SECRET", "test-secret-do-not-use-in-prod")
 os.environ.setdefault("REPORT_ACTION_BASE_URL", "http://test/internal")
+# The developer's local .env may disable the crisis classifier (dev flag);
+# tests always run with the production default (env var beats dotenv).
+os.environ["SAFETY_CLASSIFIER_ENABLED"] = "true"
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from redream_api.core.config import settings
 from redream_api.core.dependencies import get_current_user, get_db
 from redream_api.db import models as _models  # noqa: F401 — register tables
 from redream_api.db.base import Base
 from redream_api.db.models.user import User
+from redream_api.db.models.user_consent import UserConsent
 from redream_api.main import app
 from redream_api.services.ai_client import get_ai_client
 
@@ -79,6 +82,10 @@ class FakeAiClient:
         """Queue an exception to be raised by the next `chat` call."""
         self._chat.append({"__raise__": exc})
 
+    def queue_transcribe_error(self, exc: Exception) -> None:
+        """Queue an exception to be raised by the next `transcribe` call."""
+        self._transcribe.append({"__raise__": exc})
+
     async def chat(self, payload: dict[str, Any]) -> dict[str, Any]:
         self.calls.append({"method": "chat", "payload": payload})
         if not self._chat:
@@ -115,7 +122,10 @@ class FakeAiClient:
         )
         if not self._transcribe:
             raise RuntimeError("FakeAiClient: no transcribe response queued")
-        return self._transcribe.pop(0)
+        response = self._transcribe.pop(0)
+        if "__raise__" in response:
+            raise response["__raise__"]
+        return response
 
     async def rehearsal_generate(self, payload: dict[str, Any]) -> dict[str, Any]:
         self.calls.append({"method": "rehearsal_generate", "payload": payload})
@@ -164,9 +174,18 @@ async def db(db_session_maker) -> AsyncIterator[AsyncSession]:
 
 @pytest.fixture
 async def fake_user(db_session_maker) -> User:
+    """A user WITH current Art. 9 consent granted — the normal state for
+    every feature test. Consent-gating tests use `fake_user_no_consent`."""
     async with db_session_maker() as session:
         user = User(id=uuid4(), email="test@example.com")
         session.add(user)
+        session.add(
+            UserConsent(
+                user_id=user.id,
+                version=settings.consent_version,
+                granted=True,
+            )
+        )
         await session.commit()
         await session.refresh(user)
     return user
@@ -195,9 +214,7 @@ async def client(db_session_maker, fake_user, fake_ai) -> AsyncIterator[AsyncCli
     app.dependency_overrides[get_current_user] = _user_dep
     app.dependency_overrides[get_ai_client] = _ai_dep
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as c:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
 
     app.dependency_overrides.clear()
@@ -214,9 +231,7 @@ async def start_chat(client: AsyncClient, language: str = "en") -> int:
     return int(r.json()["chat_id"])
 
 
-async def seed_usage(
-    db_session_maker, *, user_id: UUID, tokens: int
-) -> None:
+async def seed_usage(db_session_maker, *, user_id: UUID, tokens: int) -> None:
     """Seed today's UserDailyUsage row directly. Used by token-budget tests."""
     from datetime import datetime, timezone
 

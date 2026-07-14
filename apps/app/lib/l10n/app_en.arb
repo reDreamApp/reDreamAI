@@ -1,16 +1,18 @@
 {
   "@@locale": "en",
   "appTitle": "reDreamAI",
-
   "signInTitle": "Sign in",
   "signInEmail": "Email",
   "signInPassword": "Password",
   "signInButton": "Sign in",
   "signInError": "Sign in failed. Check your credentials.",
-
   "chatTitle": "Dream chat",
   "chatInputHint": "Tell me about your dream…",
   "chatSend": "Send",
+  "chatMicRecord": "Record your dream",
+  "chatMicStop": "Stop recording",
+  "chatMicRecording": "Recording… tap stop when you're done",
+  "chatMicPermissionDenied": "Microphone access is off. Enable it in your device settings to record your dream.",
   "chatThinking": "Thinking…",
   "chatWelcomeMessage": "Hello! I'm here to help you rewrite difficult dreams. This is a safe space where we can work together to turn a distressing dream into a new story. Would you like to start by telling me about a recent nightmare you'd like to work on?",
   "chatErrorBody": "Sorry, I encountered an error. Please try again.",
@@ -22,27 +24,21 @@
   "intensitySubmit": "Submit",
   "chatFinishedNotice": "This session is finished. Well done!",
   "chatStartNewSession": "Start new session",
-
   "stageRecording": "Recording the dream",
-  "stageIntensity": "Rating intensity",
   "stageRewriting": "Rewriting the dream",
   "stageSummary": "Wrapping up",
   "stageFinal": "Done",
-
   "safetyHelplineTitle": "Reach out for support",
   "safetyHelplineBody": "If you're in crisis, please contact a helpline. We've paused this conversation so you can take care of yourself first.",
   "safetyHelplineButton": "Show helplines",
-
   "budgetExceededTitle": "Daily limit reached",
   "budgetExceededBody": "You've reached today's chat limit. It resets at midnight UTC.",
-
   "tabHome": "Home",
   "tabChat": "Chat",
   "tabCollection": "Collection",
   "tabRecord": "Record",
   "tabLearn": "Learn",
   "settingsSignOut": "Sign out",
-
   "recordTitle": "Your drafts",
   "recordNewDream": "New dream",
   "recordEmptyTitle": "No drafts yet",
@@ -51,7 +47,9 @@
   "recordUpdatedAt": "Updated {date}",
   "@recordUpdatedAt": {
     "placeholders": {
-      "date": { "type": "String" }
+      "date": {
+        "type": "String"
+      }
     }
   },
   "recordDeleteTooltip": "Delete draft",
@@ -60,7 +58,6 @@
   "recordDeleteConfirm": "Delete",
   "recordDeleteCancel": "Cancel",
   "recordLoadError": "Couldn't load your drafts.",
-
   "draftEditorNewTitle": "New dream",
   "draftEditorEditTitle": "Edit draft",
   "draftTitleLabel": "Title",
@@ -74,7 +71,9 @@
   "draftIntensityLabel": "Intensity: {value}",
   "@draftIntensityLabel": {
     "placeholders": {
-      "value": { "type": "int" }
+      "value": {
+        "type": "int"
+      }
     }
   },
   "draftIntensityHelper": "Rate how intense the nightmare felt (0–10).",
@@ -89,7 +88,6 @@
   "draftSaveSuccess": "Dream saved to your collection.",
   "draftSaveSuccessView": "View",
   "draftSaveError": "Couldn't save your dream. Your draft is kept — try again.",
-
   "collectionTitle": "Dream Collection",
   "collectionSubtitle": "View your dreams, practice your transformed nightmares and track your progress",
   "collectionFilterAll": "All",
@@ -98,8 +96,12 @@
   "collectionShowingCount": "Showing {shown} of {total} entries",
   "@collectionShowingCount": {
     "placeholders": {
-      "shown": {"type": "int"},
-      "total": {"type": "int"}
+      "shown": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
     }
   },
   "collectionEmptyTitle": "No dreams yet",
@@ -110,7 +112,6 @@
   "collectionRetry": "Try again",
   "collectionTransformedBadge": "Transformed nightmare",
   "collectionMenuPractice": "Practice",
-
   "dreamNightmareBadge": "Nightmare",
   "dreamCurrentBadge": "Current dream",
   "dreamLabel": "Dream",
@@ -132,7 +133,6 @@
   "dreamSaveFailed": "Couldn't save your changes. Please try again.",
   "dreamDeleteFailed": "Couldn't delete the dream. Please try again.",
   "dreamActionFailed": "Something went wrong. Please try again.",
-
   "practiceStart": "Flip the script",
   "practiceWelcomeTitle": "Time to flip the script",
   "practiceWelcomeBody": "This guide walks you through rehearsing your rewritten dream, step by step.",
@@ -148,26 +148,33 @@
   "practiceCount": "{count, plural, =0{No practice sessions yet} one{1 practice session} other{{count} practice sessions}}",
   "@practiceCount": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
   "practiceLastPracticed": "Last practiced on {date}",
   "@practiceLastPracticed": {
     "placeholders": {
-      "date": {"type": "String"}
+      "date": {
+        "type": "String"
+      }
     }
   },
   "practiceSessionsProgress": "{count} of {total} sessions",
   "@practiceSessionsProgress": {
     "placeholders": {
-      "count": {"type": "int"},
-      "total": {"type": "int"}
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
     }
   },
   "practiceAudioAvailable": "An audio rehearsal is available for this dream.",
   "practiceGenerateAudio": "Generate audio",
   "practiceAudioUnavailable": "Audio rehearsal is not available yet.",
-
   "chatHistoryTitle": "Chat history",
   "chatHistoryDescription": "Start a new chat or load an old one. Finished sessions can only be viewed, not continued.",
   "chatNewChat": "New chat",
@@ -186,10 +193,11 @@
   "chatDaysAgo": "{count, plural, one {1 day ago} other {{count} days ago}}",
   "@chatDaysAgo": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
-
   "homeSlogan": "Transform Your Nightmares",
   "homeMission": "Rewrite difficult dreams into new stories and practice them for calmer nights",
   "homeQuickActionsTitle": "Quick actions",
@@ -209,7 +217,6 @@
   "homeIrtGuideStep3Title": "Step 3: Rehearse Your New Dream",
   "homeIrtGuideStep3Body": "Mentally rehearse the rewritten dream daily. Focus on the positive feelings and outcomes.",
   "homeIrtGuideDone": "Done",
-
   "progressTitle": "Your Progress",
   "progressLoadError": "Trouble fetching data. Pull down to refresh.",
   "progressStreakTitle": "Streak",
@@ -220,7 +227,6 @@
   "progressDreamsLoggedSubtitle": "total in your collection",
   "progressNightmaresTreatedTitle": "Nightmares transformed",
   "progressNightmaresTreatedSubtitle": "rewritten with a new ending",
-
   "moodTitle": "Mood",
   "moodQuestion": "How are you feeling today?",
   "moodThanks": "Thanks for checking in today!",
@@ -229,8 +235,12 @@
   "moodSubtitleWithAvg": "{mood} • 30-day avg: {avg}",
   "@moodSubtitleWithAvg": {
     "placeholders": {
-      "mood": {"type": "String"},
-      "avg": {"type": "String"}
+      "mood": {
+        "type": "String"
+      },
+      "avg": {
+        "type": "String"
+      }
     }
   },
   "moodVeryDissatisfied": "Very dissatisfied",
@@ -238,12 +248,13 @@
   "moodNeutral": "Neutral",
   "moodSatisfied": "Satisfied",
   "moodVerySatisfied": "Very satisfied",
-
   "learnTopics": "Topics",
   "learnFilteringBy": "Filtering by {tag}",
   "@learnFilteringBy": {
     "placeholders": {
-      "tag": {"type": "String"}
+      "tag": {
+        "type": "String"
+      }
     }
   },
   "learnLoadError": "Unable to load articles right now.",
@@ -251,7 +262,6 @@
   "learnNoArticles": "No articles found.",
   "learnOpenArticle": "Open the article",
   "learnOpenLinkError": "Unable to open article link.",
-
   "onboardingCongratsTitle": "Congratulations!",
   "onboardingCongratsBody": "You just successfully took the first step towards better sleep!",
   "onboardingWelcomeTitle": "Welcome to",
@@ -265,7 +275,6 @@
   "onboardingPrivacyBody": "reDreamAI is built with security in mind. We only use secure European services and are GDPR conform.",
   "onboardingDone": "Let's go!",
   "onboardingSkip": "Skip",
-
   "authSlogan": "Transform Your\nNightmares",
   "authEmailHint": "you@example.com",
   "authPasswordHint": "Enter your password",
@@ -277,7 +286,9 @@
   "authPasswordTooShort": "The password must be at least {minLength} characters long.",
   "@authPasswordTooShort": {
     "placeholders": {
-      "minLength": { "type": "int" }
+      "minLength": {
+        "type": "int"
+      }
     }
   },
   "authPasswordMismatch": "The passwords do not match.",
@@ -294,7 +305,6 @@
   "authForgotPasswordButton": "Send reset link",
   "authForgotPasswordSuccess": "We've sent a reset link to your email. Please check your inbox.",
   "authForgotPasswordError": "Couldn't send the reset link. Please try again.",
-
   "settingsTitle": "Profile & Settings",
   "settingsDescription": "Manage your account preferences, notifications, and privacy settings",
   "settingsProfileSection": "Profile Information",
@@ -321,17 +331,34 @@
   "settingsHelpCenter": "Help Center",
   "settingsContactSupport": "Contact support",
   "settingsPrivacyPolicy": "Privacy policy",
+  "consentTitle": "Your data, your consent",
+  "consentIntro": "reDreamAI helps you work through distressing dreams. To do that, the app processes what you share about your dreams and how you feel — information about your health. Under EU law (GDPR Art. 9), this needs your explicit consent.",
+  "consentBulletData": "What is processed: your dream descriptions and voice recordings (transcribed, then immediately discarded), rewritten dreams, intensity ratings, and mood entries.",
+  "consentBulletProcessors": "Who processes it: our servers hosted at Scaleway (France). AI responses are generated by Scaleway and, as a fallback, Mistral AI (France) — Mistral may retain inputs for up to 30 days for abuse monitoring. Technical diagnostics stay on our own EU servers.",
+  "consentBulletControl": "Your control: withdraw this consent anytime in Settings — dream features then pause until you consent again. You can view, export, or delete your data at any time regardless.",
+  "consentCheckbox": "I consent to the processing of my health-related data as described above",
+  "consentContinue": "Agree and continue",
+  "consentDeclineHint": "Without this consent, reDreamAI can't process dreams. You can sign out instead.",
+  "consentSignOut": "Sign out",
+  "consentLoadError": "Couldn't check your consent status.",
+  "settingsWithdrawConsent": "Withdraw data consent",
+  "settingsWithdrawConsentSubtitle": "Pause processing of your dream data",
+  "withdrawConsentTitle": "Withdraw consent?",
+  "withdrawConsentBody": "reDreamAI will stop processing your dream data, and dream features will pause until you consent again. Your saved data stays untouched — you can still view, export, or delete it.",
+  "withdrawConsentConfirm": "Withdraw",
+  "withdrawConsentCancel": "Cancel",
   "settingsSignOutSubtitle": "Sign out of your account",
   "settingsVersion": "Version {version}",
   "@settingsVersion": {
     "placeholders": {
-      "version": { "type": "String" }
+      "version": {
+        "type": "String"
+      }
     }
   },
   "settingsVersionError": "Couldn't read the app version",
   "settingsTagline": "A self-help companion for working with difficult dreams. reDreamAI does not diagnose or treat any condition — if nightmares are seriously distressing you, please talk to a doctor or psychotherapist.",
   "settingsCancel": "Cancel",
-
   "settingsChangeEmailTitle": "Change email",
   "settingsChangeEmailHeading": "Update email address",
   "settingsChangeEmailBody": "Enter your new email address below. You'll need to verify the new address.",
@@ -340,7 +367,6 @@
   "settingsChangeEmailSuccess": "Email change requested! Check both your old and new inbox to confirm the change.",
   "settingsChangeEmailError": "Couldn't update your email. Please try again.",
   "settingsChangeEmailButton": "Update email",
-
   "settingsChangePasswordTitle": "Change password",
   "settingsChangePasswordHeading": "Update password",
   "settingsChangePasswordBody": "Enter your current password and choose a new secure password.",
@@ -352,7 +378,6 @@
   "settingsChangePasswordSuccess": "Password updated successfully.",
   "settingsChangePasswordError": "Couldn't update your password. Please try again.",
   "settingsChangePasswordButton": "Update password",
-
   "settingsExportTitle": "Export my data",
   "settingsExportBody": "You can view your profile, chat messages, and dreams as a JSON export.",
   "settingsExportButton": "Load my data",
@@ -361,7 +386,6 @@
   "settingsExportReady": "Your data export is ready. You can copy it below.",
   "settingsExportCopy": "Copy JSON",
   "settingsExportCopied": "Export copied to clipboard",
-
   "settingsDeleteDataTitle": "Delete my data",
   "settingsDeleteDataBody": "This deletes all your app data — dreams, chats, and profile — at once. Your login stays active.",
   "settingsDeleteDataEmailHint": "Type your email address to confirm",
@@ -371,7 +395,6 @@
   "settingsDeleteDataConfirmBody": "Your dreams, chats, and profile will be permanently deleted. This can't be undone. Your account stays active.",
   "settingsDeleteDataSuccess": "Your data has been deleted.",
   "settingsDeleteDataError": "Couldn't delete your data. Please try again.",
-
   "settingsDeleteAccountTitle": "Delete account",
   "settingsDeleteAccountBody": "This action is not reversible. Once you delete your account, all your data is permanently removed and you'll be signed out.",
   "settingsDeleteAccountWarningTitle": "Warning",
@@ -383,7 +406,6 @@
   "settingsDeleteAccountConfirmBody": "Your account and all data will be permanently deleted and you'll be signed out. This can't be undone.",
   "settingsDeleteAccountButton": "Delete account",
   "settingsDeleteAccountError": "Couldn't delete your account. Please try again.",
-
   "settingsPrivacyHeader": "Your Privacy Matters to Us",
   "settingsPrivacyUpdated": "Last updated: November 2025",
   "settingsPrivacyS1Title": "1. Data Controller",
@@ -406,7 +428,6 @@
   "settingsPrivacyS9Body": "Our website may contain links to third-party websites. We are not responsible for the privacy practices of these external sites.",
   "settingsPrivacyS10Title": "10. Changes to This Policy",
   "settingsPrivacyS10Body": "We may update this privacy policy from time to time. We will notify you of any changes by posting the new policy on this page and updating the 'Last updated' date.",
-
   "profileTitle": "Profile",
   "profileDrawerSubtitle": "Gender, age range, nightmare frequency",
   "profileGenderLabel": "Gender",
@@ -428,7 +449,6 @@
   "profileFreqFewTimesMonth": "A few times a month",
   "profileFreqRarely": "Rarely",
   "profileFreqNever": "Never",
-
   "helpTitle": "Help Center",
   "helpIntro": "Share your concern and we'll take a look as soon as possible.",
   "helpFormTitle": "Tell us what's on your mind",

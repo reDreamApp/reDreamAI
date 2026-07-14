@@ -68,6 +68,8 @@ Scaleway compute instance (Ubuntu LTS)
 
 7. **DNS.** Point three A records at the instance:
    - `redream.example.com`        (api)
+   - `supabase.redream.example.com` (Supabase kong — the mobile app's
+     `SUPABASE_URL`; sign-in breaks without it)
    - `ai.redream.example.com`     (ai — keep DNS private or IP-restrict in Caddyfile)
    - `langfuse.redream.example.com` (langfuse)
 

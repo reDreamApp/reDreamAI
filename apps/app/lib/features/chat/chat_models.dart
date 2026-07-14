@@ -1,11 +1,16 @@
-enum IrtStage { recording, intensity, rewriting, summary, finalStage }
+/// The routed chat stages: recording → rewriting → summary → final.
+/// `intensity` is no longer a routed stage — the ported core doesn't elicit
+/// the 0-10 rating; the app collects it itself when a session finishes.
+enum IrtStage { recording, rewriting, summary, finalStage }
 
 IrtStage stageFromString(String s) {
   switch (s) {
     case 'recording':
       return IrtStage.recording;
     case 'intensity':
-      return IrtStage.intensity;
+      // Legacy pre-port chats persisted this stage between recording and
+      // rewriting; render such a chat as being in the rewriting step.
+      return IrtStage.rewriting;
     case 'rewriting':
       return IrtStage.rewriting;
     case 'summary':

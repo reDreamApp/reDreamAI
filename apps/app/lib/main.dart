@@ -11,6 +11,8 @@ import 'core/services/dream_service.dart';
 import 'core/theme/theme_provider.dart';
 import 'features/chat/chat_service.dart';
 import 'features/chat/chat_state.dart';
+import 'features/chat/voice_recorder.dart';
+import 'features/consent/consent_service.dart';
 import 'features/collection/collection_state.dart';
 import 'features/shell/tab_navigator.dart';
 
@@ -42,10 +44,16 @@ Future<void> main() async {
         Provider<ApiClient>.value(value: apiClient),
         Provider<IChatService>.value(value: chatService),
         Provider<IDreamService>.value(value: dreamService),
+        Provider<IConsentService>(
+          create: (_) => ApiConsentService(apiClient),
+        ),
         ChangeNotifierProvider<ThemeProvider>.value(value: themeProvider),
         ChangeNotifierProvider<LanguageProvider>.value(value: languageProvider),
         ChangeNotifierProvider<TabNavigator>(create: (_) => TabNavigator()),
-        ChangeNotifierProvider<ChatState>(create: (_) => ChatState(chatService)),
+        ChangeNotifierProvider<ChatState>(
+          create: (_) =>
+              ChatState(chatService, voiceRecorder: RecordVoiceRecorder()),
+        ),
         ChangeNotifierProvider<DreamCollectionState>(
           create: (_) => DreamCollectionState(dreamService),
         ),

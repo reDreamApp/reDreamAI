@@ -87,3 +87,29 @@ old `MISTRAL_RESPONSE_MODEL` / `MISTRAL_ROUTING_MODEL` (`mistral-small-4-0-26-03
 `reasoning_effort=low`" note above no longer applies to chat). If reintroduced, it must be a
 per-model capability flag stripped from the fallback kwargs — the Mistral fallback models
 likely don't support it (see integration brief §3).
+
+## Amendment (2026-07-09) — STT: Whisper on Scaleway primary, Voxtral fallback
+
+The original STT row (`voxtral-mini-latest` on direct Mistral) is superseded. Trigger:
+Scaleway deprecated its hosted Voxtral (`voxtral-small-24b`, EOL 2026-08-01), forcing the
+provider question — and the answer follows the data, not the model. Raw voice recordings
+are the app's most sensitive payload (Art. 9 content in an identifiable voice). Scaleway
+Generative APIs are zero-retention Paris inference outside the US CLOUD Act; Mistral
+La Plateforme retains inputs up to 30 days for abuse monitoring until ZDR is granted, with
+some non-EU subprocessors under SCCs (COMPLIANCE.md §3). So the microphone path stays in
+the Scaleway-only chain, and Mistral serves only as availability fallback — the same
+topology as the chat agents:
+
+| Role | Primary (Scaleway) | Fallback (direct Mistral) |
+|---|---|---|
+| STT (dream voice journaling) | `openai/whisper-large-v3:fp16` | `voxtral-mini-2602` (Transcribe V2) |
+
+Both providers implement the OpenAI-compatible `POST /v1/audio/transcriptions` multipart
+shape (`redream_ai/audio/stt.py`). The fallback is now **pinned** (`voxtral-mini-2602`),
+closing the original "STT intentionally uses `-latest`" exception. Quality: Voxtral V2
+benchmarks slightly better on multilingual WER; whisper-large-v3 is proven for EN/DE and
+the compliance edge wins. Env: `WHISPER_STT_MODEL` + `VOXTRAL_STT_MODEL`.
+
+TTS is unchanged (`voxtral-mini-tts-2603`, direct Mistral) — Scaleway offers no TTS at
+all, and TTS input is rewritten dream text (already in the Mistral fallback chain), not
+the user's voice.

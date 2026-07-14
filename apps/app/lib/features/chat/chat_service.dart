@@ -20,6 +20,20 @@ abstract class IChatService {
     required String content,
   });
 
+  /// Saves the app-collected 0-10 intensity rating on the dream created
+  /// from this chat (`PUT /chats/{id}/intensity`). The routed chat no
+  /// longer elicits the rating — the app owns intensity collection.
+  Future<void> setDreamIntensity({required int chatId, required int value});
+
+  /// Transcribes a voice recording (`POST /audio/transcribe`, STT) and
+  /// returns the transcript for the composer. Nothing is persisted — the
+  /// audio is discarded server-side, the text only becomes part of the chat
+  /// if the user sends it.
+  Future<String> transcribeAudio({
+    required Uint8List bytes,
+    required String fileName,
+  });
+
   Future<void> deleteChat(int chatId);
 }
 
@@ -47,6 +61,27 @@ class ChatService implements IChatService {
     return list
         .map((e) => ChatMessage.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  @override
+  Future<void> setDreamIntensity({
+    required int chatId,
+    required int value,
+  }) async {
+    await _api.put('/api/v1/chats/$chatId/intensity', {'intensity': value});
+  }
+
+  @override
+  Future<String> transcribeAudio({
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    final json = await _api.postMultipart(
+      '/api/v1/audio/transcribe',
+      bytes: bytes,
+      fileName: fileName,
+    );
+    return (json['text'] as String?) ?? '';
   }
 
   @override

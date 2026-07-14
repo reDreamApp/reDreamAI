@@ -3,11 +3,17 @@ import 'package:flutter/foundation.dart';
 import '../../core/api/api_exception.dart';
 import 'chat_models.dart';
 import 'chat_service.dart';
+import 'voice_recorder.dart';
 
 class ChatState extends ChangeNotifier {
-  ChatState(this._service);
+  ChatState(this._service, {IVoiceRecorder? voiceRecorder})
+    : _recorder = voiceRecorder;
 
   final IChatService _service;
+
+  /// Null when the platform has no recorder wired (tests, unsupported
+  /// targets) — the composer hides the mic button entirely.
+  final IVoiceRecorder? _recorder;
 
   int? _chatId;
   IrtStage _stage = IrtStage.recording;
@@ -19,7 +25,11 @@ class ChatState extends ChangeNotifier {
   int? _retryAfterSeconds;
   String? _errorMessage;
   bool _startFailed = false;
-  bool _hasSubmittedIntensity = false;
+  bool _intensitySubmitted = false;
+  bool _intensitySaving = false;
+  bool _recording = false;
+  bool _transcribing = false;
+  bool _micPermissionDenied = false;
   String? _failedMessageId;
   bool _hasStreamingDraft = false;
   int _localSeq = 0;
@@ -54,9 +64,26 @@ class ChatState extends ChangeNotifier {
   /// True when the last [startChat] call failed; the UI offers a retry.
   bool get startFailed => _startFailed;
 
-  /// True once a rating was successfully submitted in the current
-  /// intensity stage; resets on a new chat or when the stage moves on.
-  bool get hasSubmittedIntensity => _hasSubmittedIntensity;
+  /// True once the 0-10 rating for this session's dream was saved; the
+  /// finished panel hides the rating card. Resets when the session rebinds.
+  bool get intensitySubmitted => _intensitySubmitted;
+
+  /// True while the rating save is in flight (disables the card's controls).
+  bool get intensitySaving => _intensitySaving;
+
+  /// True when a recorder is wired — the composer shows the mic button.
+  bool get voiceInputAvailable => _recorder != null;
+
+  /// True while the mic is capturing audio.
+  bool get recording => _recording;
+
+  /// True while a stopped recording is being transcribed.
+  bool get transcribing => _transcribing;
+
+  /// True when the last [startRecording] was refused mic permission; the UI
+  /// shows a localized hint. Cleared on the next attempt and by
+  /// [dismissError].
+  bool get micPermissionDenied => _micPermissionDenied;
 
   /// Local id of the message whose send failed, if any.
   String? get failedMessageId => _failedMessageId;
@@ -99,7 +126,8 @@ class ChatState extends ChangeNotifier {
         ..add(_localMessage(role: 'assistant', content: welcomeMessage));
       _isDone = false;
       _resumedDone = false;
-      _hasSubmittedIntensity = false;
+      _intensitySubmitted = false;
+      _intensitySaving = false;
       _safetyEvent = null;
       _retryAfterSeconds = null;
       _failedMessageId = null;
@@ -180,6 +208,8 @@ class ChatState extends ChangeNotifier {
         _sessionEpoch++;
         _sending = false;
         _hasStreamingDraft = false;
+        _intensitySubmitted = false;
+        _intensitySaving = false;
       }
       _chatId = id;
       _messages
@@ -199,9 +229,6 @@ class ChatState extends ChangeNotifier {
       } else {
         _stage = _stageFromMessages(fetched);
       }
-      _hasSubmittedIntensity =
-          _stage == IrtStage.intensity &&
-          _isIntensityRating(_lastUserContent(fetched));
       _safetyEvent = null;
       _retryAfterSeconds = null;
       _failedMessageId = null;
@@ -250,7 +277,8 @@ class ChatState extends ChangeNotifier {
       _stage = IrtStage.recording;
       _isDone = false;
       _resumedDone = false;
-      _hasSubmittedIntensity = false;
+      _intensitySubmitted = false;
+      _intensitySaving = false;
       _safetyEvent = null;
       _retryAfterSeconds = null;
       _failedMessageId = null;
@@ -267,7 +295,82 @@ class ChatState extends ChangeNotifier {
   void dismissError() {
     _errorMessage = null;
     _retryAfterSeconds = null;
+    _micPermissionDenied = false;
     notifyListeners();
+  }
+
+  /// Starts capturing a voice note for the composer. Recording is
+  /// composer-scoped, not chat-scoped: the transcript lands in the input
+  /// field, so no session-epoch guard is needed.
+  Future<void> startRecording() async {
+    final recorder = _recorder;
+    if (recorder == null || _recording || _transcribing || _sending) return;
+    _micPermissionDenied = false;
+    _errorMessage = null;
+    try {
+      if (!await recorder.hasPermission()) {
+        _micPermissionDenied = true;
+        return;
+      }
+      await recorder.start();
+      _recording = true;
+    } on Exception catch (e) {
+      _errorMessage = e.toString();
+    } finally {
+      notifyListeners();
+    }
+  }
+
+  /// Stops the recording, transcribes it, and returns the transcript (null
+  /// when nothing was captured or transcription failed — failures surface
+  /// via [errorMessage] / [retryAfterSeconds] like every other API error).
+  Future<String?> stopRecording() async {
+    final recorder = _recorder;
+    if (recorder == null || !_recording) return null;
+    _recording = false;
+    _transcribing = true;
+    notifyListeners();
+    try {
+      final recording = await recorder.stop();
+      if (recording == null) return null;
+      final text = await _service.transcribeAudio(
+        bytes: recording.bytes,
+        fileName: recording.fileName,
+      );
+      return text.trim().isEmpty ? null : text.trim();
+    } on ApiException catch (e) {
+      if (e.isRateLimited) {
+        _retryAfterSeconds = e.retryAfterSeconds;
+      } else {
+        _errorMessage = e.message;
+      }
+      return null;
+    } on Exception catch (e) {
+      _errorMessage = e.toString();
+      return null;
+    } finally {
+      _transcribing = false;
+      notifyListeners();
+    }
+  }
+
+  /// Discards an in-progress recording without transcribing.
+  Future<void> cancelRecording() async {
+    final recorder = _recorder;
+    if (recorder == null || !_recording) return;
+    _recording = false;
+    try {
+      await recorder.cancel();
+    } on Exception {
+      // Discard-only path; nothing to surface.
+    }
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _recorder?.dispose();
+    super.dispose();
   }
 
   Future<void> send(String content) async {
@@ -391,7 +494,6 @@ class ChatState extends ChangeNotifier {
             }
             _stage = stage;
             _isDone = isDone;
-            if (_stage != IrtStage.intensity) _hasSubmittedIntensity = false;
             terminal = true;
           case SafetyEventEvent(:final safetyEvent):
             // Mandatory helpline handling (ADR 0005): surface the event; no
@@ -425,7 +527,6 @@ class ChatState extends ChangeNotifier {
             draftIndex = -1;
             _hasStreamingDraft = false;
             _stage = _stageFromMessages(fetched);
-            if (_stage != IrtStage.intensity) _hasSubmittedIntensity = false;
             _failedMessageId = null;
             _errorMessage = null;
             reconciled = true;
@@ -528,17 +629,31 @@ class ChatState extends ChangeNotifier {
     await send(content);
   }
 
-  /// Submits the intensity rating; the integer travels as a normal chat
-  /// message (wire contract). The slider stays available until a submit
-  /// actually succeeds.
+  /// Saves the 0-10 rating on the dream created from this chat. The routed
+  /// chat no longer elicits the rating, so the app collects it when the
+  /// session finishes. The card stays available until a save succeeds.
   Future<void> submitIntensity(int value) async {
-    // Capture the session before awaiting: when the user rebinds mid-send
-    // (drawer tap / new chat / delete), the abandoned send must not mark
-    // the NEW session's intensity as submitted.
+    final id = _chatId;
+    if (id == null || _intensitySaving) return;
+    // Capture the session before awaiting: when the user rebinds mid-save
+    // (drawer tap / new chat / delete), the result must not mark the NEW
+    // session's rating as submitted.
     final epoch = _sessionEpoch;
-    await send(value.toString());
-    if (_failedMessageId == null && _sessionEpoch == epoch) {
-      _hasSubmittedIntensity = true;
+    _intensitySaving = true;
+    notifyListeners();
+    var saved = false;
+    try {
+      await _service.setDreamIntensity(chatId: id, value: value);
+      saved = true;
+    } on ApiException catch (e) {
+      if (_sessionEpoch == epoch) _errorMessage = e.message;
+    } on Exception catch (e) {
+      if (_sessionEpoch == epoch) _errorMessage = e.toString();
+    } finally {
+      if (_sessionEpoch == epoch) {
+        _intensitySaving = false;
+        if (saved) _intensitySubmitted = true;
+      }
       notifyListeners();
     }
   }
@@ -561,17 +676,5 @@ class ChatState extends ChangeNotifier {
       if (s != null) return stageFromString(s);
     }
     return IrtStage.recording;
-  }
-
-  String _lastUserContent(List<ChatMessage> fetched) {
-    for (final m in fetched.reversed) {
-      if (m.isUser) return m.content;
-    }
-    return '';
-  }
-
-  bool _isIntensityRating(String text) {
-    final value = int.tryParse(text.trim());
-    return value != null && value >= 0 && value <= 10;
   }
 }

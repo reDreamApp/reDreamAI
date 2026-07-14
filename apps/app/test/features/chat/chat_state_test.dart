@@ -1,10 +1,41 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:redream_app/core/api/api_exception.dart';
 import 'package:redream_app/features/chat/chat_models.dart';
 import 'package:redream_app/features/chat/chat_service.dart';
 import 'package:redream_app/features/chat/chat_state.dart';
+import 'package:redream_app/features/chat/voice_recorder.dart';
+
+class _FakeVoiceRecorder implements IVoiceRecorder {
+  bool permission = true;
+  bool started = false;
+  bool cancelled = false;
+  bool disposed = false;
+
+  /// Bytes returned by [stop]; null simulates an empty capture.
+  Uint8List? captured = Uint8List.fromList([1, 2, 3]);
+
+  @override
+  Future<bool> hasPermission() async => permission;
+
+  @override
+  Future<void> start() async => started = true;
+
+  @override
+  Future<VoiceRecording?> stop() async {
+    final bytes = captured;
+    if (bytes == null) return null;
+    return VoiceRecording(bytes: bytes, fileName: 'dream_recording.wav');
+  }
+
+  @override
+  Future<void> cancel() async => cancelled = true;
+
+  @override
+  Future<void> dispose() async => disposed = true;
+}
 
 ChatSummary _chat(
   int id, {
@@ -118,6 +149,39 @@ class _FakeChatService implements IChatService {
     deletedIds.add(chatId);
   }
 
+  bool failSetIntensity = false;
+
+  /// When set, [setDreamIntensity] awaits this before completing — lets a
+  /// test hold a save in flight across a session switch.
+  Future<void>? intensityGate;
+  final List<(int, int)> intensityCalls = [];
+
+  @override
+  Future<void> setDreamIntensity({
+    required int chatId,
+    required int value,
+  }) async {
+    final gate = intensityGate;
+    if (gate != null) await gate;
+    if (failSetIntensity) throw ApiException(500, 'intensity failed');
+    intensityCalls.add((chatId, value));
+  }
+
+  bool failTranscribe = false;
+  ApiException transcribeError = ApiException(500, 'transcribe failed');
+  String transcribeResult = 'a transcribed dream';
+  final List<(int, String)> transcribeCalls = [];
+
+  @override
+  Future<String> transcribeAudio({
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    if (failTranscribe) throw transcribeError;
+    transcribeCalls.add((bytes.length, fileName));
+    return transcribeResult;
+  }
+
   ChatMessage _msg(String role, String content, {String? stage}) => ChatMessage(
     id: 'srv-${_id++}',
     role: role,
@@ -162,19 +226,18 @@ void main() {
 
     test('resets done/intensity/error state', () async {
       await start();
-      service.nextStage = IrtStage.intensity;
-      await state.send('a nightmare');
-      await state.submitIntensity(7);
       service
         ..nextIsDone = true
         ..nextStage = IrtStage.finalStage;
       await state.send('bye');
       expect(state.isDone, isTrue);
+      await state.submitIntensity(7);
+      expect(state.intensitySubmitted, isTrue);
 
       await start();
       expect(state.isDone, isFalse);
       expect(state.resumedDone, isFalse);
-      expect(state.hasSubmittedIntensity, isFalse);
+      expect(state.intensitySubmitted, isFalse);
       expect(state.errorMessage, isNull);
       expect(state.failedMessageId, isNull);
       expect(state.messages, hasLength(1));
@@ -268,16 +331,19 @@ void main() {
       expect(state.messages.single.content, 'Welcome!');
     });
 
-    test('restores hasSubmittedIntensity from history', () async {
-      service.chatList = [_chat(5, stage: IrtStage.intensity)];
+    test('maps the legacy intensity stage to rewriting', () async {
+      // Pre-port chats persisted an `intensity` routed stage; it renders as
+      // the rewriting step now.
+      expect(stageFromString('intensity'), IrtStage.rewriting);
+
+      service.chatList = [_chat(5)];
       await state.loadChats();
       service.messagesByChat[5] = [
         service.serverMessage('assistant', 'rate it', stage: 'intensity'),
         service.serverMessage('user', '7', stage: 'intensity'),
       ];
       await state.loadChat(5);
-      expect(state.stage, IrtStage.intensity);
-      expect(state.hasSubmittedIntensity, isTrue);
+      expect(state.stage, IrtStage.recording);
     });
 
     test('reports failure via errorMessage and return value', () async {
@@ -471,25 +537,21 @@ void main() {
       expect(state.failedMessageId, isNull);
     });
 
-    test(
-      'done sets isDone and resets intensity flag when stage moved on',
-      () async {
-        await start();
-        service.nextStage = IrtStage.intensity;
-        await state.send('a nightmare');
-        await state.submitIntensity(7);
-        expect(state.hasSubmittedIntensity, isTrue);
+    test('done sets isDone; the rating can then be submitted', () async {
+      await start();
+      service
+        ..nextDeltas = ['bye']
+        ..nextStage = IrtStage.finalStage
+        ..nextIsDone = true;
+      await state.send('thanks');
+      expect(state.isDone, isTrue);
+      expect(state.stage, IrtStage.finalStage);
+      expect(state.intensitySubmitted, isFalse);
 
-        service
-          ..nextDeltas = ['bye']
-          ..nextStage = IrtStage.finalStage
-          ..nextIsDone = true;
-        await state.send('thanks');
-        expect(state.isDone, isTrue);
-        expect(state.stage, IrtStage.finalStage);
-        expect(state.hasSubmittedIntensity, isFalse);
-      },
-    );
+      await state.submitIntensity(7);
+      expect(state.intensitySubmitted, isTrue);
+      expect(service.intensityCalls, [(1, 7)]);
+    });
 
     test(
       'safety event removes the draft bubble and does not advance stage',
@@ -803,68 +865,70 @@ void main() {
   });
 
   group('intensity', () {
-    test('submitIntensity sends integer and marks submitted', () async {
+    Future<void> finishChat() async {
+      service
+        ..nextStage = IrtStage.finalStage
+        ..nextIsDone = true;
+      await state.send('bye');
+      expect(state.isDone, isTrue);
+    }
+
+    test(
+      'submitIntensity saves the rating via the dedicated endpoint',
+      () async {
+        await start();
+        await finishChat();
+        expect(state.intensitySubmitted, isFalse);
+
+        await state.submitIntensity(7);
+        expect(state.intensitySubmitted, isTrue);
+        expect(service.intensityCalls, [(1, 7)]);
+        // The rating no longer travels as a chat message.
+        expect(
+          state.messages.where((m) => m.isUser && m.content == '7'),
+          isEmpty,
+        );
+      },
+    );
+
+    test(
+      'failed save keeps the card available and surfaces the error',
+      () async {
+        await start();
+        await finishChat();
+        service.failSetIntensity = true;
+        await state.submitIntensity(7);
+        expect(state.intensitySubmitted, isFalse);
+        expect(state.errorMessage, 'intensity failed');
+
+        // A later retry can still succeed.
+        service.failSetIntensity = false;
+        state.dismissError();
+        await state.submitIntensity(6);
+        expect(state.intensitySubmitted, isTrue);
+        expect(service.intensityCalls, [(1, 6)]);
+      },
+    );
+
+    test('save abandoned by a session switch does not set the flag', () async {
       await start();
-      service.nextStage = IrtStage.intensity;
-      await state.send('a nightmare');
-      expect(state.stage, IrtStage.intensity);
-      expect(state.hasSubmittedIntensity, isFalse);
+      await finishChat();
 
-      await state.submitIntensity(7);
-      expect(state.hasSubmittedIntensity, isTrue);
-      expect(
-        state.messages.where((m) => m.isUser && m.content == '7'),
-        hasLength(1),
-      );
-    });
-
-    test('failed submit keeps slider available', () async {
-      await start();
-      service.nextStage = IrtStage.intensity;
-      await state.send('a nightmare');
-      service.failSend = true;
-      await state.submitIntensity(7);
-      expect(state.hasSubmittedIntensity, isFalse);
-    });
-
-    test('flag resets when stage moves on', () async {
-      await start();
-      service.nextStage = IrtStage.intensity;
-      await state.send('a nightmare');
-      await state.submitIntensity(7);
-      service.nextStage = IrtStage.rewriting;
-      await state.send('ok');
-      expect(state.hasSubmittedIntensity, isFalse);
-    });
-
-    test('submit abandoned by a session switch does not set the flag', () async {
-      await start();
-      service.nextStage = IrtStage.intensity;
-      await state.send('a nightmare');
-      expect(state.stage, IrtStage.intensity);
-
-      service.messagesByChat[2] = [];
-      final controller = StreamController<ChatStreamEvent>();
-      service.scriptedStream = controller.stream;
+      final gate = Completer<void>();
+      service.intensityGate = gate.future;
       final submitFuture = state.submitIntensity(7);
       await pumpEventQueue();
 
-      // The user switches chats while the rating is still in flight.
+      // The user switches chats while the save is still in flight.
+      service.messagesByChat[2] = [];
       await state.loadChat(2);
-      controller.add(
-        DoneEvent(
-          aiMessage: service.serverMessage('assistant', 'thanks'),
-          stage: IrtStage.rewriting,
-          isDone: false,
-        ),
-      );
-      await controller.close();
+      gate.complete();
       await submitFuture;
 
-      // No failure was recorded, but the send belonged to a rebound
-      // session — the NEW session's intensity must not count as submitted.
-      expect(state.failedMessageId, isNull);
-      expect(state.hasSubmittedIntensity, isFalse);
+      // The save belonged to a rebound session — the NEW session's rating
+      // must not count as submitted (nor stay marked as saving).
+      expect(state.intensitySubmitted, isFalse);
+      expect(state.intensitySaving, isFalse);
     });
   });
 
@@ -938,7 +1002,10 @@ void main() {
       await sendFuture;
 
       // Chat 2's view is untouched by chat 1's turn.
-      expect(state.messages.map((m) => m.content), chat2Messages.map((m) => m.content));
+      expect(
+        state.messages.map((m) => m.content),
+        chat2Messages.map((m) => m.content),
+      );
       expect(state.messages.any((m) => m.content.contains('leaking')), isFalse);
       expect(state.stage, chat2Stage);
       expect(state.isDone, isFalse);
@@ -946,64 +1013,77 @@ void main() {
       expect(state.failedMessageId, isNull);
     });
 
-    test('error after switching chats does not mark the new chat failed', () async {
-      await start();
-      service.messagesByChat[2] = [
-        service.serverMessage('assistant', 'welcome back', stage: 'recording'),
-      ];
-      final controller = StreamController<ChatStreamEvent>();
-      service.scriptedStream = controller.stream;
-      final sendFuture = state.send('chat-1 message');
-      await pumpEventQueue();
-      controller.add(
-        UserMessageEvent(service.serverMessage('user', 'chat-1 message')),
-      );
-      await pumpEventQueue();
-
-      await state.loadChat(2);
-      controller.add(const ErrorEvent('upstream exploded'));
-      await controller.close();
-      await sendFuture;
-
-      expect(state.failedMessageId, isNull);
-      expect(state.errorMessage, isNull);
-      expect(state.sending, isFalse);
-    });
-
-    test('safety event still surfaces across a chat switch (ADR 0005)', () async {
-      await start();
-      service.messagesByChat[2] = [];
-      final controller = StreamController<ChatStreamEvent>();
-      service.scriptedStream = controller.stream;
-      final sendFuture = state.send('worrying message');
-      await pumpEventQueue();
-      controller.add(
-        UserMessageEvent(service.serverMessage('user', 'worrying message')),
-      );
-      await pumpEventQueue();
-
-      await state.loadChat(2);
-      controller.add(
-        SafetyEventEvent(
-          SafetyEvent(
-            risk: 'high',
-            categories: const ['self_harm'],
-            confidence: 0.9,
-            message: 'helpline text',
+    test(
+      'error after switching chats does not mark the new chat failed',
+      () async {
+        await start();
+        service.messagesByChat[2] = [
+          service.serverMessage(
+            'assistant',
+            'welcome back',
+            stage: 'recording',
           ),
-        ),
-      );
-      await controller.close();
-      await sendFuture;
+        ];
+        final controller = StreamController<ChatStreamEvent>();
+        service.scriptedStream = controller.stream;
+        final sendFuture = state.send('chat-1 message');
+        await pumpEventQueue();
+        controller.add(
+          UserMessageEvent(service.serverMessage('user', 'chat-1 message')),
+        );
+        await pumpEventQueue();
 
-      // The helpline is about the user, not a chat — it must never be
-      // swallowed, even though the triggering chat left the screen.
-      expect(state.safetyEvent, isNotNull);
-      expect(state.safetyEvent!.message, 'helpline text');
-      // But the switched-to chat's stage/messages stay untouched.
-      expect(state.stage, IrtStage.recording);
-      expect(state.messages.any((m) => m.content.contains('worrying')), isFalse);
-    });
+        await state.loadChat(2);
+        controller.add(const ErrorEvent('upstream exploded'));
+        await controller.close();
+        await sendFuture;
+
+        expect(state.failedMessageId, isNull);
+        expect(state.errorMessage, isNull);
+        expect(state.sending, isFalse);
+      },
+    );
+
+    test(
+      'safety event still surfaces across a chat switch (ADR 0005)',
+      () async {
+        await start();
+        service.messagesByChat[2] = [];
+        final controller = StreamController<ChatStreamEvent>();
+        service.scriptedStream = controller.stream;
+        final sendFuture = state.send('worrying message');
+        await pumpEventQueue();
+        controller.add(
+          UserMessageEvent(service.serverMessage('user', 'worrying message')),
+        );
+        await pumpEventQueue();
+
+        await state.loadChat(2);
+        controller.add(
+          SafetyEventEvent(
+            SafetyEvent(
+              risk: 'high',
+              categories: const ['self_harm'],
+              confidence: 0.9,
+              message: 'helpline text',
+            ),
+          ),
+        );
+        await controller.close();
+        await sendFuture;
+
+        // The helpline is about the user, not a chat — it must never be
+        // swallowed, even though the triggering chat left the screen.
+        expect(state.safetyEvent, isNotNull);
+        expect(state.safetyEvent!.message, 'helpline text');
+        // But the switched-to chat's stage/messages stay untouched.
+        expect(state.stage, IrtStage.recording);
+        expect(
+          state.messages.any((m) => m.content.contains('worrying')),
+          isFalse,
+        );
+      },
+    );
 
     test('switching chats mid-stream re-enables the composer', () async {
       await start();
@@ -1068,26 +1148,29 @@ void main() {
       expect(state.sending, isFalse);
     });
 
-    test('stale pre-stream 429 still raises the global budget banner', () async {
-      await start();
-      service.messagesByChat[2] = [];
-      final controller = StreamController<ChatStreamEvent>();
-      service.scriptedStream = controller.stream;
-      final sendFuture = state.send('over budget');
-      await pumpEventQueue();
+    test(
+      'stale pre-stream 429 still raises the global budget banner',
+      () async {
+        await start();
+        service.messagesByChat[2] = [];
+        final controller = StreamController<ChatStreamEvent>();
+        service.scriptedStream = controller.stream;
+        final sendFuture = state.send('over budget');
+        await pumpEventQueue();
 
-      await state.loadChat(2);
-      controller.addError(ApiException(429, 'limit', retryAfterSeconds: 30));
-      await controller.close();
-      await sendFuture;
+        await state.loadChat(2);
+        controller.addError(ApiException(429, 'limit', retryAfterSeconds: 30));
+        await controller.close();
+        await sendFuture;
 
-      // The token budget is per-user, not per-chat — the banner shows even
-      // though the triggering chat left the screen.
-      expect(state.retryAfterSeconds, 30);
-      // Session-scoped effects stay off the new chat.
-      expect(state.failedMessageId, isNull);
-      expect(state.messages.any((m) => m.content == 'over budget'), isFalse);
-    });
+        // The token budget is per-user, not per-chat — the banner shows even
+        // though the triggering chat left the screen.
+        expect(state.retryAfterSeconds, 30);
+        // Session-scoped effects stay off the new chat.
+        expect(state.failedMessageId, isNull);
+        expect(state.messages.any((m) => m.content == 'over budget'), isFalse);
+      },
+    );
 
     test('stale pre-stream error still surfaces errorMessage', () async {
       await start();
@@ -1134,7 +1217,9 @@ void main() {
       final sendFuture = state.send('first-chat message');
       await pumpEventQueue();
       controller
-        ..add(UserMessageEvent(service.serverMessage('user', 'first-chat message')))
+        ..add(
+          UserMessageEvent(service.serverMessage('user', 'first-chat message')),
+        )
         ..add(const ContentDeltaEvent('old reply'));
       await pumpEventQueue();
 
@@ -1152,6 +1237,101 @@ void main() {
       expect(state.messages, hasLength(1)); // just the welcome bubble
       expect(state.messages.single.content, 'fresh start');
       expect(state.stage, IrtStage.recording);
+    });
+  });
+
+  group('voice input', () {
+    test('unavailable without a recorder — mic stays hidden', () {
+      final state = ChatState(_FakeChatService());
+      expect(state.voiceInputAvailable, isFalse);
+    });
+
+    test('record → stop transcribes and returns the transcript', () async {
+      final service = _FakeChatService();
+      final recorder = _FakeVoiceRecorder();
+      final state = ChatState(service, voiceRecorder: recorder);
+
+      await state.startRecording();
+      expect(state.recording, isTrue);
+
+      final transcript = await state.stopRecording();
+
+      expect(transcript, 'a transcribed dream');
+      expect(state.recording, isFalse);
+      expect(state.transcribing, isFalse);
+      // The recorded bytes reached the service (transcript is composer-only,
+      // never sent as a chat message by the state).
+      expect(service.transcribeCalls, [(3, 'dream_recording.wav')]);
+      expect(state.messages, isEmpty);
+    });
+
+    test('permission denied sets the flag and never starts', () async {
+      final recorder = _FakeVoiceRecorder()..permission = false;
+      final state = ChatState(_FakeChatService(), voiceRecorder: recorder);
+
+      await state.startRecording();
+
+      expect(state.recording, isFalse);
+      expect(state.micPermissionDenied, isTrue);
+      state.dismissError();
+      expect(state.micPermissionDenied, isFalse);
+    });
+
+    test('429 during transcription surfaces the budget banner', () async {
+      final service = _FakeChatService()
+        ..failTranscribe = true
+        ..transcribeError = ApiException(
+          429,
+          'budget',
+          retryAfterSeconds: 60,
+        );
+      final recorder = _FakeVoiceRecorder();
+      final state = ChatState(service, voiceRecorder: recorder);
+
+      await state.startRecording();
+      final transcript = await state.stopRecording();
+
+      expect(transcript, isNull);
+      expect(state.retryAfterSeconds, 60);
+      expect(state.transcribing, isFalse);
+    });
+
+    test('transcription failure sets errorMessage, returns null', () async {
+      final service = _FakeChatService()..failTranscribe = true;
+      final recorder = _FakeVoiceRecorder();
+      final state = ChatState(service, voiceRecorder: recorder);
+
+      await state.startRecording();
+      final transcript = await state.stopRecording();
+
+      expect(transcript, isNull);
+      expect(state.errorMessage, 'transcribe failed');
+    });
+
+    test('empty capture skips the transcription call', () async {
+      final service = _FakeChatService();
+      final recorder = _FakeVoiceRecorder()..captured = null;
+      final state = ChatState(service, voiceRecorder: recorder);
+
+      await state.startRecording();
+      final transcript = await state.stopRecording();
+
+      expect(transcript, isNull);
+      expect(service.transcribeCalls, isEmpty);
+      expect(state.errorMessage, isNull);
+    });
+
+    test('cancel discards without transcribing', () async {
+      final service = _FakeChatService();
+      final recorder = _FakeVoiceRecorder();
+      final state = ChatState(service, voiceRecorder: recorder);
+
+      await state.startRecording();
+      await state.cancelRecording();
+
+      expect(state.recording, isFalse);
+      expect(recorder.cancelled, isTrue);
+      expect(service.transcribeCalls, isEmpty);
     });
   });
 

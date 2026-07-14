@@ -1,16 +1,18 @@
 {
   "@@locale": "de",
   "appTitle": "reDreamAI",
-
   "signInTitle": "Anmelden",
   "signInEmail": "E-Mail",
   "signInPassword": "Passwort",
   "signInButton": "Anmelden",
   "signInError": "Anmeldung fehlgeschlagen. Bitte prüfe deine Eingaben.",
-
   "chatTitle": "Traum-Chat",
   "chatInputHint": "Erzähl mir von deinem Traum …",
   "chatSend": "Senden",
+  "chatMicRecord": "Traum aufnehmen",
+  "chatMicStop": "Aufnahme beenden",
+  "chatMicRecording": "Aufnahme läuft … tippe auf Stopp, wenn du fertig bist",
+  "chatMicPermissionDenied": "Der Mikrofonzugriff ist deaktiviert. Aktiviere ihn in den Geräteeinstellungen, um deinen Traum aufzunehmen.",
   "chatThinking": "Denke nach …",
   "chatWelcomeMessage": "Hallo! Ich bin hier, um mit dir belastende Träume umzuschreiben. Dies ist ein sicherer Raum, in dem wir gemeinsam aus einem belastenden Traum eine neue Geschichte machen können. Möchtest du damit anfangen, mir von einem kürzlichen Albtraum zu erzählen, an dem du arbeiten möchtest?",
   "chatErrorBody": "Entschuldige, da ist etwas schiefgelaufen. Bitte versuche es noch einmal.",
@@ -22,27 +24,21 @@
   "intensitySubmit": "Absenden",
   "chatFinishedNotice": "Diese Sitzung ist abgeschlossen. Gut gemacht!",
   "chatStartNewSession": "Neue Sitzung starten",
-
   "stageRecording": "Traum aufzeichnen",
-  "stageIntensity": "Intensität bewerten",
   "stageRewriting": "Traum umschreiben",
   "stageSummary": "Zusammenfassung",
   "stageFinal": "Fertig",
-
   "safetyHelplineTitle": "Hol dir Unterstützung",
   "safetyHelplineBody": "Wenn es dir gerade nicht gut geht, wende dich bitte an eine Hotline. Wir pausieren das Gespräch, damit du gut für dich sorgen kannst.",
   "safetyHelplineButton": "Hotlines anzeigen",
-
   "budgetExceededTitle": "Tageslimit erreicht",
   "budgetExceededBody": "Du hast das heutige Chat-Limit erreicht. Es wird um Mitternacht (UTC) zurückgesetzt.",
-
   "tabHome": "Start",
   "tabChat": "Chat",
   "tabCollection": "Sammlung",
   "tabRecord": "Notieren",
   "tabLearn": "Lernen",
   "settingsSignOut": "Abmelden",
-
   "recordTitle": "Deine Entwürfe",
   "recordNewDream": "Neuer Traum",
   "recordEmptyTitle": "Noch keine Entwürfe",
@@ -51,7 +47,9 @@
   "recordUpdatedAt": "Aktualisiert {date}",
   "@recordUpdatedAt": {
     "placeholders": {
-      "date": { "type": "String" }
+      "date": {
+        "type": "String"
+      }
     }
   },
   "recordDeleteTooltip": "Entwurf löschen",
@@ -60,7 +58,6 @@
   "recordDeleteConfirm": "Löschen",
   "recordDeleteCancel": "Abbrechen",
   "recordLoadError": "Deine Entwürfe konnten nicht geladen werden.",
-
   "draftEditorNewTitle": "Neuer Traum",
   "draftEditorEditTitle": "Entwurf bearbeiten",
   "draftTitleLabel": "Titel",
@@ -74,7 +71,9 @@
   "draftIntensityLabel": "Intensität: {value}",
   "@draftIntensityLabel": {
     "placeholders": {
-      "value": { "type": "int" }
+      "value": {
+        "type": "int"
+      }
     }
   },
   "draftIntensityHelper": "Bewerte, wie intensiv sich der Albtraum angefühlt hat (0–10).",
@@ -89,7 +88,6 @@
   "draftSaveSuccess": "Traum in deiner Sammlung gespeichert.",
   "draftSaveSuccessView": "Ansehen",
   "draftSaveError": "Dein Traum konnte nicht gespeichert werden. Dein Entwurf bleibt erhalten – versuche es erneut.",
-
   "collectionTitle": "Traumsammlung",
   "collectionSubtitle": "Sieh dir deine Träume an, übe deine umgeschriebenen Albträume und verfolge deinen Fortschritt",
   "collectionFilterAll": "Alle",
@@ -104,7 +102,6 @@
   "collectionRetry": "Erneut versuchen",
   "collectionTransformedBadge": "Umgeschriebener Albtraum",
   "collectionMenuPractice": "Üben",
-
   "dreamNightmareBadge": "Albtraum",
   "dreamCurrentBadge": "Aktueller Traum",
   "dreamLabel": "Traum",
@@ -126,7 +123,6 @@
   "dreamSaveFailed": "Deine Änderungen konnten nicht gespeichert werden. Bitte versuche es noch einmal.",
   "dreamDeleteFailed": "Der Traum konnte nicht gelöscht werden. Bitte versuche es noch einmal.",
   "dreamActionFailed": "Etwas ist schiefgelaufen. Bitte versuche es noch einmal.",
-
   "practiceStart": "Drehbuchübung starten",
   "practiceWelcomeTitle": "Willkommen zu deiner Drehbuchübung",
   "practiceWelcomeBody": "Diese Anleitung führt dich Schritt für Schritt durch das Üben deines umgeschriebenen Traums.",
@@ -145,7 +141,6 @@
   "practiceAudioAvailable": "Für diesen Traum gibt es eine Audio-Übung.",
   "practiceGenerateAudio": "Audio erstellen",
   "practiceAudioUnavailable": "Die Audio-Übung ist noch nicht verfügbar.",
-
   "chatHistoryTitle": "Chat-Verlauf",
   "chatHistoryDescription": "Starte einen neuen Chat oder lade einen alten. Abgeschlossene Sitzungen können nur angesehen, aber nicht fortgesetzt werden.",
   "chatNewChat": "Neuer Chat",
@@ -164,10 +159,11 @@
   "chatDaysAgo": "{count, plural, one {vor 1 Tag} other {vor {count} Tagen}}",
   "@chatDaysAgo": {
     "placeholders": {
-      "count": {"type": "int"}
+      "count": {
+        "type": "int"
+      }
     }
   },
-
   "homeSlogan": "Verwandle deine Albträume",
   "homeMission": "Schreibe belastende Träume in neue Geschichten um und übe sie für ruhigere Nächte",
   "homeQuickActionsTitle": "Schnellzugriff",
@@ -187,7 +183,6 @@
   "homeIrtGuideStep3Title": "Schritt 3: Übe deinen neuen Traum",
   "homeIrtGuideStep3Body": "Geh den umgeschriebenen Traum täglich in Gedanken durch. Konzentriere dich auf die positiven Gefühle und das gute Ende.",
   "homeIrtGuideDone": "Fertig",
-
   "progressTitle": "Dein Fortschritt",
   "progressLoadError": "Daten konnten nicht geladen werden. Zieh nach unten zum Aktualisieren.",
   "progressStreakTitle": "Serie",
@@ -198,7 +193,6 @@
   "progressDreamsLoggedSubtitle": "insgesamt in deiner Sammlung",
   "progressNightmaresTreatedTitle": "Verwandelte Albträume",
   "progressNightmaresTreatedSubtitle": "mit neuem Ende umgeschrieben",
-
   "moodTitle": "Stimmung",
   "moodQuestion": "Wie fühlst du dich heute?",
   "moodThanks": "Danke für deinen Check-in heute!",
@@ -210,7 +204,6 @@
   "moodNeutral": "Neutral",
   "moodSatisfied": "Zufrieden",
   "moodVerySatisfied": "Sehr zufrieden",
-
   "learnTopics": "Themen",
   "learnFilteringBy": "Gefiltert nach {tag}",
   "learnLoadError": "Artikel können gerade nicht geladen werden.",
@@ -218,7 +211,6 @@
   "learnNoArticles": "Keine Artikel gefunden.",
   "learnOpenArticle": "Artikel öffnen",
   "learnOpenLinkError": "Der Artikel-Link konnte nicht geöffnet werden.",
-
   "onboardingCongratsTitle": "Glückwunsch!",
   "onboardingCongratsBody": "Du hast gerade erfolgreich den ersten Schritt zu besserem Schlaf gemacht!",
   "onboardingWelcomeTitle": "Willkommen bei",
@@ -232,7 +224,6 @@
   "onboardingPrivacyBody": "reDreamAI ist mit Fokus auf Sicherheit gebaut. Wir nutzen ausschließlich sichere europäische Dienste und sind DSGVO-konform.",
   "onboardingDone": "Los geht's!",
   "onboardingSkip": "Überspringen",
-
   "authSlogan": "Verwandle deine\nAlbträume",
   "authEmailHint": "du@beispiel.de",
   "authPasswordHint": "Gib dein Passwort ein",
@@ -244,7 +235,9 @@
   "authPasswordTooShort": "Das Passwort muss mindestens {minLength} Zeichen lang sein.",
   "@authPasswordTooShort": {
     "placeholders": {
-      "minLength": { "type": "int" }
+      "minLength": {
+        "type": "int"
+      }
     }
   },
   "authPasswordMismatch": "Die Passwörter stimmen nicht überein.",
@@ -261,7 +254,6 @@
   "authForgotPasswordButton": "Link senden",
   "authForgotPasswordSuccess": "Wir haben dir einen Link zum Zurücksetzen geschickt. Bitte schau in dein Postfach.",
   "authForgotPasswordError": "Der Link konnte nicht gesendet werden. Bitte versuche es erneut.",
-
   "settingsTitle": "Profil & Einstellungen",
   "settingsDescription": "Verwalte deine Kontoeinstellungen, Benachrichtigungen und Privatsphäre",
   "settingsProfileSection": "Profilinformationen",
@@ -288,17 +280,34 @@
   "settingsHelpCenter": "Hilfe-Center",
   "settingsContactSupport": "Support kontaktieren",
   "settingsPrivacyPolicy": "Datenschutzerklärung",
+  "consentTitle": "Deine Daten, deine Einwilligung",
+  "consentIntro": "reDreamAI hilft dir, belastende Träume zu bearbeiten. Dafür verarbeitet die App, was du über deine Träume und dein Befinden teilst — Angaben zu deiner Gesundheit. Nach EU-Recht (Art. 9 DSGVO) braucht das deine ausdrückliche Einwilligung.",
+  "consentBulletData": "Was verarbeitet wird: deine Traumbeschreibungen und Sprachaufnahmen (transkribiert und sofort verworfen), umgeschriebene Träume, Intensitätsbewertungen und Stimmungseinträge.",
+  "consentBulletProcessors": "Wer verarbeitet: unsere Server bei Scaleway (Frankreich). KI-Antworten erzeugt Scaleway und ersatzweise Mistral AI (Frankreich) — Mistral kann Eingaben bis zu 30 Tage zur Missbrauchskontrolle speichern. Technische Diagnosedaten bleiben auf unseren eigenen EU-Servern.",
+  "consentBulletControl": "Deine Kontrolle: Du kannst diese Einwilligung jederzeit in den Einstellungen widerrufen — die Traumfunktionen pausieren dann, bis du erneut einwilligst. Ansehen, Exportieren und Löschen deiner Daten ist jederzeit unabhängig davon möglich.",
+  "consentCheckbox": "Ich willige in die oben beschriebene Verarbeitung meiner Gesundheitsdaten ein",
+  "consentContinue": "Zustimmen und weiter",
+  "consentDeclineHint": "Ohne diese Einwilligung kann reDreamAI keine Träume verarbeiten. Du kannst dich stattdessen abmelden.",
+  "consentSignOut": "Abmelden",
+  "consentLoadError": "Dein Einwilligungsstatus konnte nicht geprüft werden.",
+  "settingsWithdrawConsent": "Dateneinwilligung widerrufen",
+  "settingsWithdrawConsentSubtitle": "Verarbeitung deiner Traumdaten pausieren",
+  "withdrawConsentTitle": "Einwilligung widerrufen?",
+  "withdrawConsentBody": "reDreamAI verarbeitet deine Traumdaten dann nicht mehr, und die Traumfunktionen pausieren, bis du erneut einwilligst. Deine gespeicherten Daten bleiben unangetastet — Ansehen, Exportieren und Löschen ist weiterhin möglich.",
+  "withdrawConsentConfirm": "Widerrufen",
+  "withdrawConsentCancel": "Abbrechen",
   "settingsSignOutSubtitle": "Von deinem Konto abmelden",
   "settingsVersion": "Version {version}",
   "@settingsVersion": {
     "placeholders": {
-      "version": { "type": "String" }
+      "version": {
+        "type": "String"
+      }
     }
   },
   "settingsVersionError": "Die App-Version konnte nicht gelesen werden",
   "settingsTagline": "Ein Selbsthilfe-Begleiter für den Umgang mit belastenden Träumen. reDreamAI diagnostiziert und behandelt keine Erkrankungen — wenn Albträume dich stark belasten, sprich bitte mit einer Ärztin, einem Arzt oder einer psychotherapeutischen Fachperson.",
   "settingsCancel": "Abbrechen",
-
   "settingsChangeEmailTitle": "E-Mail ändern",
   "settingsChangeEmailHeading": "E-Mail-Adresse aktualisieren",
   "settingsChangeEmailBody": "Gib unten deine neue E-Mail-Adresse ein. Du musst die neue Adresse anschließend bestätigen.",
@@ -307,7 +316,6 @@
   "settingsChangeEmailSuccess": "Änderung angefordert! Schau in dein altes und neues Postfach, um die Änderung zu bestätigen.",
   "settingsChangeEmailError": "Deine E-Mail konnte nicht aktualisiert werden. Bitte versuche es erneut.",
   "settingsChangeEmailButton": "E-Mail aktualisieren",
-
   "settingsChangePasswordTitle": "Passwort ändern",
   "settingsChangePasswordHeading": "Passwort aktualisieren",
   "settingsChangePasswordBody": "Gib dein aktuelles Passwort ein und wähle ein neues, sicheres Passwort.",
@@ -319,7 +327,6 @@
   "settingsChangePasswordSuccess": "Passwort erfolgreich aktualisiert.",
   "settingsChangePasswordError": "Dein Passwort konnte nicht aktualisiert werden. Bitte versuche es erneut.",
   "settingsChangePasswordButton": "Passwort aktualisieren",
-
   "settingsExportTitle": "Meine Daten exportieren",
   "settingsExportBody": "Du kannst dein Profil, deine Chat-Nachrichten und deine Träume als JSON-Export ansehen.",
   "settingsExportButton": "Meine Daten laden",
@@ -328,7 +335,6 @@
   "settingsExportReady": "Dein Datenexport ist fertig. Du kannst ihn unten kopieren.",
   "settingsExportCopy": "JSON kopieren",
   "settingsExportCopied": "Export in die Zwischenablage kopiert",
-
   "settingsDeleteDataTitle": "Meine Daten löschen",
   "settingsDeleteDataBody": "Damit werden alle deine App-Daten – Träume, Chats und Profil – auf einmal gelöscht. Dein Login bleibt aktiv.",
   "settingsDeleteDataEmailHint": "Gib zur Bestätigung deine E-Mail-Adresse ein",
@@ -338,7 +344,6 @@
   "settingsDeleteDataConfirmBody": "Deine Träume, Chats und dein Profil werden dauerhaft gelöscht. Das kann nicht rückgängig gemacht werden. Dein Konto bleibt aktiv.",
   "settingsDeleteDataSuccess": "Deine Daten wurden gelöscht.",
   "settingsDeleteDataError": "Deine Daten konnten nicht gelöscht werden. Bitte versuche es erneut.",
-
   "settingsDeleteAccountTitle": "Konto löschen",
   "settingsDeleteAccountBody": "Diese Aktion kann nicht rückgängig gemacht werden. Wenn du dein Konto löschst, werden alle deine Daten dauerhaft entfernt und du wirst abgemeldet.",
   "settingsDeleteAccountWarningTitle": "Warnung",
@@ -350,7 +355,6 @@
   "settingsDeleteAccountConfirmBody": "Dein Konto und alle Daten werden dauerhaft gelöscht und du wirst abgemeldet. Das kann nicht rückgängig gemacht werden.",
   "settingsDeleteAccountButton": "Konto löschen",
   "settingsDeleteAccountError": "Dein Konto konnte nicht gelöscht werden. Bitte versuche es erneut.",
-
   "settingsPrivacyHeader": "Deine Privatsphäre ist uns wichtig",
   "settingsPrivacyUpdated": "Zuletzt aktualisiert: November 2025",
   "settingsPrivacyS1Title": "1. Verantwortlicher",
@@ -373,7 +377,6 @@
   "settingsPrivacyS9Body": "Unsere Website kann Links zu Websites Dritter enthalten. Für die Datenschutzpraktiken dieser externen Seiten sind wir nicht verantwortlich.",
   "settingsPrivacyS10Title": "10. Änderungen dieser Erklärung",
   "settingsPrivacyS10Body": "Wir können diese Datenschutzerklärung von Zeit zu Zeit aktualisieren. Über Änderungen informieren wir dich, indem wir die neue Erklärung auf dieser Seite veröffentlichen und das Datum „Zuletzt aktualisiert“ anpassen.",
-
   "profileTitle": "Profil",
   "profileDrawerSubtitle": "Geschlecht, Altersgruppe, Albtraum-Häufigkeit",
   "profileGenderLabel": "Geschlecht",
@@ -395,7 +398,6 @@
   "profileFreqFewTimesMonth": "Mehrmals pro Monat",
   "profileFreqRarely": "Selten",
   "profileFreqNever": "Nie",
-
   "helpTitle": "Hilfe-Center",
   "helpIntro": "Teile uns dein Anliegen mit und wir kümmern uns so schnell wie möglich darum.",
   "helpFormTitle": "Erzähl uns, was dich beschäftigt",

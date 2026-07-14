@@ -19,7 +19,11 @@ class Settings(BaseSettings):
     # Chat/routing/safety-critic IDs live in core/agent.py::MODELS, not here.
     mistral_safety_model: str = "ministral-8b-2512"
     voxtral_tts_model: str = "voxtral-mini-tts-2603"
-    voxtral_stt_model: str = "voxtral-mini-latest"
+    # STT (ADR 0010, 2026-07-09 amendment): Whisper on Scaleway primary,
+    # Voxtral Transcribe V2 on direct Mistral fallback. The Scaleway ID format
+    # (org/model:quant) is verbatim from their audio how-to docs.
+    whisper_stt_model: str = "openai/whisper-large-v3:fp16"
+    voxtral_stt_model: str = "voxtral-mini-2602"
 
     voxtral_voice_id_en: str = ""
     voxtral_voice_id_de: str = ""

@@ -52,17 +52,13 @@ async def test_high_risk_input_skips_chat_and_logs_safety_event(
     # The user message should be persisted with safety_flagged=True.
     async with db_session_maker() as session:
         msgs = (
-            await session.scalars(
-                select(ChatMessage).where(ChatMessage.chat_id == chat_id)
-            )
+            await session.scalars(select(ChatMessage).where(ChatMessage.chat_id == chat_id))
         ).all()
     assert len(msgs) == 1
     assert msgs[0].safety_flagged is True
 
 
-async def test_low_risk_input_proceeds_to_chat(
-    client, fake_ai: FakeAiClient
-) -> None:
+async def test_low_risk_input_proceeds_to_chat(client, fake_ai: FakeAiClient) -> None:
     chat_id = await start_chat(client)
     # Default safety queue is empty → returns risk=none, so this should pass through.
     fake_ai.queue_chat(
@@ -85,3 +81,39 @@ async def test_low_risk_input_proceeds_to_chat(
     assert body["ai_message"]["content"] == "Tell me more about that dream."
     assert body["ai_message"]["role"] == "assistant"
     assert body["stage"] == "recording"
+
+
+async def test_dev_flag_skips_classifier_entirely(
+    client, fake_ai: FakeAiClient, monkeypatch
+) -> None:
+    """SAFETY_CLASSIFIER_ENABLED=false (dev-only): no /safety/classify call is
+    made and the turn proceeds. A queued high-risk verdict proves the
+    classifier was never consulted — not merely ignored."""
+    from redream_api.core.config import settings
+
+    monkeypatch.setattr(settings, "safety_classifier_enabled", False)
+    chat_id = await start_chat(client)
+
+    fake_ai.queue_safety(
+        {
+            "risk": "high",
+            "categories": ["suicidal_ideation"],
+            "confidence": 0.99,
+            "prompt_version": "safety-v0.3.0",
+        }
+    )
+    fake_ai.queue_chat(
+        {
+            "stage": "recording",
+            "response": "Tell me more.",
+            "structured": None,
+            "usage": {"input_tokens": 1, "output_tokens": 1},
+            "prompt_version": "test-v0",
+        }
+    )
+
+    r = await client.post(f"/api/v1/chats/{chat_id}/message", json={"content": "who are you even"})
+
+    assert r.status_code == 200, r.text
+    assert r.json()["safety_event"] is None
+    assert "safety_classify" not in [c["method"] for c in fake_ai.calls]

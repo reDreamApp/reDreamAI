@@ -24,12 +24,14 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ....core.dependencies import get_current_user, get_db
+from ....core.config import settings
+from ....core.dependencies import get_current_user, get_db, require_consent
 from ....db.models.chat import Chat
 from ....db.models.chat_message import ChatMessage
 from ....db.models.dream import Dream
@@ -42,6 +44,8 @@ from ....db.repositories.safety_event_repo import SafetyEventRepo
 from ....services.ai_client import AIServiceError, BaseAiClient, get_ai_client
 from ....services.token_budget import check_budget, record_usage
 from .schemas import (
+    ChatIntensityRequest,
+    ChatIntensityResponse,
     ChatMessageOut,
     ChatMessageRequest,
     ChatMessageResponse,
@@ -110,9 +114,7 @@ def _extract_intensity(structured: dict[str, object], history: list[ChatMessage]
 
 
 def _to_message_out(msg: ChatMessage) -> ChatMessageOut:
-    content = (
-        _HIDDEN_PLACEHOLDER if msg.visibility_status == "hidden" else msg.content
-    )
+    content = _HIDDEN_PLACEHOLDER if msg.visibility_status == "hidden" else msg.content
     return ChatMessageOut(
         id=msg.id,
         role=msg.role,
@@ -139,7 +141,12 @@ def _to_chat_out(chat) -> ChatOut:
 # ---------------------------------------------------------------------------
 
 
-@router.post("/start", response_model=ChatStartResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/start",
+    response_model=ChatStartResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_consent)],
+)
 async def start_chat(
     body: ChatStartRequest,
     user: User = Depends(get_current_user),
@@ -184,6 +191,35 @@ async def delete_chat(
     if chat is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "chat not found")
     await repo.delete(chat)
+
+
+@router.put(
+    "/{chat_id}/intensity",
+    response_model=ChatIntensityResponse,
+    dependencies=[Depends(require_consent)],
+)
+async def set_intensity(
+    chat_id: int,
+    body: ChatIntensityRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ChatIntensityResponse:
+    """App-owned intensity: the routed chat no longer elicits the 0-10 rating,
+    so the client collects it at session end and attaches it to the chat's
+    Dream (one chat → one dream via `dream.session_id`, ADR 0003). The rating
+    doesn't touch the rewritten text, so cached rehearsal audio stays valid.
+    """
+    chat = await ChatRepo(db).get_for_user(user.id, chat_id)
+    if chat is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "chat not found")
+    repo = DreamRepo(db)
+    dream = await repo.get_for_user_by_session(user.id, str(chat.id))
+    if dream is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "no dream for this chat yet")
+    dream.intensity = body.intensity
+    dream.last_edited = datetime.now(timezone.utc)
+    await repo.save(dream)
+    return ChatIntensityResponse(chat_id=chat.id, dream_id=dream.id, intensity=body.intensity)
 
 
 # ---------------------------------------------------------------------------
@@ -254,6 +290,20 @@ async def _pre_turn(
     # ---- safety classifier (ADR 0005) ------------------------------------
     # Stage + the assistant message being answered disambiguate terse replies
     # ("It is an 8 out of 10." is a scale answer, not ideation).
+    if not settings.safety_classifier_enabled:
+        # DEV-ONLY (SAFETY_CLASSIFIER_ENABLED=false): skip the crisis
+        # pre-classifier while its prompt misfires (2026-07-13 false
+        # positive). Never off in prod — the re-enable gate is in ROADMAP.
+        log.warning(
+            "safety classifier DISABLED by dev flag — skipping (chat_id=%s)",
+            chat.id,
+        )
+        return _TurnSetup(
+            chat=chat,
+            user_msg=user_msg,
+            history_msgs=history_msgs,
+            safety_payload=None,
+        )
     last_assistant = next(
         (
             m.content
@@ -269,6 +319,11 @@ async def _pre_turn(
                 "language": chat.language,
                 "stage": chat.current_stage,
                 "context": last_assistant,
+                # Trace attribution only (never state): session groups the
+                # Langfuse trace with its chat, user_id makes it deletable by
+                # the GDPR purge (`delete_user_traces`).
+                "session_id": str(chat.id),
+                "user_id": str(user.id),
             }
         )
     except AIServiceError as exc:
@@ -298,17 +353,24 @@ async def _pre_turn(
         )
 
     return _TurnSetup(
-        chat=chat, user_msg=user_msg, history_msgs=history_msgs,
+        chat=chat,
+        user_msg=user_msg,
+        history_msgs=history_msgs,
         safety_payload=safety_payload,
     )
 
 
-def _ai_chat_payload(chat: Chat, history_msgs: list[ChatMessage]) -> dict[str, Any]:
+def _ai_chat_payload(
+    chat: Chat, history_msgs: list[ChatMessage], *, user_id: UUID
+) -> dict[str, Any]:
     """The stateless AI request (ADR 0002): full visible history + echo state.
 
     Safety-flagged messages got a helpline, not an AI turn — replaying them
     into later prompts would re-inject crisis content the flow already
     short-circuited on.
+
+    `session_id`/`user_id` are trace attribution only (never state): they tag
+    the Langfuse trace so the GDPR purge (`delete_user_traces`) can find it.
     """
     return {
         "messages": [
@@ -323,6 +385,7 @@ def _ai_chat_payload(chat: Chat, history_msgs: list[ChatMessage]) -> dict[str, A
         ],
         "language": chat.language,
         "session_id": str(chat.id),
+        "user_id": str(user_id),
         # Echo the once-generated nightmare summary back to the stateless AI
         # so it never regenerates it (None on the first turns is fine).
         "nightmare_summary": chat.nightmare_summary,
@@ -388,7 +451,11 @@ async def _finalize_ai_turn(
     return ai_msg
 
 
-@router.post("/{chat_id}/message", response_model=ChatMessageResponse)
+@router.post(
+    "/{chat_id}/message",
+    response_model=ChatMessageResponse,
+    dependencies=[Depends(require_consent)],
+)
 async def send_message(
     chat_id: int,
     body: ChatMessageRequest,
@@ -410,7 +477,7 @@ async def send_message(
         )
 
     try:
-        ai_resp = await ai.chat(_ai_chat_payload(chat, setup.history_msgs))
+        ai_resp = await ai.chat(_ai_chat_payload(chat, setup.history_msgs, user_id=user.id))
     except AIServiceError as exc:
         # Drop the just-persisted user message: leaving it orphaned (no AI
         # reply) would replay it into the next turn's history alongside the
@@ -483,16 +550,16 @@ async def _stream_ai_turn(
 
     final: dict[str, Any] | None = None
     try:
-        yield _sse(
-            {"user_message": _to_message_out(setup.user_msg).model_dump(mode="json")}
-        )
+        yield _sse({"user_message": _to_message_out(setup.user_msg).model_dump(mode="json")})
 
         if setup.safety_payload is not None:
             yield _sse({"safety_event": setup.safety_payload.model_dump(mode="json")})
             yield _SSE_DONE
             return
 
-        async for frame in ai.chat_stream(_ai_chat_payload(chat, setup.history_msgs)):
+        async for frame in ai.chat_stream(
+            _ai_chat_payload(chat, setup.history_msgs, user_id=user.id)
+        ):
             body = frame.removeprefix("data:").strip()
             if body == "[DONE]":
                 break
@@ -559,7 +626,7 @@ async def _stream_ai_turn(
     yield _SSE_DONE
 
 
-@router.post("/{chat_id}/message/stream")
+@router.post("/{chat_id}/message/stream", dependencies=[Depends(require_consent)])
 async def send_message_stream(
     chat_id: int,
     body: ChatMessageRequest,
