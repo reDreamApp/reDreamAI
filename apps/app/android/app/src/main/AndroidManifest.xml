@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required in the MAIN manifest: debug builds inherit INTERNET from the
+         debug manifest, so its absence here only breaks RELEASE builds (found
+         2026-07-14: first release APK could not reach the backend at all). -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- Voice journaling: record dream narration for transcription (audio is
          never stored — see the STT storage policy in apps/ai). -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
@@ -43,6 +47,13 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Package visibility for url_launcher (Android 11+): without this,
+             canLaunchUrl() is false for every https link and the Learn
+             articles can never open (found 2026-07-14 on-device). -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
         </intent>
     </queries>
 </manifest>

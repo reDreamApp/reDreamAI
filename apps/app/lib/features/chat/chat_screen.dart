@@ -360,21 +360,33 @@ class _MicButton extends StatelessWidget {
         ),
       );
     }
-    final recording = state.recording;
-    return IconButton(
-      tooltip: recording ? l10n.chatMicStop : l10n.chatMicRecord,
-      color: recording ? Theme.of(context).colorScheme.error : null,
-      icon: Icon(recording ? Icons.stop_circle : Icons.mic),
-      onPressed: state.sending
-          ? null
-          : () async {
-              if (recording) {
-                final transcript = await state.stopRecording();
-                if (transcript != null) onTranscript(transcript);
-              } else {
-                await state.startRecording();
-              }
+    if (state.recording) {
+      // Voice-message convention: recording runs until the user picks
+      // discard (✕) or use (✓) — no single ambiguous stop button.
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            tooltip: l10n.chatMicCancel,
+            icon: const Icon(Icons.close),
+            onPressed: () => state.cancelRecording(),
+          ),
+          IconButton(
+            tooltip: l10n.chatMicStop,
+            color: Theme.of(context).colorScheme.error,
+            icon: const Icon(Icons.check_circle),
+            onPressed: () async {
+              final transcript = await state.stopRecording();
+              if (transcript != null) onTranscript(transcript);
             },
+          ),
+        ],
+      );
+    }
+    return IconButton(
+      tooltip: l10n.chatMicRecord,
+      icon: const Icon(Icons.mic),
+      onPressed: state.sending ? null : () => state.startRecording(),
     );
   }
 }

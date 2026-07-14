@@ -18,17 +18,21 @@ class ArticleDetailPage extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final url = article.urlForBrightness(Theme.of(context).brightness);
     final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } else {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(l10n.learnOpenLinkError),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
+    // Don't pre-gate on canLaunchUrl: it needs <queries> package visibility on
+    // Android 11+ and returns false negatives — just launch and handle failure.
+    var opened = false;
+    try {
+      opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } on Exception {
+      opened = false;
+    }
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(l10n.learnOpenLinkError),
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
   }
 

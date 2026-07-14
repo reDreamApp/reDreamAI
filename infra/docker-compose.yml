@@ -29,8 +29,14 @@ services:
       - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+      - /srv/downloads:/srv/downloads:ro
     env_file:
       - ./env/caddy.env
+    networks:
+      - default
+      - supabase
+      # supabase: needed for the supabase.{$DOMAIN} → kong:8000 route; without
+      # it Caddy can't resolve `kong` and the app can't sign in.
     depends_on:
       - api
       - ai
@@ -87,4 +93,7 @@ networks:
     external: true
     # Created by the self-hosted Supabase compose stack. We attach to it so
     # api / ai can resolve supabase-db (Postgres) and kong (REST gateway).
-    # Adjust the name if your Supabase install uses a different network name.
+    # The stack's project dir is /srv/supabase but its .env pins
+    # COMPOSE_FILE=docker-compose.yml (project name "supabase"), so the
+    # default network is named supabase_default.
+    name: supabase_default

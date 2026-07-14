@@ -15,7 +15,16 @@
 
 {$DOMAIN} {
     encode zstd gzip
-    reverse_proxy api:8001
+    handle_path /downloads/* {
+        # Tester APK distribution (files live in /srv/downloads on the host,
+        # mounted read-only into the container). Clean URLs install better on
+        # Android than presigned object-storage links.
+        root * /srv/downloads
+        file_server
+    }
+    handle {
+        reverse_proxy api:8001
+    }
     log {
         output stdout
         format console
