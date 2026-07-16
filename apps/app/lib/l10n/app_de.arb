@@ -12,7 +12,7 @@
   "chatMicRecord": "Traum aufnehmen",
   "chatMicStop": "Aufnahme verwenden",
   "chatMicCancel": "Aufnahme verwerfen",
-  "chatMicRecording": "Aufnahme läuft … tippe auf ✓, wenn du fertig bist, oder ✕ zum Verwerfen",
+  "chatMicRecording": "Aufnahme läuft …",
   "chatMicPermissionDenied": "Der Mikrofonzugriff ist deaktiviert. Aktiviere ihn in den Geräteeinstellungen, um deinen Traum aufzunehmen.",
   "chatThinking": "Denke nach …",
   "chatWelcomeMessage": "Hallo! Ich bin hier, um mit dir belastende Träume umzuschreiben. Dies ist ein sicherer Raum, in dem wir gemeinsam aus einem belastenden Traum eine neue Geschichte machen können. Möchtest du damit anfangen, mir von einem kürzlichen Albtraum zu erzählen, an dem du arbeiten möchtest?",

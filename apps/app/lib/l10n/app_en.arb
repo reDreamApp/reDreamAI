@@ -12,7 +12,7 @@
   "chatMicRecord": "Record your dream",
   "chatMicStop": "Use recording",
   "chatMicCancel": "Discard recording",
-  "chatMicRecording": "Recording… tap ✓ when you're done or ✕ to discard",
+  "chatMicRecording": "Recording…",
   "chatMicPermissionDenied": "Microphone access is off. Enable it in your device settings to record your dream.",
   "chatThinking": "Thinking…",
   "chatWelcomeMessage": "Hello! I'm here to help you rewrite difficult dreams. This is a safe space where we can work together to turn a distressing dream into a new story. Would you like to start by telling me about a recent nightmare you'd like to work on?",

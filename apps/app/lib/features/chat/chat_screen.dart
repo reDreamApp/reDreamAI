@@ -362,19 +362,28 @@ class _MicButton extends StatelessWidget {
     }
     if (state.recording) {
       // Voice-message convention: recording runs until the user picks
-      // discard (✕) or use (✓) — no single ambiguous stop button.
+      // discard (red ✕) or use (green ✓) — no single ambiguous stop button.
+      final colorScheme = Theme.of(context).colorScheme;
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton(
+          IconButton.filled(
             tooltip: l10n.chatMicCancel,
+            style: IconButton.styleFrom(
+              backgroundColor: colorScheme.error,
+              foregroundColor: colorScheme.onError,
+            ),
             icon: const Icon(Icons.close),
             onPressed: () => state.cancelRecording(),
           ),
-          IconButton(
+          const SizedBox(width: 4),
+          IconButton.filled(
             tooltip: l10n.chatMicStop,
-            color: Theme.of(context).colorScheme.error,
-            icon: const Icon(Icons.check_circle),
+            style: IconButton.styleFrom(
+              backgroundColor: Colors.green.shade600,
+              foregroundColor: Colors.white,
+            ),
+            icon: const Icon(Icons.check),
             onPressed: () async {
               final transcript = await state.stopRecording();
               if (transcript != null) onTranscript(transcript);
