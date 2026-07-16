@@ -341,6 +341,64 @@ class _BudgetBanner extends StatelessWidget {
 /// Mic toggle in the composer: idle → start recording; recording → stop,
 /// transcribe, and hand the transcript to [onTranscript] (appended to the
 /// input field — the user reviews and sends it like typed text).
+class _RecordingIndicator extends StatefulWidget {
+  const _RecordingIndicator();
+
+  @override
+  State<_RecordingIndicator> createState() => _RecordingIndicatorState();
+}
+
+class _RecordingIndicatorState extends State<_RecordingIndicator>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulse = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+  final Stopwatch _elapsed = Stopwatch()..start();
+
+  @override
+  void dispose() {
+    _pulse.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        FadeTransition(
+          opacity: Tween<double>(begin: 0.25, end: 1).animate(
+            CurvedAnimation(parent: _pulse, curve: Curves.easeInOut),
+          ),
+          child: Container(
+            width: 10,
+            height: 10,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.error,
+              shape: BoxShape.circle,
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        AnimatedBuilder(
+          animation: _pulse,
+          builder: (context, _) {
+            final s = _elapsed.elapsed.inSeconds;
+            return Text(
+              '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
 class _MicButton extends StatelessWidget {
   const _MicButton({required this.state, required this.onTranscript});
 
@@ -363,26 +421,21 @@ class _MicButton extends StatelessWidget {
     if (state.recording) {
       // Voice-message convention: recording runs until the user picks
       // discard (red ✕) or use (green ✓) — no single ambiguous stop button.
-      final colorScheme = Theme.of(context).colorScheme;
+      // Plain icon buttons (like the idle mic) + the classic pulsing-dot
+      // and elapsed-time recording indicator.
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          IconButton.filled(
+          const _RecordingIndicator(),
+          IconButton(
             tooltip: l10n.chatMicCancel,
-            style: IconButton.styleFrom(
-              backgroundColor: colorScheme.error,
-              foregroundColor: colorScheme.onError,
-            ),
+            color: Theme.of(context).colorScheme.error,
             icon: const Icon(Icons.close),
             onPressed: () => state.cancelRecording(),
           ),
-          const SizedBox(width: 4),
-          IconButton.filled(
+          IconButton(
             tooltip: l10n.chatMicStop,
-            style: IconButton.styleFrom(
-              backgroundColor: Colors.green.shade600,
-              foregroundColor: Colors.white,
-            ),
+            color: Colors.green.shade600,
             icon: const Icon(Icons.check),
             onPressed: () async {
               final transcript = await state.stopRecording();

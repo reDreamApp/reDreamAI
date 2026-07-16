@@ -28,29 +28,44 @@ class StageProgressBar extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Each stage gets an equal-width slot with the square centered in
+          // it, so the boxes sit inset from the edges and every label below
+          // is centered under its box. Connectors are the slots' half-lines:
+          // the gap between square i and i+1 = right half of slot i + left
+          // half of slot i+1, both colored by whether stage i is completed.
           Row(
             children: [
-              for (var index = 0; index < stages.length; index++) ...[
-                _StageSquare(
-                  isCompleted: index < stageIndex,
-                  isCurrent: index == stageIndex,
-                  activeColor: activeColor,
-                  inactiveColor: inactiveColor,
-                ),
-                if (index != stages.length - 1)
-                  Expanded(
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 250),
-                      curve: Curves.easeOut,
-                      height: 2,
-                      margin: const EdgeInsets.symmetric(horizontal: 4),
-                      decoration: BoxDecoration(
-                        color: index < stageIndex ? activeColor : inactiveColor,
-                        borderRadius: BorderRadius.circular(2),
+              for (var index = 0; index < stages.length; index++)
+                Expanded(
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: index == 0
+                            ? const SizedBox.shrink()
+                            : _ConnectorLine(
+                                color: index <= stageIndex
+                                    ? activeColor
+                                    : inactiveColor,
+                              ),
                       ),
-                    ),
+                      _StageSquare(
+                        isCompleted: index < stageIndex,
+                        isCurrent: index == stageIndex,
+                        activeColor: activeColor,
+                        inactiveColor: inactiveColor,
+                      ),
+                      Expanded(
+                        child: index == stages.length - 1
+                            ? const SizedBox.shrink()
+                            : _ConnectorLine(
+                                color: index < stageIndex
+                                    ? activeColor
+                                    : inactiveColor,
+                              ),
+                      ),
+                    ],
                   ),
-              ],
+                ),
             ],
           ),
           const SizedBox(height: 6),
@@ -61,11 +76,7 @@ class StageProgressBar extends StatelessWidget {
                 Expanded(
                   child: Text(
                     _label(stages[index], l10n),
-                    textAlign: index == 0
-                        ? TextAlign.left
-                        : index == stages.length - 1
-                        ? TextAlign.right
-                        : TextAlign.center,
+                    textAlign: TextAlign.center,
                     style: theme.textTheme.labelSmall?.copyWith(
                       fontWeight: index == stageIndex
                           ? FontWeight.w600
@@ -96,6 +107,26 @@ class StageProgressBar extends StatelessWidget {
       case IrtStage.finalStage:
         return l10n.stageFinal;
     }
+  }
+}
+
+class _ConnectorLine extends StatelessWidget {
+  const _ConnectorLine({required this.color});
+
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeOut,
+      height: 2,
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(2),
+      ),
+    );
   }
 }
 
