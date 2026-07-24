@@ -39,16 +39,15 @@ decisions in `docs/decisions/`.
 
 ## Launch gates — must be done before real users, no ADR needed
 
-- **RE-ENABLE THE CRISIS CLASSIFIER + fix its false positive.** Disabled in
-  local dev only 2026-07-13 (`SAFETY_CLASSIFIER_ENABLED=false` in
-  apps/api/.env — the code default stays true). Reason: reproducible false
-  positive in safety-v0.3.0 — frustrated meta-questions at the bot ("who are
-  you even") classify as high/0.95 WHEN stage+context are supplied; same text
-  without context is none. Fix the classifier prompt (frustration at the
-  assistant, meta-questions, and off-topic remarks are NOT risk signals; add
-  few-shot negatives + regression test with the 2026-07-13 transcript), bump
-  to safety-v0.3.1, verify, re-enable. Shipping with the classifier off
-  violates ADR 0005.
+- ~~**RE-ENABLE THE CRISIS CLASSIFIER + fix its false positive.**~~ DONE
+  2026-07-20: `safety-v0.3.1` recalibrates — a message with no risk signal is
+  "none" regardless of tone (frustration at the assistant, meta-questions
+  like the 2026-07-13 "who are you even" incident, off-topic remarks); the
+  err-toward-flagging bias now applies only to ambiguous *genuine* signals.
+  Live regression eval: `apps/ai/evals/safety_regression.py` (12 cases incl.
+  the incident, real Mistral API — rerun on every prompt edit). Re-enabled in
+  prod (`SAFETY_CLASSIFIER_ENABLED` removed from the env override; code
+  default true). Local apps/api/.env may still carry `false` for dev.
 
 Tracked here so they don't live only in session memory. Regulatory details and
 sources: `docs/COMPLIANCE.md` (researched 2026-07-06).
