@@ -1,18 +1,15 @@
-"""Dream repository."""
-
 from __future__ import annotations
 
 from uuid import UUID
 
 from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.dream import Dream
+from .base import BaseRepo
 
 
-class DreamRepo:
-    def __init__(self, db: AsyncSession) -> None:
-        self.db = db
+class DreamRepo(BaseRepo[Dream]):
+    model = Dream
 
     async def list_for_user(self, user_id: UUID, *, limit: int = 200) -> list[Dream]:
         stmt = (
@@ -28,28 +25,11 @@ class DreamRepo:
         return (await self.db.scalars(stmt)).first()
 
     async def get_for_user_by_session(self, user_id: UUID, session_id: str) -> Dream | None:
-        stmt = select(Dream).where(
-            Dream.user_id == user_id, Dream.session_id == session_id
-        )
+        stmt = select(Dream).where(Dream.user_id == user_id, Dream.session_id == session_id)
         return (await self.db.scalars(stmt)).first()
 
-    async def create(self, dream: Dream) -> Dream:
-        self.db.add(dream)
-        await self.db.commit()
-        await self.db.refresh(dream)
-        return dream
-
-    async def save(self, dream: Dream) -> Dream:
-        await self.db.commit()
-        await self.db.refresh(dream)
-        return dream
-
-    async def delete(self, dream: Dream) -> None:
-        await self.db.delete(dream)
-        await self.db.commit()
-
     async def clear_current_for_user(self, user_id: UUID) -> None:
-        """Mark every dream for `user_id` as not-current. Use before setting one as current."""
+        """Unset `is_current_dream` on every dream — call before setting a new one."""
         await self.db.execute(
             update(Dream).where(Dream.user_id == user_id).values(is_current_dream=False)
         )

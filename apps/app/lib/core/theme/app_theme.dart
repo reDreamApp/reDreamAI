@@ -10,21 +10,21 @@ class BrandColors {
 }
 
 class AppTheme {
-  static ThemeData light = ThemeData(
-    useMaterial3: true,
-    colorScheme: ColorScheme.fromSeed(
-      seedColor: BrandColors.turquoise,
-      brightness: Brightness.light,
-    ),
-    scaffoldBackgroundColor: BrandColors.bgPrimaryLight,
+  static final ThemeData light = _build(
+    Brightness.light,
+    BrandColors.bgPrimaryLight,
+  );
+  static final ThemeData dark = _build(
+    Brightness.dark,
+    BrandColors.bgPrimaryDark,
   );
 
-  static ThemeData dark = ThemeData(
+  static ThemeData _build(Brightness brightness, Color background) => ThemeData(
     useMaterial3: true,
     colorScheme: ColorScheme.fromSeed(
       seedColor: BrandColors.turquoise,
-      brightness: Brightness.dark,
+      brightness: brightness,
     ),
-    scaffoldBackgroundColor: BrandColors.bgPrimaryDark,
+    scaffoldBackgroundColor: background,
   );
 }

@@ -1,18 +1,10 @@
-"""SafetyEvent repository (ADR 0005 — crisis detection audit trail)."""
-
 from __future__ import annotations
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from ..models.safety_event import SafetyEvent
+from .base import BaseRepo
 
 
-class SafetyEventRepo:
-    def __init__(self, db: AsyncSession) -> None:
-        self.db = db
+class SafetyEventRepo(BaseRepo[SafetyEvent]):
+    """Crisis-detection audit trail (ADR 0005)."""
 
-    async def create(self, event: SafetyEvent) -> SafetyEvent:
-        self.db.add(event)
-        await self.db.commit()
-        await self.db.refresh(event)
-        return event
+    model = SafetyEvent

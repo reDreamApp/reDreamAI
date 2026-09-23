@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
@@ -23,14 +24,13 @@ async def get_db() -> AsyncIterator[AsyncSession]:
 
 
 async def get_current_user(
-    creds: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
-    db: AsyncSession = Depends(get_db),
+    creds: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer_scheme)],
+    db: Annotated[AsyncSession, Depends(get_db)],
 ) -> User:
     """Verify the bearer token and upsert the corresponding `users` row.
 
     Raises 401 on missing/invalid token, 503 if JWKS is unreachable.
     """
-
     if creds is None:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "missing bearer token")
 
@@ -38,7 +38,7 @@ async def get_current_user(
         claims = await verify_supabase_jwt(creds.credentials)
     except JwtVerificationError as exc:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, str(exc)) from exc
-    except Exception as exc:  # noqa: BLE001 — JWKS fetch failure
+    except Exception as exc:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, f"auth backend unreachable: {exc}"
         ) from exc
@@ -52,5 +52,8 @@ async def get_current_user(
     except (ValueError, TypeError) as exc:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "sub is not a UUID") from exc
 
-    email = claims.get("email")
-    return await UserRepo(db).upsert_from_supabase(user_id=user_id, email=email)
+    return await UserRepo(db).upsert_from_supabase(user_id=user_id, email=claims.get("email"))
+
+
+Db = Annotated[AsyncSession, Depends(get_db)]
+CurrentUser = Annotated[User, Depends(get_current_user)]

@@ -1,40 +1,39 @@
 """pytest fixtures for the backend.
 
-Per-test SQLite file under /tmp, dependency-overrides for `get_db`,
-`get_current_user`, and `get_ai_client`. No live Supabase, no live AI.
+Per-test SQLite file, dependency overrides for `get_db`, `get_current_user`
+and `get_ai_client`. No live Supabase, no live AI.
 """
 
 from __future__ import annotations
 
 import os
 import tempfile
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
 # Set env BEFORE importing redream_api so the global Settings constructs cleanly.
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
-os.environ.setdefault(
-    "REPORT_NOTIFICATION_HMAC_SECRET", "test-secret-do-not-use-in-prod"
-)
+os.environ.setdefault("REPORT_NOTIFICATION_HMAC_SECRET", "test-secret-do-not-use-in-prod")
 os.environ.setdefault("REPORT_ACTION_BASE_URL", "http://test/internal")
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
+from redream_api.core.clock import today_utc
 from redream_api.core.dependencies import get_current_user, get_db
 from redream_api.db import models as _models  # noqa: F401 — register tables
 from redream_api.db.base import Base
 from redream_api.db.models.user import User
+from redream_api.db.models.user_daily_usage import UserDailyUsage
 from redream_api.main import app
 from redream_api.services.ai_client import get_ai_client
-
-
-# ---------------------------------------------------------------------------
-# FakeAiClient — substitutes for the real AI service in tests.
-# ---------------------------------------------------------------------------
 
 
 class FakeAiClient:
@@ -98,13 +97,8 @@ class FakeAiClient:
         return self._rehearsal.pop(0)
 
 
-# ---------------------------------------------------------------------------
-# DB fixtures.
-# ---------------------------------------------------------------------------
-
-
 @pytest.fixture
-async def db_path() -> AsyncIterator[Path]:
+def db_path() -> Iterator[Path]:
     fd, path_str = tempfile.mkstemp(suffix=".db")
     os.close(fd)
     path = Path(path_str)
@@ -169,17 +163,10 @@ async def client(db_session_maker, fake_user, fake_ai) -> AsyncIterator[AsyncCli
     app.dependency_overrides[get_current_user] = _user_dep
     app.dependency_overrides[get_ai_client] = _ai_dep
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as c:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
 
     app.dependency_overrides.clear()
-
-
-# ---------------------------------------------------------------------------
-# Helpers usable by tests.
-# ---------------------------------------------------------------------------
 
 
 async def start_chat(client: AsyncClient, language: str = "en") -> int:
@@ -188,19 +175,8 @@ async def start_chat(client: AsyncClient, language: str = "en") -> int:
     return int(r.json()["chat_id"])
 
 
-async def seed_usage(
-    db_session_maker, *, user_id: UUID, tokens: int
-) -> None:
+async def seed_usage(db_session_maker, *, user_id: UUID, tokens: int) -> None:
     """Seed today's UserDailyUsage row directly. Used by token-budget tests."""
-    from datetime import datetime, timezone
-
-    from redream_api.db.models.user_daily_usage import UserDailyUsage
-
     async with db_session_maker() as session:
-        row = UserDailyUsage(
-            user_id=user_id,
-            usage_date=datetime.now(timezone.utc).date(),
-            llm_tokens=tokens,
-        )
-        session.add(row)
+        session.add(UserDailyUsage(user_id=user_id, usage_date=today_utc(), llm_tokens=tokens))
         await session.commit()

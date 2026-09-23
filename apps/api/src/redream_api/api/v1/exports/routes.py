@@ -4,51 +4,49 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter
 
-from ....core.dependencies import get_current_user, get_db
-from ....db.models.user import User
+from ....core.dependencies import CurrentUser, Db
+from ....db.models.chat_message import ChatMessage
+from ....db.models.dream import Dream
 from ....db.repositories.chat_message_repo import ChatMessageRepo
 from ....db.repositories.chat_repo import ChatRepo
 from ....db.repositories.dream_repo import DreamRepo
 
 router = APIRouter(prefix="/exports", tags=["exports"])
 
+_ALL = 10_000
+
+
+def _message_json(m: ChatMessage) -> dict[str, Any]:
+    return {
+        "id": str(m.id),
+        "role": m.role,
+        "stage": m.stage,
+        "content": m.content if m.visibility_status == "visible" else "[hidden]",
+        "created_at": m.created_at.isoformat(),
+    }
+
+
+def _dream_json(d: Dream) -> dict[str, Any]:
+    return {
+        "id": d.id,
+        "title": d.title,
+        "original_dream": d.original_dream,
+        "rewritten_dream": d.rewritten_dream,
+        "intensity": d.intensity,
+        "is_nightmare": d.is_nightmare,
+        "source": d.source,
+        "created_at": d.created_at.isoformat(),
+        "practice_timestamps": list(d.practice_timestamps or []),
+    }
+
 
 @router.get("/data")
-async def export_data(
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> dict[str, Any]:
-    chats = await ChatRepo(db).list_for_user(user.id, limit=10_000)
-    dreams = await DreamRepo(db).list_for_user(user.id, limit=10_000)
+async def export_data(user: CurrentUser, db: Db) -> dict[str, Any]:
+    chats = await ChatRepo(db).list_for_user(user.id, limit=_ALL)
+    dreams = await DreamRepo(db).list_for_user(user.id, limit=_ALL)
     msg_repo = ChatMessageRepo(db)
-
-    chats_payload: list[dict[str, Any]] = []
-    for c in chats:
-        msgs = await msg_repo.list_for_chat(c.id, limit=10_000)
-        chats_payload.append(
-            {
-                "id": c.id,
-                "language": c.language,
-                "current_stage": c.current_stage,
-                "is_done": c.is_done,
-                "created_at": c.created_at.isoformat(),
-                "messages": [
-                    {
-                        "id": str(m.id),
-                        "role": m.role,
-                        "stage": m.stage,
-                        "content": m.content
-                        if m.visibility_status == "visible"
-                        else "[hidden]",
-                        "created_at": m.created_at.isoformat(),
-                    }
-                    for m in msgs
-                ],
-            }
-        )
 
     return {
         "user": {
@@ -59,19 +57,18 @@ async def export_data(
             "nightmare_frequency": user.nightmare_frequency,
             "created_at": user.created_at.isoformat(),
         },
-        "dreams": [
+        "dreams": [_dream_json(d) for d in dreams],
+        "chats": [
             {
-                "id": d.id,
-                "title": d.title,
-                "original_dream": d.original_dream,
-                "rewritten_dream": d.rewritten_dream,
-                "intensity": d.intensity,
-                "is_nightmare": d.is_nightmare,
-                "source": d.source,
-                "created_at": d.created_at.isoformat(),
-                "practice_timestamps": list(d.practice_timestamps or []),
+                "id": c.id,
+                "language": c.language,
+                "current_stage": c.current_stage,
+                "is_done": c.is_done,
+                "created_at": c.created_at.isoformat(),
+                "messages": [
+                    _message_json(m) for m in await msg_repo.list_for_chat(c.id, limit=_ALL)
+                ],
             }
-            for d in dreams
+            for c in chats
         ],
-        "chats": chats_payload,
     }

@@ -35,7 +35,8 @@ class _AuthGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<IAuthService>();
-    return auth.isSignedIn ? const ChatScreen() : const SignInScreen();
+    return context.watch<AuthService>().isSignedIn
+        ? const ChatScreen()
+        : const SignInScreen();
   }
 }

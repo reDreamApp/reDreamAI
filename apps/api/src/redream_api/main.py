@@ -13,10 +13,6 @@ from .core.logging import configure_logging
 
 configure_logging()
 
-app = FastAPI(
-    title="reDreamAI — backend",
-    version="0.1.0",
-)
-
+app = FastAPI(title="reDreamAI — backend", version="0.1.0")
 app.include_router(router_v1, prefix="/api/v1")
 app.include_router(router_internal, prefix="/internal")

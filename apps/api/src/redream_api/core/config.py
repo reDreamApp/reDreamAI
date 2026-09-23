@@ -1,25 +1,21 @@
-"""Settings via pydantic-settings."""
+"""Settings via pydantic-settings. Surface area mirrored in .env.example."""
 
 from __future__ import annotations
 
-from pydantic import Field, field_validator
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _ASYNC_DRIVERS = ("postgresql+asyncpg://", "sqlite+aiosqlite://")
 
 
 class Settings(BaseSettings):
-    """Runtime config. Surface area mirrored in .env.example."""
-
-    # Database — must use an async driver.
     database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/postgres"
 
-    # Supabase
     supabase_url: str = ""
     supabase_anon_key: str = ""
     supabase_service_role_key: str = ""
+    supabase_storage_bucket: str = "rehearsal-audio"
 
-    # Supabase JWT verification
     supabase_jwt_iss: str = ""
     supabase_jwks_url: str = ""
     supabase_jwt_aud: str = "authenticated"
@@ -37,7 +33,6 @@ class Settings(BaseSettings):
     report_notification_email_from: str = ""
     report_notification_hmac_secret: str = ""
 
-    # SMTP
     smtp_host: str = ""
     smtp_port: int = 587
     smtp_user: str = ""
@@ -47,16 +42,14 @@ class Settings(BaseSettings):
     # Token budget (ADR 0008)
     daily_llm_token_budget: int = 100_000
 
-    # AI service
     ai_service_url: str = "http://localhost:8080"
     ai_request_timeout: float = 30.0
 
-    # Langfuse (ADR 0007 — used by GDPR purge path)
+    # Langfuse (ADR 0007 — used by the GDPR purge path)
     langfuse_host: str = ""
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
 
-    # Runtime
     environment: str = "development"
     log_level: str = "INFO"
 

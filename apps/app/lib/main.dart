@@ -17,21 +17,18 @@ Future<void> main() async {
     anonKey: Env.supabaseAnonKey,
   );
 
-  final authService = SupabaseAuthService(Supabase.instance.client);
-  final apiClient = ApiClient(
-    baseUrl: Env.apiBaseUrl,
-    tokenProvider: () => authService.accessToken,
+  final auth = SupabaseAuthService(Supabase.instance.client);
+  final chatService = ChatService(
+    ApiClient(baseUrl: Env.apiBaseUrl, tokenProvider: () => auth.accessToken),
   );
-  final chatService = ChatService(apiClient);
 
   runApp(
     MultiProvider(
       providers: [
-        ChangeNotifierProvider<SupabaseAuthService>.value(value: authService),
-        Provider<IAuthService>.value(value: authService),
-        Provider<ApiClient>.value(value: apiClient),
-        Provider<IChatService>.value(value: chatService),
-        ChangeNotifierProvider<ChatState>(create: (_) => ChatState(chatService)),
+        ChangeNotifierProvider<AuthService>.value(value: auth),
+        ChangeNotifierProvider<ChatState>(
+          create: (_) => ChatState(chatService),
+        ),
       ],
       child: const ReDreamApp(),
     ),

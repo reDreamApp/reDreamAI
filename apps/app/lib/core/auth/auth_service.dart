@@ -1,36 +1,31 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-abstract class IAuthService {
+/// Sign-in state the UI listens to. Implemented by [SupabaseAuthService] in
+/// production and by fakes in tests.
+abstract class AuthService extends ChangeNotifier {
   String? get accessToken;
   bool get isSignedIn;
-  String? get userEmail;
-  Stream<bool> get authChanges;
 
   Future<void> signIn({required String email, required String password});
   Future<void> signOut();
 }
 
-class SupabaseAuthService extends ChangeNotifier implements IAuthService {
+class SupabaseAuthService extends AuthService {
   SupabaseAuthService(this._client) {
     _sub = _client.auth.onAuthStateChange.listen((_) => notifyListeners());
   }
 
   final SupabaseClient _client;
-  late final dynamic _sub;
+  late final StreamSubscription<AuthState> _sub;
 
   @override
   String? get accessToken => _client.auth.currentSession?.accessToken;
 
   @override
   bool get isSignedIn => _client.auth.currentSession != null;
-
-  @override
-  String? get userEmail => _client.auth.currentUser?.email;
-
-  @override
-  Stream<bool> get authChanges =>
-      _client.auth.onAuthStateChange.map((_) => isSignedIn);
 
   @override
   Future<void> signIn({required String email, required String password}) async {
@@ -44,7 +39,7 @@ class SupabaseAuthService extends ChangeNotifier implements IAuthService {
 
   @override
   void dispose() {
-    _sub.cancel();
+    unawaited(_sub.cancel());
     super.dispose();
   }
 }

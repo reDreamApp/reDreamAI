@@ -30,6 +30,5 @@ router_v1.include_router(reports.router)
 router_v1.include_router(exports.router)
 router_v1.include_router(help_center.router)
 
-
 router_internal = APIRouter()
 router_internal.include_router(moderation.router)

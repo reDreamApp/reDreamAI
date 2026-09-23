@@ -48,9 +48,7 @@ class Message(BaseModel):
     timestamp: datetime | None = None
 
 
-# ---------------------------------------------------------------------------
 # /chat — IRT turn
-# ---------------------------------------------------------------------------
 
 
 class ChatRequest(BaseModel):
@@ -97,9 +95,7 @@ class ChatResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-# ---------------------------------------------------------------------------
 # /safety/classify — crisis pre-classifier (ADR 0005)
-# ---------------------------------------------------------------------------
 
 
 class SafetyRisk(StrEnum):
@@ -129,9 +125,7 @@ class SafetyResponse(BaseModel):
     prompt_version: str
 
 
-# ---------------------------------------------------------------------------
 # /audio/transcribe — Voxtral STT (ADR 0010)
-# ---------------------------------------------------------------------------
 
 
 class TranscribeResponse(BaseModel):
@@ -141,9 +135,7 @@ class TranscribeResponse(BaseModel):
     output_tokens: int = 0
 
 
-# ---------------------------------------------------------------------------
 # /rehearsal/generate — Voxtral TTS + Supabase Storage upload
-# ---------------------------------------------------------------------------
 
 
 class RehearsalRequest(BaseModel):

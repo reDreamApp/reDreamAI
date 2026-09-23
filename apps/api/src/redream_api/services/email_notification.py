@@ -1,7 +1,7 @@
 """Moderation notifications via email + HMAC-signed action links (ADR 0006).
 
-Replaces the legacy Telegram pipeline. Notifications carry only metadata +
-a signed link to the admin view — content snapshots stay in Postgres.
+Notifications carry only metadata plus a signed link to the admin view —
+content snapshots stay in Postgres.
 """
 
 from __future__ import annotations
@@ -69,8 +69,8 @@ Severity:       {report.severity}
 Target role:    {report.target_role}
 Chat ID:        {report.chat_id}
 Message ID:     {report.message_id}
-Stage:          {report.stage or '—'}
-Language:       {report.language or '—'}
+Stage:          {report.stage or "—"}
+Language:       {report.language or "—"}
 Created at:     {report.created_at.isoformat()}
 
 Open the admin view to read content + context (snapshots stay on the server).
@@ -80,7 +80,7 @@ Actions (HMAC-signed):
 - Reject:  {reject}
 - Hide message: {hide}
 
-— reDreamAI moderation pipeline (ADR 0006)
+— reDreamAI moderation pipeline
 """
     msg.set_content(body)
     return msg
@@ -95,9 +95,7 @@ async def send_report_notification(report: ContentReport) -> None:
     """
 
     if not settings.report_notification_email or not settings.report_notification_email_from:
-        log.info(
-            "report.notification.skipped reason=email_not_configured report_id=%s", report.id
-        )
+        log.info("report.notification.skipped reason=email_not_configured report_id=%s", report.id)
         return
     if not settings.report_notification_hmac_secret:
         log.warning(
@@ -120,5 +118,6 @@ async def send_report_notification(report: ContentReport) -> None:
             start_tls=settings.smtp_use_tls,
         )
         log.info("report.notification.sent report_id=%s", report.id)
-    except Exception:  # noqa: BLE001 — never block the request on email failure
+    except Exception:
+        # Never block the request on an email failure.
         log.exception("report.notification.failed report_id=%s", report.id)

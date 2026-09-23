@@ -25,19 +25,18 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 
   Future<void> _submit() async {
-    final l10n = AppLocalizations.of(context)!;
+    final failureMessage = AppLocalizations.of(context)!.signInError;
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      await context.read<IAuthService>().signIn(
+      await context.read<AuthService>().signIn(
         email: _email.text.trim(),
         password: _password.text,
       );
     } catch (_) {
-      if (!mounted) return;
-      setState(() => _error = l10n.signInError);
+      if (mounted) setState(() => _error = failureMessage);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -67,14 +66,22 @@ class _SignInScreenState extends State<SignInScreen> {
             ),
             const SizedBox(height: 20),
             if (_error != null) ...[
-              Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
               const SizedBox(height: 12),
             ],
             FilledButton(
-              onPressed: _busy ? null : _submit,
+              onPressed: _busy
+                  ? null
+                  : () async {
+                      await _submit();
+                    },
               child: _busy
                   ? const SizedBox(
-                      height: 18, width: 18,
+                      height: 18,
+                      width: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : Text(l10n.signInButton),

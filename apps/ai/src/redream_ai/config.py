@@ -1,18 +1,12 @@
-"""Service configuration via pydantic-settings."""
+"""Service configuration. Surface area mirrored in .env.example."""
 
 from __future__ import annotations
 
-from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """Runtime config. Values come from environment variables or .env.
-
-    Surface area is mirrored in .env.example.
-    """
-
-    mistral_api_key: str = Field(default="", description="Mistral API key")
+    mistral_api_key: str = ""
 
     # Pinned model IDs (ADR 0010 — never floating aliases for prod models).
     mistral_response_model: str = "mistral-small-4-0-26-03"

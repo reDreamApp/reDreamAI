@@ -31,9 +31,7 @@ class Dream(Base):
     last_edited: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    practice_timestamps: Mapped[list[Any]] = mapped_column(
-        JsonCol, nullable=False, default=list
-    )
+    practice_timestamps: Mapped[list[Any]] = mapped_column(JsonCol, nullable=False, default=list)
     is_current_dream: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     image_url: Mapped[str | None] = mapped_column(String)
     session_id: Mapped[str | None] = mapped_column(String, index=True)
@@ -44,3 +42,11 @@ class Dream(Base):
     rehearsal_duration: Mapped[str | None] = mapped_column(String)
     rehearsal_language: Mapped[str | None] = mapped_column(String)
     rehearsal_generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    def clear_rehearsal(self) -> None:
+        """Drop cached rehearsal audio — the rewritten dream it was made from changed."""
+        self.rehearsal_audio_url = None
+        self.rehearsal_script = None
+        self.rehearsal_duration = None
+        self.rehearsal_language = None
+        self.rehearsal_generated_at = None

@@ -11,9 +11,7 @@ class ApiClient {
     required String baseUrl,
     required TokenProvider tokenProvider,
     http.Client? httpClient,
-  }) : _baseUrl = baseUrl.endsWith('/')
-            ? baseUrl.substring(0, baseUrl.length - 1)
-            : baseUrl,
+  }) : _baseUrl = baseUrl.replaceAll(RegExp(r'/+$'), ''),
        _tokenProvider = tokenProvider,
        _http = httpClient ?? http.Client();
 
@@ -21,67 +19,59 @@ class ApiClient {
   final TokenProvider _tokenProvider;
   final http.Client _http;
 
-  Future<Map<String, dynamic>> get(String path) async {
-    final res = await _http.get(_uri(path), headers: _headers());
-    return _decode(res);
-  }
+  Future<Map<String, dynamic>> get(String path) => _send('GET', path);
 
-  Future<Map<String, dynamic>> post(String path, Object? body) async {
-    final res = await _http.post(
-      _uri(path),
-      headers: _headers(json: true),
-      body: body == null ? null : jsonEncode(body),
-    );
-    return _decode(res);
-  }
+  Future<List<dynamic>> getList(String path) => _send('GET', path);
 
-  Future<List<dynamic>> getList(String path) async {
-    final res = await _http.get(_uri(path), headers: _headers());
-    final decoded = _decodeRaw(res);
-    if (decoded is! List) {
-      throw ApiException(res.statusCode, 'Expected list, got ${decoded.runtimeType}');
+  Future<Map<String, dynamic>> post(String path, Object? body) =>
+      _send('POST', path, body: body);
+
+  Future<T> _send<T>(String method, String path, {Object? body}) async {
+    final uri = Uri.parse('$_baseUrl${path.startsWith('/') ? '' : '/'}$path');
+    final token = _tokenProvider();
+    final headers = <String, String>{
+      'Accept': 'application/json',
+      if (method == 'POST') 'Content-Type': 'application/json',
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+    };
+
+    final res = method == 'GET'
+        ? await _http.get(uri, headers: headers)
+        : await _http.post(
+            uri,
+            headers: headers,
+            body: body == null ? null : jsonEncode(body),
+          );
+
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      throw ApiException(
+        res.statusCode,
+        _errorMessage(res.body),
+        retryAfterSeconds: int.tryParse(res.headers['retry-after'] ?? ''),
+      );
+    }
+
+    final decoded = res.body.isEmpty
+        ? <String, dynamic>{}
+        : jsonDecode(res.body);
+    if (decoded is! T) {
+      throw ApiException(
+        res.statusCode,
+        'Expected $T, got ${decoded.runtimeType}',
+      );
     }
     return decoded;
   }
 
-  Uri _uri(String path) {
-    final p = path.startsWith('/') ? path : '/$path';
-    return Uri.parse('$_baseUrl$p');
-  }
-
-  Map<String, String> _headers({bool json = false}) {
-    final headers = <String, String>{
-      'Accept': 'application/json',
-    };
-    if (json) headers['Content-Type'] = 'application/json';
-    final token = _tokenProvider();
-    if (token != null && token.isNotEmpty) {
-      headers['Authorization'] = 'Bearer $token';
-    }
-    return headers;
-  }
-
-  Map<String, dynamic> _decode(http.Response res) {
-    final raw = _decodeRaw(res);
-    if (raw is! Map<String, dynamic>) {
-      throw ApiException(res.statusCode, 'Expected object, got ${raw.runtimeType}');
-    }
-    return raw;
-  }
-
-  dynamic _decodeRaw(http.Response res) {
-    if (res.statusCode >= 200 && res.statusCode < 300) {
-      if (res.body.isEmpty) return <String, dynamic>{};
-      return jsonDecode(res.body);
-    }
-    String message = res.body;
+  /// FastAPI puts the human-readable error under `detail`; fall back to the
+  /// raw body when the response isn't the shape we expect.
+  String _errorMessage(String body) {
     try {
-      final decoded = jsonDecode(res.body);
+      final decoded = jsonDecode(body);
       if (decoded is Map && decoded['detail'] is String) {
-        message = decoded['detail'] as String;
+        return decoded['detail'] as String;
       }
     } catch (_) {}
-    final retryAfter = int.tryParse(res.headers['retry-after'] ?? '');
-    throw ApiException(res.statusCode, message, retryAfterSeconds: retryAfter);
+    return body;
   }
 }

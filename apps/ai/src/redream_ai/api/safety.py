@@ -1,29 +1,25 @@
 """POST /safety/classify — crisis pre-classifier (ADR 0005).
 
-Backend must call this BEFORE every /chat turn. High-risk responses short-circuit
-the IRT machine and trigger a helpline overlay client-side.
+The backend calls this BEFORE every /chat turn; a high-risk result
+short-circuits the IRT machine and triggers a helpline overlay client-side.
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, HTTPException, status
 
 from ..config import settings
-from ..llm.base import LlmClient
 from ..models import SafetyRequest, SafetyResponse
 from ..safety import classify
-from .chat import get_llm_client
+from .deps import Llm
 
 router = APIRouter()
 
 
 @router.post("/safety/classify", response_model=SafetyResponse)
-async def safety_classify(
-    req: SafetyRequest,
-    llm: LlmClient = Depends(get_llm_client),
-) -> SafetyResponse:
+async def safety_classify(req: SafetyRequest, llm: Llm) -> SafetyResponse:
     if not req.text.strip():
-        raise HTTPException(400, "text must not be empty")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "text must not be empty")
     return await classify(
         llm=llm,
         model=settings.mistral_safety_model,

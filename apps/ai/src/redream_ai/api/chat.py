@@ -1,44 +1,31 @@
 """POST /chat — IRT routing + response (ADR 0002 stateless, ADR 0009 streaming).
 
-Skeleton: stage is enforced by `redream_ai.irt`. The response-agent prompt
-port (`prompts/{en,de}.py`) and the streaming SSE variant are TODO; the
-non-streaming route here returns an empty response with the correct stage,
-so the route is exercisable end-to-end before the prompt port lands.
+Stage transitions are enforced by `redream_ai.irt`. The response-agent prompt
+port and the streaming SSE variant are still TODO; this non-streaming route
+returns an empty response with the correct stage so the contract is
+exercisable end-to-end before the prompt port lands.
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, status
 
-from .. import irt as irt_mod
-from ..llm.base import LlmClient
+from .. import irt
 from ..models import ChatRequest, ChatResponse, UsageStats
 
 router = APIRouter()
 
 
-async def get_llm_client() -> LlmClient:
-    """DI hook. Overridden in `main.py` (prod) and in tests (FakeLlmClient)."""
-    raise NotImplementedError(
-        "LlmClient dependency must be configured by the app factory in main.py."
-    )
-
-
 @router.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest) -> ChatResponse:
-    """Non-streaming /chat (streaming variant per ADR 0009 — TODO)."""
-
     if not req.messages:
-        raise HTTPException(400, "messages must not be empty")
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "messages must not be empty")
 
-    current = irt_mod.current_stage(req.messages)
-    next_stage = irt_mod.enforce_transition(req.messages, current)
+    stage = irt.enforce_transition(req.messages, irt.current_stage(req.messages))
 
     # TODO: routing agent + response agent.
-    # Stub returns the enforced current stage with an empty response so the
-    # contract is exercisable while prompts are being ported.
     return ChatResponse(
-        stage=next_stage,
+        stage=stage,
         response="",
         structured=None,
         usage=UsageStats(input_tokens=0, output_tokens=0),

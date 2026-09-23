@@ -2,16 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from ....core.dependencies import get_current_user, get_db
+from ....core.clock import utcnow
+from ....core.dependencies import CurrentUser, Db
 from ....db.models.dream import Dream
-from ....db.models.user import User
 from ....db.repositories.dream_repo import DreamRepo
-from ....services.ai_client import AIServiceError, BaseAiClient, get_ai_client
+from ....services.ai_client import Ai, AIServiceError
 from .schemas import DreamCreate, DreamOut, DreamUpdate, RehearsalGenerateRequest
 
 router = APIRouter(prefix="/dreams", tags=["dreams"])
@@ -40,140 +39,84 @@ def _to_out(dream: Dream) -> DreamOut:
     )
 
 
-@router.get("", response_model=list[DreamOut])
-async def list_dreams(
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> list[DreamOut]:
-    rows = await DreamRepo(db).list_for_user(user.id)
-    return [_to_out(d) for d in rows]
-
-
-@router.get("/{dream_id}", response_model=DreamOut)
-async def get_dream(
-    dream_id: int,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> DreamOut:
+async def get_owned_dream(dream_id: int, user: CurrentUser, db: Db) -> Dream:
+    """Path dependency: the caller's dream, or 404."""
     dream = await DreamRepo(db).get_for_user(user.id, dream_id)
     if dream is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "dream not found")
+    return dream
+
+
+OwnedDream = Annotated[Dream, Depends(get_owned_dream)]
+
+
+@router.get("", response_model=list[DreamOut])
+async def list_dreams(user: CurrentUser, db: Db) -> list[DreamOut]:
+    return [_to_out(d) for d in await DreamRepo(db).list_for_user(user.id)]
+
+
+@router.get("/{dream_id}", response_model=DreamOut)
+async def get_dream(dream: OwnedDream) -> DreamOut:
     return _to_out(dream)
 
 
 @router.post("", response_model=DreamOut, status_code=status.HTTP_201_CREATED)
-async def create_dream(
-    body: DreamCreate,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> DreamOut:
-    dream = Dream(user_id=user.id, **body.model_dump())
-    created = await DreamRepo(db).create(dream)
-    return _to_out(created)
+async def create_dream(body: DreamCreate, user: CurrentUser, db: Db) -> DreamOut:
+    dream = await DreamRepo(db).create(Dream(user_id=user.id, **body.model_dump()))
+    return _to_out(dream)
 
 
 @router.put("/{dream_id}", response_model=DreamOut)
-async def update_dream(
-    dream_id: int,
-    body: DreamUpdate,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> DreamOut:
-    repo = DreamRepo(db)
-    dream = await repo.get_for_user(user.id, dream_id)
-    if dream is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "dream not found")
-
+async def update_dream(body: DreamUpdate, dream: OwnedDream, db: Db) -> DreamOut:
     rewritten_changed = (
         body.rewritten_dream is not None and body.rewritten_dream != dream.rewritten_dream
     )
-
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(dream, field, value)
-    dream.last_edited = datetime.now(timezone.utc)
-
-    # If the rewritten dream changed, the cached rehearsal audio is stale.
+    dream.last_edited = utcnow()
     if rewritten_changed:
-        dream.rehearsal_audio_url = None
-        dream.rehearsal_script = None
-        dream.rehearsal_duration = None
-        dream.rehearsal_language = None
-        dream.rehearsal_generated_at = None
-
-    saved = await repo.save(dream)
-    return _to_out(saved)
+        dream.clear_rehearsal()
+    return _to_out(await DreamRepo(db).save(dream))
 
 
 @router.delete("/{dream_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_dream(
-    dream_id: int,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> None:
-    repo = DreamRepo(db)
-    dream = await repo.get_for_user(user.id, dream_id)
-    if dream is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "dream not found")
-    await repo.delete(dream)
+async def delete_dream(dream: OwnedDream, db: Db) -> None:
+    await DreamRepo(db).delete(dream)
 
 
 @router.patch("/{dream_id}/favorite", response_model=DreamOut)
-async def set_current_dream(
-    dream_id: int,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> DreamOut:
+async def set_current_dream(dream: OwnedDream, user: CurrentUser, db: Db) -> DreamOut:
     repo = DreamRepo(db)
-    dream = await repo.get_for_user(user.id, dream_id)
-    if dream is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "dream not found")
     await repo.clear_current_for_user(user.id)
     dream.is_current_dream = True
-    saved = await repo.save(dream)
-    return _to_out(saved)
+    return _to_out(await repo.save(dream))
 
 
 @router.post("/{dream_id}/practice", response_model=DreamOut)
-async def record_practice(
-    dream_id: int,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-) -> DreamOut:
-    repo = DreamRepo(db)
-    dream = await repo.get_for_user(user.id, dream_id)
-    if dream is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "dream not found")
-
-    timestamps = list(dream.practice_timestamps or [])
-    timestamps.append(datetime.now(timezone.utc).isoformat())
-    dream.practice_timestamps = timestamps
-    saved = await repo.save(dream)
-    return _to_out(saved)
+async def record_practice(dream: OwnedDream, db: Db) -> DreamOut:
+    dream.practice_timestamps = [
+        *(dream.practice_timestamps or []),
+        utcnow().isoformat(),
+    ]
+    return _to_out(await DreamRepo(db).save(dream))
 
 
 @router.post("/{dream_id}/rehearsal", response_model=DreamOut)
 async def generate_rehearsal(
-    dream_id: int,
     body: RehearsalGenerateRequest,
-    user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db),
-    ai: BaseAiClient = Depends(get_ai_client),
+    dream: OwnedDream,
+    db: Db,
+    ai: Ai,
 ) -> DreamOut:
-    repo = DreamRepo(db)
-    dream = await repo.get_for_user(user.id, dream_id)
-    if dream is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "dream not found")
     if not dream.rewritten_dream:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, "rewritten_dream is required for rehearsal"
-        )
+        raise HTTPException(status.HTTP_409_CONFLICT, "rewritten_dream is required for rehearsal")
 
-    # Cache: if audio already exists and matches the requested language, reuse.
-    if (
+    cached = (
         dream.rehearsal_audio_url
         and dream.rehearsal_language == body.language
         and dream.rehearsal_generated_at is not None
-    ):
+    )
+    if cached:
         return _to_out(dream)
 
     try:
@@ -191,6 +134,5 @@ async def generate_rehearsal(
     dream.rehearsal_script = result.get("script")
     dream.rehearsal_duration = result.get("duration_estimate")
     dream.rehearsal_language = body.language
-    dream.rehearsal_generated_at = datetime.now(timezone.utc)
-    saved = await repo.save(dream)
-    return _to_out(saved)
+    dream.rehearsal_generated_at = utcnow()
+    return _to_out(await DreamRepo(db).save(dream))

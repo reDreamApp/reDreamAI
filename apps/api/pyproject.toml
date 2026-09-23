@@ -53,3 +53,7 @@ pythonpath = ["src"]
 strict = true
 python_version = "3.12"
 mypy_path = "src"
+
+[[tool.mypy.overrides]]
+module = ["jose.*"]
+ignore_missing_imports = true
