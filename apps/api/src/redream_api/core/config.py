@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     daily_llm_token_budget: int = 100_000
 
     ai_service_url: str = "http://localhost:8080"
-    ai_request_timeout: float = 30.0
+    ai_request_timeout: float = 90.0
 
     # Langfuse (ADR 0007 — used by the GDPR purge path)
     langfuse_host: str = ""

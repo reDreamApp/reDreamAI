@@ -1,4 +1,4 @@
-/// IRT stages, in canonical order. [wire] is the value the API sends.
+/// IRT stages in canonical order. [wire] is the value the API sends.
 enum IrtStage {
   recording('recording'),
   intensity('intensity'),
@@ -12,18 +12,27 @@ enum IrtStage {
   final String wire;
 
   static IrtStage fromWire(String? value) => values.firstWhere(
-    (stage) => stage.wire == value,
+    (s) => s.wire == value,
     orElse: () => IrtStage.recording,
   );
+
+  /// Nightmares go through all five stages; positive dreams skip two.
+  static List<IrtStage> path({required bool nightmare}) => nightmare
+      ? values
+      : const [IrtStage.recording, IrtStage.summary, IrtStage.finalStage];
 }
 
+enum MessageStatus { sent, sending, failed }
+
 class ChatMessage {
-  ChatMessage({
+  const ChatMessage({
     required this.id,
     required this.role,
     required this.content,
-    required this.stage,
     required this.createdAt,
+    this.stage,
+    this.status = MessageStatus.sent,
+    this.isLocal = false,
   });
 
   factory ChatMessage.fromJson(Map<String, dynamic> json) => ChatMessage(
@@ -34,17 +43,77 @@ class ChatMessage {
     createdAt: DateTime.parse(json['created_at'] as String),
   );
 
+  /// Client-side message (welcome text, unsent input). Cannot be reported.
+  factory ChatMessage.local({
+    required String id,
+    required String role,
+    required String content,
+    MessageStatus status = MessageStatus.sent,
+  }) => ChatMessage(
+    id: id,
+    role: role,
+    content: content,
+    createdAt: DateTime.now(),
+    status: status,
+    isLocal: true,
+  );
+
   final String id;
   final String role;
   final String content;
   final String? stage;
   final DateTime createdAt;
+  final MessageStatus status;
+  final bool isLocal;
 
   bool get isUser => role == 'user';
+
+  ChatMessage copyWith({MessageStatus? status}) => ChatMessage(
+    id: id,
+    role: role,
+    content: content,
+    stage: stage,
+    createdAt: createdAt,
+    status: status ?? this.status,
+    isLocal: isLocal,
+  );
+}
+
+class ChatSummary {
+  const ChatSummary({
+    required this.id,
+    required this.language,
+    required this.stage,
+    required this.isDone,
+    required this.createdAt,
+    required this.updatedAt,
+    this.isNightmare,
+    this.title,
+  });
+
+  factory ChatSummary.fromJson(Map<String, dynamic> json) => ChatSummary(
+    id: json['id'] as int,
+    language: json['language'] as String,
+    stage: IrtStage.fromWire(json['current_stage'] as String?),
+    isDone: json['is_done'] as bool? ?? false,
+    isNightmare: json['is_nightmare'] as bool?,
+    title: json['title'] as String?,
+    createdAt: DateTime.parse(json['created_at'] as String),
+    updatedAt: DateTime.parse(json['updated_at'] as String),
+  );
+
+  final int id;
+  final String language;
+  final IrtStage stage;
+  final bool isDone;
+  final bool? isNightmare;
+  final String? title;
+  final DateTime createdAt;
+  final DateTime updatedAt;
 }
 
 class SafetyEvent {
-  SafetyEvent({
+  const SafetyEvent({
     required this.risk,
     required this.categories,
     required this.confidence,
@@ -62,30 +131,24 @@ class SafetyEvent {
 }
 
 class ChatStart {
-  ChatStart({
-    required this.chatId,
-    required this.language,
-    required this.currentStage,
-  });
+  const ChatStart({required this.chatId, required this.stage});
 
   factory ChatStart.fromJson(Map<String, dynamic> json) => ChatStart(
     chatId: json['chat_id'] as int,
-    language: json['language'] as String,
-    currentStage: IrtStage.fromWire(json['current_stage'] as String?),
+    stage: IrtStage.fromWire(json['current_stage'] as String?),
   );
 
   final int chatId;
-  final String language;
-  final IrtStage currentStage;
+  final IrtStage stage;
 }
 
 class ChatTurn {
-  ChatTurn({
+  const ChatTurn({
     required this.userMessage,
-    required this.aiMessage,
     required this.stage,
     required this.isDone,
-    required this.safetyEvent,
+    this.aiMessage,
+    this.safetyEvent,
   });
 
   factory ChatTurn.fromJson(Map<String, dynamic> json) {
@@ -97,7 +160,7 @@ class ChatTurn {
       ),
       aiMessage: ai == null ? null : ChatMessage.fromJson(ai),
       stage: IrtStage.fromWire(json['stage'] as String?),
-      isDone: json['is_done'] as bool,
+      isDone: json['is_done'] as bool? ?? false,
       safetyEvent: safety == null ? null : SafetyEvent.fromJson(safety),
     );
   }
@@ -107,4 +170,20 @@ class ChatTurn {
   final IrtStage stage;
   final bool isDone;
   final SafetyEvent? safetyEvent;
+}
+
+enum ReportReason {
+  childSafety('child_safety'),
+  selfHarm('self_harm'),
+  sexual('sexual'),
+  hate('hate'),
+  violence('violence'),
+  harassment('harassment'),
+  deceptive('deceptive'),
+  other('other')
+  ;
+
+  const ReportReason(this.wire);
+
+  final String wire;
 }

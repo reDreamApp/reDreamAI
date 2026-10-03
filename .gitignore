@@ -28,9 +28,14 @@ node_modules/
 
 # Env files
 .env
+.env.*.bak
 **/.env.local
 infra/env/
 
 # Supabase CLI local state
 supabase/.branches/
 supabase/.temp/
+
+# Laptop-transfer bundle with real secrets — never commit
+/transfer/
+.claude/settings.local.json

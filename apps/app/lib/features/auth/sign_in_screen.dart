@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-
-import '../../core/auth/auth_service.dart';
-import '../../l10n/generated/app_localizations.dart';
+import 'package:redream_app/core/auth/auth_service.dart';
+import 'package:redream_app/core/utils/errors.dart';
+import 'package:redream_app/core/widgets/app_button.dart';
+import 'package:redream_app/core/widgets/feedback.dart';
+import 'package:redream_app/features/auth/auth_fields.dart';
+import 'package:redream_app/features/auth/forgot_password_screen.dart';
+import 'package:redream_app/features/auth/sign_up_screen.dart';
+import 'package:redream_app/l10n/generated/app_localizations.dart';
 
 class SignInScreen extends StatefulWidget {
   const SignInScreen({super.key});
@@ -12,6 +18,7 @@ class SignInScreen extends StatefulWidget {
 }
 
 class _SignInScreenState extends State<SignInScreen> {
+  final _form = GlobalKey<FormState>();
   final _email = TextEditingController();
   final _password = TextEditingController();
   bool _busy = false;
@@ -25,7 +32,8 @@ class _SignInScreenState extends State<SignInScreen> {
   }
 
   Future<void> _submit() async {
-    final failureMessage = AppLocalizations.of(context)!.signInError;
+    if (!_form.currentState!.validate()) return;
+    final l10n = AppLocalizations.of(context)!;
     setState(() {
       _busy = true;
       _error = null;
@@ -35,8 +43,9 @@ class _SignInScreenState extends State<SignInScreen> {
         email: _email.text.trim(),
         password: _password.text,
       );
-    } catch (_) {
-      if (mounted) setState(() => _error = failureMessage);
+      TextInput.finishAutofillContext();
+    } on Exception catch (e) {
+      if (mounted) setState(() => _error = describeError(e, l10n));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -46,47 +55,56 @@ class _SignInScreenState extends State<SignInScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.signInTitle)),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            TextField(
-              controller: _email,
-              keyboardType: TextInputType.emailAddress,
-              autocorrect: false,
-              decoration: InputDecoration(labelText: l10n.signInEmail),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _password,
-              obscureText: true,
-              decoration: InputDecoration(labelText: l10n.signInPassword),
-            ),
-            const SizedBox(height: 20),
-            if (_error != null) ...[
-              Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+          child: Form(
+            key: _form,
+            child: AutofillGroup(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const AuthTopBar(),
+                  const AuthHeader(),
+                  const SizedBox(height: 32),
+                  AuthEmailField(controller: _email, autofocus: true),
+                  const SizedBox(height: 12),
+                  AuthPasswordField(
+                    controller: _password,
+                    onSubmitted: (_) => _submit(),
+                  ),
+                  const SizedBox(height: 16),
+                  if (_error != null) ...[
+                    InlineNotice(message: _error!),
+                    const SizedBox(height: 16),
+                  ],
+                  AppButton(
+                    label: l10n.signInButton,
+                    busy: _busy,
+                    onPressed: _submit,
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => const SignUpScreen(),
+                      ),
+                    ),
+                    child: Text(l10n.signInSwitch),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => const ForgotPasswordScreen(),
+                      ),
+                    ),
+                    child: Text(l10n.forgotPassword),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-            ],
-            FilledButton(
-              onPressed: _busy
-                  ? null
-                  : () async {
-                      await _submit();
-                    },
-              child: _busy
-                  ? const SizedBox(
-                      height: 18,
-                      width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(l10n.signInButton),
             ),
-          ],
+          ),
         ),
       ),
     );

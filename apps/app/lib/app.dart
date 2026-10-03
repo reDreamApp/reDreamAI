@@ -2,22 +2,28 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
-import 'core/auth/auth_service.dart';
-import 'core/theme/app_theme.dart';
-import 'features/auth/sign_in_screen.dart';
-import 'features/chat/chat_screen.dart';
-import 'l10n/generated/app_localizations.dart';
+import 'package:redream_app/core/auth/auth_service.dart';
+import 'package:redream_app/core/settings/app_settings.dart';
+import 'package:redream_app/core/theme/app_theme.dart';
+import 'package:redream_app/features/auth/sign_in_screen.dart';
+import 'package:redream_app/features/onboarding/onboarding_screen.dart';
+import 'package:redream_app/features/shell/main_shell.dart';
+import 'package:redream_app/features/shell/user_scope.dart';
+import 'package:redream_app/l10n/generated/app_localizations.dart';
 
 class ReDreamApp extends StatelessWidget {
   const ReDreamApp({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final settings = context.watch<AppSettings>();
     return MaterialApp(
       title: 'reDreamAI',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
+      themeMode: settings.themeMode,
+      locale: settings.locale,
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -25,18 +31,25 @@ class ReDreamApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
       ],
       supportedLocales: AppLocalizations.supportedLocales,
-      home: const _AuthGate(),
+      home: const AuthGate(),
     );
   }
 }
 
-class _AuthGate extends StatelessWidget {
-  const _AuthGate();
+/// Signed out → sign in. Signed in → per-user scope with onboarding once
+/// after sign-up, otherwise the tabbed shell.
+class AuthGate extends StatelessWidget {
+  const AuthGate({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return context.watch<AuthService>().isSignedIn
-        ? const ChatScreen()
-        : const SignInScreen();
+    final userId = context.watch<AuthService>().userId;
+    if (userId == null) return const SignInScreen();
+    final onboarding = context.watch<AppSettings>().needsOnboarding(userId);
+    return UserScope(
+      key: ValueKey(userId),
+      userId: userId,
+      child: onboarding ? const OnboardingScreen() : const MainShell(),
+    );
   }
 }

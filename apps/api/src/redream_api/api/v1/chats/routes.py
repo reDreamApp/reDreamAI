@@ -206,6 +206,8 @@ async def send_message(
     chat.current_stage = ai_stage
     chat.is_done = ai_stage == "final"
     chat.updated_at = utcnow()
+    if structured and structured.get("title"):
+        chat.title = str(structured["title"])
     await ChatRepo(db).save(chat)
 
     if structured and ai_stage in ("summary", "final"):
@@ -253,6 +255,9 @@ async def _upsert_dream_from_structured(
         or structured.get("original_dream", "")
     )
 
+    raw_intensity = structured.get("intensity")
+    intensity = raw_intensity if isinstance(raw_intensity, int) else None
+
     existing = await repo.get_for_user_by_session(user_id, session_key)
     if existing is None:
         return await repo.create(
@@ -261,6 +266,7 @@ async def _upsert_dream_from_structured(
                 title=title,
                 original_dream=original,
                 rewritten_dream=rewritten,
+                intensity=intensity,
                 is_nightmare=True,
                 session_id=session_key,
                 source="chatbot",
@@ -270,6 +276,8 @@ async def _upsert_dream_from_structured(
     existing.title = title
     existing.original_dream = original or existing.original_dream
     existing.rewritten_dream = rewritten or existing.rewritten_dream
+    if intensity is not None:
+        existing.intensity = intensity
     existing.last_edited = utcnow()
     existing.clear_rehearsal()
     return await repo.save(existing)

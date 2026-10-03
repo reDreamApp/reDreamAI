@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from ..models import Stage
 
-PROMPT_VERSION = "prompts-en-v1.0.0"
+PROMPT_VERSION = "prompts-en-v1.2.0"
 
 
 _RECORDING = """\
@@ -33,8 +33,8 @@ Apply the Socratic method. If you deem it necessary, ask the user questions \
 to obtain a detailed dream report.
 Don't ask unnecessary questions.
 Don't ask more than one question at a time. Once the user has finished entering \
-their dream, ask if they would like to proceed with rewriting their dream \
-according to IRT."""
+their dream, ask if they would like to continue. Do not rate, rewrite or \
+summarize the dream in this stage; the next steps handle that."""
 
 
 _INTENSITY = """\
@@ -214,3 +214,33 @@ SYSTEM_PROMPTS: dict[Stage, str] = {
     Stage.SUMMARY: _SUMMARY,
     Stage.FINAL: _FINAL,
 }
+
+
+PLAIN_TEXT_RULE = """\
+Write plain conversational text: no markdown, no asterisks, headings, bullet \
+lists or horizontal rules. Keep replies short."""
+
+INTRO_MESSAGE = """\
+I'm here to help you work through your nightmares and turn them into more \
+positive experiences. Take your time to describe your nightmare in as much \
+detail as you can. When you're ready, I'll be here to guide and support you as \
+we reshape it together into a more empowering story."""
+
+SUMMARY_JSON_INSTRUCTION = """\
+**Machine-readable output (overrides the output format above):** apply every \
+rule above, but respond with a single JSON object and nothing else:
+{"title": "<short title>", "rewritten_dream": "<detailed summary of the \
+rewritten dream, following the rules above>", "original_dream": "<detailed \
+summary of the original dream with all sensory details>"}
+Every value is one plain-text string (no nested objects or lists, no \
+markdown).
+Do not include the concluding question in the JSON; it is added afterwards."""
+
+SUMMARY_TEMPLATE = """\
+Title: {title}
+
+Rewritten Dream: {rewritten}
+
+Original Dream: {original}
+
+Are you satisfied with the generated summary?"""

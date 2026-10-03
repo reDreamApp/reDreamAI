@@ -27,6 +27,13 @@ make ai-test
 
 Tests run against `FakeLlmClient` — no live Mistral calls, no API key required.
 
+## Live evals
+`evals/run_evals.py` runs fixed safety and routing cases against the real Mistral API (needs `MISTRAL_API_KEY`, not part of CI). Run it after changing a prompt or a model:
+
+```sh
+uv run python evals/run_evals.py
+```
+
 ## Architecture
 
 - `redream_ai.llm.base` — `LlmClient` protocol; swap providers behind it.
@@ -34,7 +41,9 @@ Tests run against `FakeLlmClient` — no live Mistral calls, no API key required
 - `redream_ai.llm.fake_client` — fake implementation for tests + offline dev.
 - `redream_ai.irt` — IRT 5-stage state machine + guardrails.
 - `redream_ai.safety.classifier` — Ministral 8B JSON-mode crisis classifier.
-- `redream_ai.audio.tts` — Voxtral TTS + Supabase Storage upload (stubbed pending voice source).
-- `redream_ai.audio.stt` — Voxtral STT (stubbed pending Mistral SDK wiring).
+- `redream_ai.chat.pipeline` — one `/chat` turn: routing agent (JSON) → `irt` guardrails → stage prompt; the summary stage answers in JSON and is returned as `structured`.
+- `redream_ai.audio.tts` — Voxtral TTS, cached per content hash in the Supabase bucket, signed URL returned.
+- `redream_ai.audio.stt` — Voxtral STT (`/audio/transcribe`).
+- `redream_ai.audio.mistral_audio` / `supabase_storage` — the only modules touching the Mistral audio SDK and Supabase Storage.
 
 See [`../../docs/decisions/`](../../docs/decisions/README.md) for the binding architectural decisions.

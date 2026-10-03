@@ -47,3 +47,9 @@ The response model uses `reasoning_effort=low` for therapy turns to keep latency
 - **Floating aliases**: rejected — see context.
 - **OpenAI / Anthropic**: rejected — Mistral is EU-resident, price-competitive, and ships the Voxtral audio stack we need.
 - **Self-hosted via vLLM**: out of scope for v1 (ops weight).
+
+## Amendment 2026-10-01
+Verified against the live Mistral API:
+- `mistral-small-4-0-26-03` is rejected as an invalid model. The dated ID for Mistral Small 4 is `mistral-small-2603`.
+- STT is pinned to `voxtral-mini-2602` instead of the `voxtral-mini-latest` alias.
+- Voxtral TTS refuses requests without `voice_id` or `ref_audio`. Both voices default to the preset `gb_jane_neutral`. There is no German preset, but German text through this voice transcribes back word for word. A cloned voice per language can replace it later.

@@ -1,0 +1,40 @@
+import 'package:redream_app/core/api/api_client.dart';
+import 'package:redream_app/features/journal/dream.dart';
+
+class DreamService {
+  DreamService(this._api);
+
+  final ApiClient _api;
+
+  static const _base = '/api/v1/dreams';
+
+  Future<List<Dream>> list() async => [
+    for (final e in await _api.getList(_base))
+      Dream.fromJson(e as Map<String, dynamic>),
+  ];
+
+  Future<Dream> get(int id) async =>
+      Dream.fromJson(await _api.get('$_base/$id'));
+
+  Future<Dream> create(DreamInput input) async => Dream.fromJson(
+    await _api.post(_base, {...input.toJson(), 'source': 'manual'}),
+  );
+
+  Future<Dream> update(int id, DreamInput input) async =>
+      Dream.fromJson(await _api.put('$_base/$id', input.toJson()));
+
+  Future<void> delete(int id) => _api.delete('$_base/$id');
+
+  Future<Dream> setFocus(int id) async =>
+      Dream.fromJson(await _api.patch('$_base/$id/favorite'));
+
+  Future<Dream> recordPractice(int id) async =>
+      Dream.fromJson(await _api.post('$_base/$id/practice'));
+
+  Future<Dream> generateRehearsal(int id, {required String language}) async =>
+      Dream.fromJson(
+        await _api.post('$_base/$id/rehearsal', {
+          'language': language,
+        }, aiTimeout),
+      );
+}

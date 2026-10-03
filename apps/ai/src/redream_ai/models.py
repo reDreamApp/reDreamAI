@@ -72,6 +72,9 @@ class SummaryStructured(BaseModel):
     original_summary: str
     rewritten_summary: str
     dream_summary: str
+    intensity: int | None = Field(
+        default=None, ge=0, le=10, description="Rating the user gave in the intensity stage."
+    )
 
 
 class UsageStats(BaseModel):

@@ -3,14 +3,20 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-/// Sign-in state the UI listens to. Implemented by [SupabaseAuthService] in
+/// Session state the UI listens to. Implemented by [SupabaseAuthService] in
 /// production and by fakes in tests.
 abstract class AuthService extends ChangeNotifier {
   String? get accessToken;
-  bool get isSignedIn;
+  String? get userId;
+  String? get email;
+  bool get isSignedIn => userId != null;
 
   Future<void> signIn({required String email, required String password});
+  Future<void> signUp({required String email, required String password});
   Future<void> signOut();
+  Future<void> refreshSession();
+  Future<void> updateEmail(String email, {required String redirectUrl});
+  Future<void> updatePassword(String password);
 }
 
 class SupabaseAuthService extends AuthService {
@@ -21,21 +27,38 @@ class SupabaseAuthService extends AuthService {
   final SupabaseClient _client;
   late final StreamSubscription<AuthState> _sub;
 
-  @override
-  String? get accessToken => _client.auth.currentSession?.accessToken;
+  GoTrueClient get _auth => _client.auth;
 
   @override
-  bool get isSignedIn => _client.auth.currentSession != null;
+  String? get accessToken => _auth.currentSession?.accessToken;
 
   @override
-  Future<void> signIn({required String email, required String password}) async {
-    await _client.auth.signInWithPassword(email: email, password: password);
-  }
+  String? get userId => _auth.currentUser?.id;
 
   @override
-  Future<void> signOut() async {
-    await _client.auth.signOut();
-  }
+  String? get email => _auth.currentUser?.email;
+
+  @override
+  Future<void> signIn({required String email, required String password}) =>
+      _auth.signInWithPassword(email: email, password: password);
+
+  @override
+  Future<void> signUp({required String email, required String password}) =>
+      _auth.signUp(email: email, password: password);
+
+  @override
+  Future<void> signOut() => _auth.signOut();
+
+  @override
+  Future<void> refreshSession() => _auth.refreshSession();
+
+  @override
+  Future<void> updateEmail(String email, {required String redirectUrl}) => _auth
+      .updateUser(UserAttributes(email: email), emailRedirectTo: redirectUrl);
+
+  @override
+  Future<void> updatePassword(String password) =>
+      _auth.updateUser(UserAttributes(password: password));
 
   @override
   void dispose() {

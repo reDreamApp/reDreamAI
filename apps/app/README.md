@@ -1,49 +1,63 @@
 # apps/app — reDreamAI Flutter client
 
-Flutter mobile app (iOS + Android). Talks to `apps/api` which talks to `apps/ai`.
+Flutter mobile app (iOS + Android). Talks to `apps/api`, which talks to `apps/ai`.
 
 ## Setup
 
 ```bash
-# Flutter version is pinned via FVM (see .fvmrc → 3.35.5)
-fvm use                       # ensures the SDK is available
-fvm flutter pub get
-cp .env.example .env          # then fill in SUPABASE + API_BASE_URL
+fvm use                       # Flutter version pinned in .fvmrc
+fvm flutter pub get           # also generates lib/l10n/generated/
+cp .env.example .env          # then fill in SUPABASE_* and API_BASE_URL
 ```
 
-## Run
+## Run / check
 
 ```bash
-fvm flutter run               # default device
-
-# or via the repo Makefile (from repo root)
-make app-run
+fvm flutter run
+fvm flutter analyze
+fvm flutter test
+fvm dart format .
 ```
 
-## Common commands
+Backend dev URL: `http://localhost:8001` (iOS simulator / desktop),
+`http://10.0.2.2:8001` (Android emulator). Sign-in goes straight to Supabase;
+the API verifies the resulting JWT.
 
-```bash
-fvm flutter analyze           # lint
-fvm flutter test              # widget + unit tests
-fvm dart fix --apply          # apply lint fixes
-fvm dart format .             # format
+## Layout
+
+```
+lib/
+  main.dart            bootstrap + dependency wiring
+  app.dart             MaterialApp, theme/locale, AuthGate
+  core/                app-wide plumbing, no feature knowledge
+    api/               ApiClient (JSON, bearer token, 401 refresh, error mapping)
+    auth/              AuthService (Supabase session as a ChangeNotifier)
+    settings/          AppSettings (theme mode, language, onboarding flag)
+    storage/           LocalStore (shared_preferences as JSON key/value)
+    theme/             brand palette, BrandTheme extension, light/dark ThemeData
+    widgets/           AppCard, AppButton, BrandLogo, ThemeModeToggle, IntensitySlider, snackbars/dialogs
+    utils/             error → message mapping, date formatting
+  features/            one folder per feature: models, service (HTTP), state (ChangeNotifier), screens
+    shell/             MainShell (app bar, 3 tabs, chat drawer), UserScope (per-user providers)
+    home/              home tab, progress stats + mood, IRT guide
+    chat/              Session tab: ChatState, bubbles, stage indicator, history drawer, reports
+    journal/           dreams: offline-capable JournalState, cards, detail, editor, practice (reading/audio)
+    reminders/         daily local notification + settings tile
+    settings/          profile, account (email/password/export/delete), help center, privacy policy
+    auth/              sign in / sign up / forgot password
+    onboarding/        post-sign-up intro + profile questions
+    learn/             blog articles from the website's meta.json
+  l10n/                app_en.arb / app_de.arb (every user-facing string)
 ```
 
-## Backend dev URL
+Rules of thumb:
 
-- iOS simulator / desktop: `http://localhost:8001`
-- Android emulator: `http://10.0.2.2:8001`
-
-The backend (`apps/api`) verifies the Supabase JWT we send, so you need a valid
-session — the sign-in screen calls `supabase_flutter` directly against your
-self-hosted Supabase. Unauthenticated requests get 401.
-
-## Architecture
-
-This is a thin vertical slice (auth → chat → IRT) intentionally — the rest of
-the legacy frontend (collection, learn, profile, onboarding, recording,
-progress, help-center) is ported on top once the wire contract with `apps/api`
-is proven. See `lib/features/` for what's implemented.
-
-State management: Provider. Local cache: none yet (memory + REST). Auth:
-`supabase_flutter`. HTTP: `package:http`. i18n: gen_l10n (`lib/l10n/`).
+- Screens only read/watch a `*State` and call its methods; states own the
+  data and call a `*Service`; services only talk HTTP through `ApiClient`.
+- Per-user state lives under `UserScope`, keyed by user id, so signing out
+  disposes it and signing in starts clean.
+- Offline: the journal caches the last server list and queues drafts and
+  practices in `LocalStore`; `JournalState.syncPending()` flushes them on the
+  next refresh or app resume. Chat keeps the last failed message for resend.
+- `flutter test` covers `ApiClient`, `JournalState`, `ChatState` and the main
+  screens against an in-memory fake API (`test/fake_api.dart`).

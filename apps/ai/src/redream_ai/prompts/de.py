@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from ..models import Stage
 
-PROMPT_VERSION = "prompts-de-v1.0.0"
+PROMPT_VERSION = "prompts-de-v1.2.0"
 
 
 _RECORDING = """\
@@ -32,8 +32,9 @@ Wende die sokratische Methode an. Wenn du es für notwendig hältst, stelle der 
 Nutzer:in Fragen, um einen detaillierten Traumbericht zu erhalten.
 Stelle keine unnötigen Fragen.
 Stelle nicht mehr als eine Frage auf einmal. Sobald die Nutzer:in die Eingabe \
-ihres / seines Traums beendet hat, frage, ob sie / er mit dem Umschreiben des \
-Traums gemäß IRT fortfahren möchte."""
+ihres / seines Traums beendet hat, frage, ob sie / er fortfahren möchte. \
+Bewerte, verändere oder fasse den Traum in diesem Schritt nicht zusammen; \
+das passiert in den nächsten Schritten."""
 
 
 _INTENSITY = """\
@@ -234,3 +235,34 @@ SYSTEM_PROMPTS: dict[Stage, str] = {
     Stage.SUMMARY: _SUMMARY,
     Stage.FINAL: _FINAL,
 }
+
+
+PLAIN_TEXT_RULE = """\
+Schreibe schlichten Gesprächstext: kein Markdown, keine Sternchen, \
+Überschriften, Aufzählungen oder Trennlinien. Halte die Antworten kurz."""
+
+INTRO_MESSAGE = """\
+Ich bin hier, um dir zu helfen, deine Albträume zu bewältigen und sie in \
+positivere Erfahrungen zu verwandeln. Nimm dir Zeit, deinen Albtraum so \
+detailliert wie möglich zu beschreiben. Wenn du fertig bist, begleite ich \
+dich dabei, ihn gemeinsam in eine positivere Erzählung umzuwandeln."""
+
+SUMMARY_JSON_INSTRUCTION = """\
+**Maschinenlesbare Ausgabe (ersetzt das Ausgabeformat oben):** Wende alle \
+obigen Regeln an, antworte aber ausschließlich mit einem einzigen JSON-Objekt:
+{"title": "<kurzer Titel>", "rewritten_dream": "<detaillierte Zusammenfassung \
+des umgeschriebenen Traums gemäß den obigen Regeln>", "original_dream": \
+"<detaillierte Zusammenfassung des ursprünglichen Traums mit allen \
+Sinnesdetails>"}
+Jeder Wert ist ein einziger Klartext-String (keine verschachtelten Objekte oder \
+Listen, kein Markdown).
+Die Abschlussfrage gehört nicht ins JSON; sie wird danach ergänzt."""
+
+SUMMARY_TEMPLATE = """\
+Titel: {title}
+
+Umgeschriebener Traum: {rewritten}
+
+Ursprünglicher Traum: {original}
+
+Bist du mit der generierten Zusammenfassung zufrieden?"""
