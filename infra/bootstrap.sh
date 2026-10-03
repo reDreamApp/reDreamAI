@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Set up a fresh box: self-hosted Supabase, env files, migrations, the
-# reDreamAI stack and the backup timer. Run as root ON THE BOX, with the repo
-# already at /srv/redreamai (infra/README.md, "First deploy").
+# reDreamAI stack, the backup timer and the trace-retention timer. Run as root
+# ON THE BOX, with the repo already at /srv/redreamai (infra/README.md,
+# "First deploy").
 #
 # Safe to run again: secrets that exist are kept, everything else is brought
 # back in line. Generated secrets are written to files and never printed.
@@ -18,6 +19,7 @@
 #   BACKUP_BUCKET      the bucket name to enable the nightly Postgres backup
 #   S3_ENDPOINT        default https://s3.fr-par.scw.cloud
 #   ADMIN_EMAIL        login of the Langfuse admin (default admin@$DOMAIN)
+#   LANGFUSE_RETENTION_DAYS  days Langfuse traces are kept (default 30)
 set -euo pipefail
 
 REPO=/srv/redreamai
@@ -162,6 +164,9 @@ if [ -n "${BACKUP_BUCKET:-}" ] && [ -n "${BACKUP_ACCESS_KEY:-}" ]; then
     printf 'S3_ENDPOINT=%s\n' "${S3_ENDPOINT:-https://s3.fr-par.scw.cloud}"
   } >"$ENV_DIR/backup.env"
 fi
+if [ -n "${LANGFUSE_RETENTION_DAYS:-}" ]; then
+  printf 'LANGFUSE_RETENTION_DAYS=%s\n' "$LANGFUSE_RETENTION_DAYS" >"$ENV_DIR/retention.env"
+fi
 chmod 600 "$ENV_DIR"/*.env
 
 # ------------------------------------------------------------- database ----
@@ -194,6 +199,13 @@ if [ -f "$ENV_DIR/backup.env" ]; then
   systemctl daemon-reload
   systemctl enable --now pg-backup.timer
 fi
+
+# ------------------------------------------------------------ retention ----
+log "Enabling the daily Langfuse trace retention"
+ln -sf "$REPO/infra/langfuse/langfuse-retention.service" /etc/systemd/system/
+ln -sf "$REPO/infra/langfuse/langfuse-retention.timer" /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now langfuse-retention.timer
 
 cat <<EOF
 

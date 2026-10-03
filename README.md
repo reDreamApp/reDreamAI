@@ -15,7 +15,7 @@ supabase/
 
 infra/
   terraform/            OpenTofu config for the Scaleway box: instance, firewall, runtime key, backup bucket
-  bootstrap.sh          One-time setup of that box: Supabase, env files, migrations, stack, backups
+  bootstrap.sh          One-time setup of that box: Supabase, env files, migrations, stack, backups, trace retention
   docker-compose.yml    Scaleway production topology: caddy + api + ai + langfuse
   caddy/                Reverse proxy config (TLS, SSE-friendly)
 

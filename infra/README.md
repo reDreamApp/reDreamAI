@@ -83,7 +83,7 @@ bash /srv/redreamai/infra/bootstrap.sh
 - creates the Langfuse database, with an admin user and an API key pair
   provisioned on first start;
 - applies `supabase/migrations/`, builds and starts the stack, enables the
-  nightly backup.
+  nightly backup and the daily trace retention.
 
 It is safe to run again: existing secrets are kept, URLs and keys from
 `bootstrap.env` are re-applied. That is also how you **change the domain**:
@@ -161,6 +161,21 @@ steps and the rehearsal log: [`backup/README.md`](backup/README.md).
 
 Caddy's volumes (`caddy_data`, `caddy_config`) hold the TLS certificates; they
 are re-issued on a rebuild.
+
+Langfuse traces live in their own database and are **not** part of the dump.
+
+## Trace retention
+
+Langfuse traces hold the full conversation text. `bootstrap.sh` enables a daily
+job ([`langfuse/retention.sh`](langfuse/retention.sh)) that deletes traces,
+observations and scores stored more than 30 days ago; Langfuse v2 has no
+setting for this (ADR 0007).
+
+```bash
+systemctl list-timers langfuse-retention.timer      # next run
+journalctl -u langfuse-retention.service -n 10      # rows deleted per table
+echo LANGFUSE_RETENTION_DAYS=60 > /srv/redreamai/infra/env/retention.env   # another period
+```
 
 ## Updating Supabase
 

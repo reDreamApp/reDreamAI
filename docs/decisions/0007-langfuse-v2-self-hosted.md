@@ -48,3 +48,13 @@ This reaches into another product's schema. That is acceptable here because v2
 is frozen, so the schema will not move under us; a move to v3 would replace
 this with its delete API. Checked on the box on 2026-10-03: a user with two
 traces and three observations had none after `DELETE /api/v1/users/me`.
+
+The same amendment covers **retention**, which v2 has no setting for either:
+`infra/langfuse/retention.sh` runs once a day from a systemd timer and deletes
+traces, observations and scores stored more than `LANGFUSE_RETENTION_DAYS`
+(default 30) days ago, plus the sessions left empty.
+
+One consequence listed above does not hold: the nightly backup dumps the
+`postgres` database only, so Langfuse traces are **not** in the backups. For
+erasure and retention that is the better outcome — a deleted trace does not
+live on in a dump — but it also means traces cannot be restored.

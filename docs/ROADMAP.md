@@ -87,8 +87,12 @@ sources: `docs/COMPLIANCE.md` (researched 2026-07-06).
   with `405`; it had only been checked against the OpenAPI spec. Verified on
   the box: two traces and three observations before account deletion, none
   after.
-- **Langfuse retention TTL** (30–90 d) on traces. Langfuse v2 has no setting
-  for it either: it would be a scheduled SQL delete in the same database.
+- ~~**Langfuse retention TTL**~~ DONE 2026-10-03: `infra/langfuse/retention.sh`
+  runs daily from a systemd timer (enabled by `bootstrap.sh`) and deletes
+  traces, observations and scores stored more than 30 days ago, plus emptied
+  sessions. Langfuse v2 has no setting for this, so it is SQL in its database.
+  The period is `LANGFUSE_RETENTION_DAYS`. Checked on the box with seeded rows
+  (29-day-old kept, 31-day-old removed).
 - **Mail delivery.** No SMTP on the box and Scaleway blocks ports 25/465/587:
   sign-up auto-confirms addresses, and password-reset and moderation mails
   (ADR 0006) are not delivered. Needs an SMTP relay on another port.
