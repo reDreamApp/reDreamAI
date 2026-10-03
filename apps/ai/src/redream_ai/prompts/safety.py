@@ -1,5 +1,11 @@
 """Crisis-detection classifier prompts (ADR 0005).
 
+v0.4.0: adds app_mono's dream-vs-waking-life rule (safety-v0.2.0). Dream
+imagery about the user's own death, self-harm or being a child again was
+classified high under v0.3.1 (3/34 eval failures); a dream about one's own
+death or suicide is now at most "low", while a dream that reveals real past
+events still counts as a real-life signal.
+
 v0.3.1: recalibrated after the 2026-07-13 false positive (frustrated
 meta-question at the bot classified high/0.95 when stage+context were
 supplied). A message with no risk signal is "none" no matter how it sounds;
@@ -8,7 +14,7 @@ ambiguous. The classifier is NOT a diagnostic tool — it's a signpost to
 public helplines.
 """
 
-PROMPT_VERSION = "safety-v0.3.1"
+PROMPT_VERSION = "safety-v0.4.0"
 
 SAFETY_PROMPT_EN = """\
 You are a safety classifier for a nightmare self-help app (imagery rehearsal
@@ -20,6 +26,18 @@ of tone, rudeness, frustration, or how the conversation is going. Only when a
 genuine risk signal is present but ambiguous should you err toward flagging —
 in doubt between "low" and "high", pick "high"; a missed crisis is worse than
 an unnecessary helpline reminder.
+
+Dreams vs. waking life: most messages describe frightening dream scenes. Dream
+content is not a risk signal by itself. Being trapped, chased, attacked,
+drowning, burning, falling, dying, being a child again, or seeing blood INSIDE
+a dream is "none", even when the message does not repeat the word "dream". A
+dream about one's own death, suicide or self-injury is at most "low". Flag
+only signals about the user's REAL, waking life. A dream counts as such a
+signal only when the user explicitly says the event also happens or happened
+in real life ("like he did when I was a kid", "he still does that"). Violence
+against the user's family told as a scene, without such a statement, is dream
+imagery. child_safety means a real child, not the user appearing as a child in
+a dream.
 
 The input may include bracketed context: the IRT stage and the assistant
 message the user is replying to. Use it to interpret terse replies. Context
@@ -44,6 +62,10 @@ Examples (expected risk):
 - "Thanks, that's all for today. Bye!" → none
 - "In the dream he stabbed my whole family and I woke up screaming." → none
   (dream imagery, not a threat)
+- "I dreamt I jumped off a bridge." → low (suicidal_ideation, dream only)
+- "In the dream I was five again and lost in the woods." → none
+- "My stepfather hit me when I was little, and now he hits me in my dreams." → high
+  (abuse_disclosure — the dream refers to real abuse)
 - "What's the point of any of this? I don't want to be here anymore." → high
   (suicidal_ideation — despair about living, not about the app)
 
@@ -80,6 +102,19 @@ Gesprächsverlauf. Nur wenn ein echtes Risikosignal vorhanden, aber mehrdeutig
 ist, markiere im Zweifel — zwischen "low" und "high" wähle "high"; eine
 übersehene Krise ist schlimmer als ein unnötiger Hinweis.
 
+Traum vs. Wachleben: Die meisten Nachrichten beschreiben beängstigende
+Traumszenen. Trauminhalte sind für sich kein Risikosignal. Gefangen sein,
+verfolgt oder angegriffen werden, ertrinken, verbrennen, fallen, sterben,
+wieder ein Kind sein oder Blut sehen IM Traum ist "none", auch wenn das Wort
+"Traum" nicht wiederholt wird. Ein Traum vom eigenen Tod, Suizid oder von
+Selbstverletzung ist höchstens "low". Markiere nur Signale aus dem ECHTEN,
+wachen Leben. Ein Traum zählt nur dann als solches Signal, wenn die Person
+ausdrücklich sagt, dass das Geschehen auch im echten Leben passiert oder
+passiert ist ("wie er es getan hat, als ich klein war", "das macht er immer
+noch"). Gewalt gegen die eigene Familie, als Szene erzählt, ohne eine solche
+Aussage, ist Trauminhalt. child_safety meint ein echtes Kind, nicht die Person
+selbst als Kind im Traum.
+
 Die Eingabe kann Kontext in eckigen Klammern enthalten: die IRT-Phase und die
 Assistenten-Nachricht, auf die geantwortet wird. Nutze ihn, um knappe
 Antworten einzuordnen. Kontext macht aus einer harmlosen Nachricht niemals
@@ -106,6 +141,11 @@ Beispiele (erwartetes Risiko):
 - "Danke, das war's für heute. Tschüss!" → none
 - "Im Traum hat er meine ganze Familie erstochen und ich bin schreiend
   aufgewacht." → none (Trauminhalt, keine Drohung)
+- "Ich habe geträumt, dass ich von einer Brücke springe." → low
+  (suicidal_ideation, nur im Traum)
+- "Im Traum war ich wieder fünf und habe mich im Wald verlaufen." → none
+- "Mein Stiefvater hat mich als Kind geschlagen, jetzt schlägt er mich in
+  meinen Träumen." → high (abuse_disclosure — der Traum verweist auf echte Gewalt)
 - "Was soll das alles noch? Ich will einfach nicht mehr hier sein." → high
   (suicidal_ideation — Verzweiflung am Leben, nicht an der App)
 

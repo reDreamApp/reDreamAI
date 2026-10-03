@@ -48,6 +48,12 @@ decisions in `docs/decisions/`.
   the incident, real Mistral API — rerun on every prompt edit). Re-enabled in
   prod (`SAFETY_CLASSIFIER_ENABLED` removed from the env override; code
   default true). Local apps/api/.env may still carry `false` for dev.
+  2026-10-03: `safety-v0.4.0` adds the dream-vs-waking-life rule (dream
+  imagery about one's own death or self-harm, or being a child again, is at
+  most "low"; a dream counts as real-life risk only when the user says it
+  really happens or happened). The eval grew to 34 cases (dream imagery and
+  real-life risk ported from the app_mono eval): v0.3.1 31/34, v0.4.0 34/34
+  in three runs on ministral-8b-2512.
 
 Tracked here so they don't live only in session memory. Regulatory details and
 sources: `docs/COMPLIANCE.md` (researched 2026-07-06).
