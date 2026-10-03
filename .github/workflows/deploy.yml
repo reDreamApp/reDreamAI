@@ -33,7 +33,6 @@ jobs:
           rsync -az --delete \
             --exclude ".git" \
             --exclude ".github" \
-            --exclude "legacy_repos" \
             --exclude "apps/app" \
             --exclude ".env" \
             --exclude "env/" \

@@ -39,6 +39,7 @@ Mistral (Small 4, Ministral 8B, Voxtral TTS/STT)
 ## Quickstart (once scaffolding lands)
 
 ```bash
+cp apps/app/.env.example apps/app/.env   # the app bundles .env as an asset; needed before build/test
 make help                  # list everything
 make ai-dev                # run AI service locally on :8080
 make api-dev               # run backend on :8001
@@ -60,7 +61,3 @@ Key invariants:
 - 100k LLM tokens / user / day (UTC reset).
 - Streaming chat end-to-end via SSE.
 - Pinned Mistral model IDs in env — never floating aliases.
-
-## Legacy
-
-The previous monorepo lives under `legacy_repos/` (frozen, reference only). Do not modify; port piece by piece into `apps/` per the ADRs.
