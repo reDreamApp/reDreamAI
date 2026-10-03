@@ -53,7 +53,7 @@ class _DeleteDataScreenState extends State<DeleteDataScreen> {
       await services.account.deleteData();
       if (auth.userId case final id?) await services.store.clearUser(id);
       await journal.resetForUser();
-      chat.resetForUser();
+      chat.clear();
       progress.resetForUser();
       profile.resetForUser();
       if (!mounted) return;

@@ -3,11 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:redream_app/core/theme/app_theme.dart';
-import 'package:redream_app/core/utils/errors.dart';
 import 'package:redream_app/core/widgets/app_button.dart';
 import 'package:redream_app/core/widgets/app_card.dart';
 import 'package:redream_app/core/widgets/brand_logo.dart';
 import 'package:redream_app/core/widgets/intensity_slider.dart';
+import 'package:redream_app/features/chat/chat_actions.dart';
 import 'package:redream_app/features/chat/chat_state.dart';
 import 'package:redream_app/features/chat/message_bubble.dart';
 import 'package:redream_app/features/chat/stage_indicator.dart';
@@ -27,14 +27,12 @@ class _ChatScreenState extends State<ChatScreen> {
   final _input = TextEditingController();
   final _scroll = ScrollController();
   int _lastCount = 0;
+  int _lastLength = 0;
 
   @override
   void initState() {
     super.initState();
     _input.addListener(() => setState(() {}));
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) unawaited(context.read<ChatState>().load());
-    });
   }
 
   @override
@@ -58,9 +56,19 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Future<void> _send() async {
-    final text = _input.text;
+    final text = _input.text.trim();
+    if (text.isEmpty) return;
     _input.clear();
     await context.read<ChatState>().send(text);
+  }
+
+  Future<void> _stopRecording(ChatState state) async {
+    final transcript = await state.stopRecording();
+    if (transcript == null || !mounted) return;
+    // The transcript lands in the input for review; it is never auto-sent.
+    final current = _input.text.trim();
+    _input.text = current.isEmpty ? transcript : '$current $transcript';
+    _input.selection = TextSelection.collapsed(offset: _input.text.length);
   }
 
   Future<void> _openJournal() async {
@@ -70,6 +78,13 @@ class _ChatScreenState extends State<ChatScreen> {
     if (mounted) context.read<ShellTabs>().select(ShellTab.journal);
   }
 
+  String _errorText(String message, AppLocalizations l10n) => switch (message) {
+    ChatState.offline => l10n.errorOffline,
+    ChatState.streamInterrupted => l10n.chatStreamInterrupted,
+    ChatState.noChat => l10n.chatStartErrorBody,
+    _ => message,
+  };
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -78,11 +93,18 @@ class _ChatScreenState extends State<ChatScreen> {
     final brand = BrandTheme.of(context);
     final state = context.watch<ChatState>();
 
-    final count = state.messages.length + (state.sending ? 1 : 0);
-    if (count != _lastCount) {
+    final count = state.messages.length + (state.awaitingReply ? 1 : 0);
+    final length = state.messages.isEmpty
+        ? 0
+        : state.messages.last.content.length;
+    if (count != _lastCount || length != _lastLength) {
       _lastCount = count;
+      _lastLength = length;
       _scrollToBottom();
     }
+
+    final safety = state.safetyEvent;
+    final error = state.errorMessage;
 
     return Stack(
       children: [
@@ -91,29 +113,30 @@ class _ChatScreenState extends State<ChatScreen> {
             _Header(brand: brand),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-              child: StageIndicator(
-                path: state.stagePath,
-                current: state.stage,
-              ),
+              child: StageIndicator(current: state.stage),
             ),
             const Divider(),
             Expanded(
               child: GestureDetector(
                 onTap: FocusScope.of(context).unfocus,
-                child: ListView.builder(
-                  controller: _scroll,
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                  itemCount: count,
-                  itemBuilder: (_, i) => i < state.messages.length
-                      ? MessageBubble(message: state.messages[i])
-                      : const _ThinkingBubble(),
+                child: RefreshIndicator(
+                  onRefresh: context.refreshChat,
+                  child: ListView.builder(
+                    controller: _scroll,
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                    itemCount: count,
+                    itemBuilder: (_, i) => i < state.messages.length
+                        ? MessageBubble(message: state.messages[i])
+                        : const _ThinkingBubble(),
+                  ),
                 ),
               ),
             ),
-            if (state.safetyEvent != null)
+            if (safety != null)
               _Banner(
                 title: l10n.safetyHelplineTitle,
-                body: l10n.safetyHelplineBody,
+                body: safety.message ?? l10n.safetyHelplineBody,
                 background: scheme.errorContainer,
                 foreground: scheme.onErrorContainer,
                 actionLabel: l10n.safetyHelplineButton,
@@ -131,33 +154,50 @@ class _ChatScreenState extends State<ChatScreen> {
                 foreground: scheme.onTertiaryContainer,
                 onDismiss: state.dismissError,
               ),
-            if (state.error != null && state.retryAfterSeconds == null)
+            if (state.startFailed)
               _Banner(
-                body: describeError(state.error!, l10n),
+                body: l10n.chatStartErrorBody,
+                background: scheme.errorContainer,
+                foreground: scheme.onErrorContainer,
+                actionLabel: l10n.retry,
+                onAction: context.resumeOrStartChat,
+              )
+            else if (error != null && state.retryAfterSeconds == null)
+              _Banner(
+                body: _errorText(error, l10n),
                 background: scheme.errorContainer,
                 foreground: scheme.onErrorContainer,
                 onDismiss: state.dismissError,
               ),
-            if (state.failedMessage != null && !state.sending)
+            if (state.micPermissionDenied)
+              _Banner(
+                body: l10n.chatMicPermissionDenied,
+                background: scheme.tertiaryContainer,
+                foreground: scheme.onTertiaryContainer,
+                onDismiss: state.dismissError,
+              ),
+            if (state.failedMessageId != null && !state.sending)
               _Banner(
                 title: l10n.chatNotDelivered,
-                body: _truncate(state.failedMessage!.content),
+                body: l10n.chatResendHint,
                 background: scheme.errorContainer,
                 foreground: scheme.onErrorContainer,
                 actionLabel: l10n.chatResend,
-                onAction: state.resend,
+                onAction: state.retryFailedSend,
               ),
             const Divider(),
             SafeArea(
               top: false,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
-                child: _composer(context, state, l10n),
+                child: state.isDone
+                    ? _FinishedPanel(state: state, onOpenJournal: _openJournal)
+                    : _composer(context, state, l10n),
               ),
             ),
           ],
         ),
-        if (state.loadingHistory)
+        if (state.loadingChat)
           Positioned.fill(
             child: ColoredBox(
               color: scheme.surface.withValues(alpha: 0.85),
@@ -182,43 +222,31 @@ class _ChatScreenState extends State<ChatScreen> {
     ChatState state,
     AppLocalizations l10n,
   ) {
-    if (state.isDone) {
-      return AppCard(
-        highlight: true,
-        padding: EdgeInsets.zero,
-        onTap: _openJournal,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.favorite,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              const SizedBox(width: 10),
-              Flexible(
-                child: Text(
-                  l10n.chatSessionDoneCta,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    if (state.awaitingIntensity) {
-      return _IntensityComposer(
-        enabled: state.canSend,
-        onSubmit: (v) => state.send('$v'),
-      );
-    }
-    final canSend = state.canSend && _input.text.trim().isNotEmpty;
     final scheme = Theme.of(context).colorScheme;
+    final ready = state.chatId != null && !state.sending && !state.loadingChat;
+    final busyMic = state.recording || state.transcribing;
+    final canSend = ready && !busyMic && _input.text.trim().isNotEmpty;
+
+    if (state.recording) {
+      return Row(
+        children: [
+          Icon(Icons.fiber_manual_record, color: scheme.error, size: 18),
+          const SizedBox(width: 8),
+          Expanded(child: Text(l10n.chatMicRecording)),
+          TextButton(
+            onPressed: state.cancelRecording,
+            child: Text(l10n.chatMicCancel),
+          ),
+          const SizedBox(width: 4),
+          IconButton.filled(
+            tooltip: l10n.chatMicStop,
+            onPressed: () => _stopRecording(state),
+            icon: const Icon(Icons.stop_rounded),
+          ),
+        ],
+      );
+    }
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
@@ -227,10 +255,12 @@ class _ChatScreenState extends State<ChatScreen> {
             controller: _input,
             minLines: 1,
             maxLines: 6,
-            enabled: state.canSend,
+            enabled: ready && !busyMic,
             textCapitalization: TextCapitalization.sentences,
             decoration: InputDecoration(
-              hintText: l10n.chatInputHint,
+              hintText: state.transcribing
+                  ? l10n.chatTranscribing
+                  : l10n.chatInputHint,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(999),
                 borderSide: BorderSide.none,
@@ -243,11 +273,29 @@ class _ChatScreenState extends State<ChatScreen> {
             onSubmitted: canSend ? (_) => _send() : null,
           ),
         ),
-        const SizedBox(width: 10),
+        if (state.voiceInputAvailable) ...[
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 52,
+            height: 52,
+            child: state.transcribing
+                ? const Padding(
+                    padding: EdgeInsets.all(14),
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  )
+                : IconButton(
+                    tooltip: l10n.chatMicRecord,
+                    onPressed: ready ? state.startRecording : null,
+                    icon: const Icon(Icons.mic_none_rounded),
+                  ),
+          ),
+        ],
+        const SizedBox(width: 8),
         SizedBox(
           width: 52,
           height: 52,
           child: IconButton.filled(
+            tooltip: l10n.chatSend,
             onPressed: canSend ? _send : null,
             style: IconButton.styleFrom(
               backgroundColor: scheme.surfaceContainerHighest,
@@ -261,9 +309,109 @@ class _ChatScreenState extends State<ChatScreen> {
       ],
     );
   }
+}
 
-  static String _truncate(String s) =>
-      s.length > 50 ? '${s.substring(0, 50)}…' : s;
+/// Shown once the session is finished: the 0-10 rating (only right after a
+/// live session, until saved), the way to the journal and a fresh start.
+class _FinishedPanel extends StatelessWidget {
+  const _FinishedPanel({required this.state, required this.onOpenJournal});
+
+  final ChatState state;
+  final VoidCallback onOpenJournal;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        if (!state.resumedDone && !state.intensitySubmitted) ...[
+          _IntensityCard(
+            saving: state.intensitySaving,
+            onSubmit: state.submitIntensity,
+          ),
+          const SizedBox(height: 10),
+        ],
+        if (state.resumedDone)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text(
+              l10n.chatFinishedReadOnly,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
+            ),
+          ),
+        AppCard(
+          highlight: true,
+          padding: EdgeInsets.zero,
+          onTap: onOpenJournal,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.favorite, color: scheme.primary),
+                const SizedBox(width: 10),
+                Flexible(
+                  child: Text(
+                    l10n.chatSessionDoneCta,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        TextButton.icon(
+          onPressed: context.startNewChat,
+          icon: const Icon(Icons.add),
+          label: Text(l10n.chatStartNewSession),
+        ),
+      ],
+    );
+  }
+}
+
+class _IntensityCard extends StatefulWidget {
+  const _IntensityCard({required this.saving, required this.onSubmit});
+
+  final bool saving;
+  final ValueChanged<int> onSubmit;
+
+  @override
+  State<_IntensityCard> createState() => _IntensityCardState();
+}
+
+class _IntensityCardState extends State<_IntensityCard> {
+  int _value = 5;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    return AppCard(
+      child: Column(
+        children: [
+          IntensitySlider(
+            value: _value,
+            title: l10n.chatIntensityPrompt,
+            onChanged: (v) => setState(() => _value = v),
+          ),
+          const SizedBox(height: 12),
+          AppButton(
+            label: l10n.submit,
+            icon: Icons.check,
+            busy: widget.saving,
+            onPressed: widget.saving ? null : () => widget.onSubmit(_value),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _Header extends StatelessWidget {
@@ -368,42 +516,6 @@ class _ThinkingBubbleState extends State<_ThinkingBubble>
       decoration: BoxDecoration(
         color: color.withValues(alpha: alpha),
         shape: BoxShape.circle,
-      ),
-    );
-  }
-}
-
-class _IntensityComposer extends StatefulWidget {
-  const _IntensityComposer({required this.enabled, required this.onSubmit});
-
-  final bool enabled;
-  final ValueChanged<int> onSubmit;
-
-  @override
-  State<_IntensityComposer> createState() => _IntensityComposerState();
-}
-
-class _IntensityComposerState extends State<_IntensityComposer> {
-  int _value = 5;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context)!;
-    return AppCard(
-      child: Column(
-        children: [
-          IntensitySlider(
-            value: _value,
-            title: l10n.chatIntensityPrompt,
-            onChanged: (v) => setState(() => _value = v),
-          ),
-          const SizedBox(height: 12),
-          AppButton(
-            label: l10n.submit,
-            icon: Icons.check,
-            onPressed: widget.enabled ? () => widget.onSubmit(_value) : null,
-          ),
-        ],
       ),
     );
   }

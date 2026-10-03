@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:redream_app/core/widgets/brand_logo.dart';
 import 'package:redream_app/core/widgets/theme_mode_toggle.dart';
+import 'package:redream_app/features/chat/chat_actions.dart';
 import 'package:redream_app/features/chat/chat_history_drawer.dart';
 import 'package:redream_app/features/chat/chat_screen.dart';
 import 'package:redream_app/features/chat/chat_state.dart';
@@ -26,25 +27,36 @@ class MainShell extends StatefulWidget {
 }
 
 class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
-  final _tabs = ShellTabs();
+  late final ShellTabs _tabs = context.read<ShellTabs>();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _tabs.addListener(_onTabChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       unawaited(context.read<JournalState>().load());
       unawaited(context.read<ProgressState>().load());
       unawaited(context.read<ProfileState>().load());
-      unawaited(context.read<ChatState>().load());
+      unawaited(context.read<ChatState>().loadChats());
     });
+  }
+
+  /// A chat session is only resumed or started once the user opens the
+  /// session tab, so app launches don't create empty chats.
+  void _onTabChanged() {
+    if (_tabs.current != ShellTab.session || !mounted) return;
+    final chat = context.read<ChatState>();
+    if (chat.chatId == null && !chat.loadingChat && !chat.sending) {
+      unawaited(context.resumeOrStartChat());
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _tabs.dispose();
+    _tabs.removeListener(_onTabChanged);
     super.dispose();
   }
 
@@ -57,10 +69,7 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider<ShellTabs>.value(
-      value: _tabs,
-      child: const _ShellScaffold(),
-    );
+    return const _ShellScaffold();
   }
 }
 

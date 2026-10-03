@@ -11,6 +11,10 @@ class ApiException implements Exception {
   bool get isConflict => statusCode == 409;
   bool get isRateLimited => statusCode == 429;
 
+  /// Health-data routes refuse until Art. 9 consent is granted.
+  bool get isConsentRequired =>
+      statusCode == 403 && message == 'consent_required';
+
   @override
   String toString() => 'ApiException($statusCode): $message';
 }

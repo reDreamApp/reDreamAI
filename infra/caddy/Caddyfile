@@ -3,6 +3,9 @@
 # {$DOMAIN} is read from caddy.env (e.g. DOMAIN=redream.example.com).
 # Routes:
 #   {$DOMAIN}           → api:8001        (mobile clients hit /api/v1/...)
+#   supabase.{$DOMAIN}  → kong:8000       (mobile clients: auth/GoTrue — the app's
+#                                          SUPABASE_URL; kong lives in the external
+#                                          supabase network this stack attaches to)
 #   ai.{$DOMAIN}        → ai:8080         (internal-only — restrict by IP if exposed)
 #   langfuse.{$DOMAIN}  → langfuse:3000   (auth handled by Langfuse itself)
 #
@@ -12,7 +15,28 @@
 
 {$DOMAIN} {
     encode zstd gzip
-    reverse_proxy api:8001
+    handle_path /downloads/* {
+        # Tester APK distribution (files live in /srv/downloads on the host,
+        # mounted read-only into the container). Clean URLs install better on
+        # Android than presigned object-storage links.
+        root * /srv/downloads
+        file_server
+    }
+    handle {
+        reverse_proxy api:8001
+    }
+    log {
+        output stdout
+        format console
+    }
+}
+
+supabase.{$DOMAIN} {
+    # The mobile app's SUPABASE_URL: GoTrue sign-in/refresh via kong. Without
+    # this route the app cannot authenticate at all (found 2026-07-14 during
+    # first-deploy prep).
+    encode zstd gzip
+    reverse_proxy kong:8000
     log {
         output stdout
         format console

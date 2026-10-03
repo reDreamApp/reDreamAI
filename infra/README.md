@@ -18,13 +18,23 @@ Scaleway compute instance (Ubuntu LTS)
 
 ## First-time setup
 
-1. **Provision the instance.** Recommended: Scaleway GP1-S (4 vCPU / 8 GB RAM, Ubuntu 24.04 LTS, Paris). Configure SSH, firewall to allow 22 / 80 / 443.
+1. **Provision the instance (by hand — this IS the runbook).** Terraform's
+   scope was deliberately narrowed to the backup bucket only (ADR 0012,
+   2026-07-02 amendment); the box is console-provisioned to this exact spec:
+   - **Instance**: GP1-S (4 vCPU / 8 GB RAM), image **Ubuntu 24.04 (Noble
+     Numbat)**, zone `fr-par-1`, root volume **50 GB** with
+     *delete-on-termination OFF* (the volume must survive an instance
+     termination).
+   - **Public IP**: attach a reserved (not ephemeral) IPv4 — DNS points here.
+   - **Security group**: inbound default *drop*, outbound *accept*. Allow
+     inbound **22/tcp** (optionally restrict to your IP/VPN range), **80/tcp**,
+     **443/tcp**, and **443/udp** (HTTP/3 — Caddy binds QUIC too).
+   - **Cloud-init**: paste `infra/cloud-init.yaml` into the user-data field —
+     it installs Docker on first boot.
+   - Login: `root` via your account's registered SSH key (Scaleway marketplace
+     image default).
 
-2. **Install Docker.**
-   ```bash
-   curl -fsSL https://get.docker.com | sh
-   sudo usermod -aG docker $USER
-   ```
+2. ~~Install Docker~~ — done by step 1's cloud-init user-data.
 
 3. **Install self-hosted Supabase** into `/srv/supabase`. Follow [the official guide](https://supabase.com/docs/guides/self-hosting/docker). Bring it up:
    ```bash
@@ -58,6 +68,8 @@ Scaleway compute instance (Ubuntu LTS)
 
 7. **DNS.** Point three A records at the instance:
    - `redream.example.com`        (api)
+   - `supabase.redream.example.com` (Supabase kong — the mobile app's
+     `SUPABASE_URL`; sign-in breaks without it)
    - `ai.redream.example.com`     (ai — keep DNS private or IP-restrict in Caddyfile)
    - `langfuse.redream.example.com` (langfuse)
 
@@ -107,10 +119,11 @@ There is **no auto-deploy on `main`** (ADR conventions). Once a `production` bra
 
 The Supabase Postgres is the single backup target (one Postgres, ADR 0001).
 
-Recommended setup (not yet automated):
-- Nightly `pg_dump` to Scaleway Object Storage with 7-day retention.
-- Weekly snapshot retained 4 weeks.
-- Monthly snapshot retained 12 months.
+The destination bucket and retention policy are provisioned by `infra/terraform/` (ADR 0012, bucket-only scope) — `nightly/` (7-day), `weekly/` (4-week), `monthly/` (12-month) prefixes with matching lifecycle expiration, output as `backup_bucket_name`.
+
+The `pg_dump` job that uploads into those prefixes lives in `infra/backup/`
+(script + systemd timer + install and **restore runbook**). Install it per
+`infra/backup/README.md` — and rehearse the restore once.
 
 Caddy data volumes (`caddy_data`, `caddy_config`) hold the TLS certs — back these up too unless you're happy re-issuing on rebuild.
 

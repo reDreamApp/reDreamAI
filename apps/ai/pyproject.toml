@@ -8,11 +8,24 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "pydantic>=2.10",
     "pydantic-settings>=2.6",
-    "mistralai>=2.4,<3",
+    "mistralai>=1.2,<2",
     "httpx>=0.27",
     "python-multipart>=0.0.20",
     "supabase>=2.10",
-    "langfuse>=2.60",
+    # Pinned to v2 — the SDK is version-coupled to the self-hosted server
+    # (ADR 0007 / infra compose run langfuse/langfuse:2). The v3+ SDK ingests
+    # over an OTel endpoint the v2 server does not expose, so traces silently
+    # drop. If the server is upgraded to v3+, bump this and update observability.py.
+    "langfuse>=2.60,<3",
+    # Ported IRT chatbot core (redream_ai/core, redream_ai/clinical_safety):
+    # OpenAI-compatible SDK drives Scaleway (primary) + direct Mistral (fallback);
+    # groq SDK is referenced by the registry but unused at runtime; networkx builds
+    # the clinical knowledge graph; tiktoken is the streaming token estimate.
+    "openai>=1.40",
+    "groq>=0.11",
+    "networkx>=3.2",
+    "tiktoken>=0.7",
+    "python-dotenv>=1.0",
 ]
 
 [dependency-groups]
@@ -35,9 +48,25 @@ packages = ["src/redream_ai"]
 target-version = "py312"
 line-length = 100
 src = ["src", "tests"]
+# Vendored: the ported IRT core + safety engine are copied verbatim from the SU
+# Streamlit repo (see chatbot integration brief — "do not reflow or clean up").
+# Excluded from our lint/type rules; only the redream_ai-authored glue is strict.
+extend-exclude = [
+    "src/redream_ai/core",
+    "src/redream_ai/clinical_safety",
+    "chatbot_port",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "ASYNC", "RUF"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI dependency-injection markers are the idiomatic way to set route defaults;
+# they are not the mutable-default-arg footgun B008 targets.
+extend-immutable-calls = [
+    "fastapi.Depends", "fastapi.File", "fastapi.Query", "fastapi.Form",
+    "fastapi.Header", "fastapi.Path", "fastapi.Cookie", "fastapi.Body",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -48,3 +77,22 @@ pythonpath = ["src"]
 strict = true
 python_version = "3.12"
 mypy_path = "src"
+
+# Langfuse v2 ships no py.typed marker; the SDK is confined to observability.py.
+[[tool.mypy.overrides]]
+module = ["langfuse.*"]
+ignore_missing_imports = true
+
+# Third-party SDKs used only by the vendored core that ship no type stubs.
+[[tool.mypy.overrides]]
+module = ["groq.*", "networkx.*", "tiktoken.*", "dotenv.*"]
+ignore_missing_imports = true
+
+# Vendored: ported IRT core + safety engine (copied verbatim; not type-clean by
+# design). Imports still resolve; their internal type errors are not reported.
+# implicit_reexport: the glue code accesses names the vendored modules re-import
+# (e.g. irt_app.routing_agent, process_chat_message) without an explicit __all__.
+[[tool.mypy.overrides]]
+module = ["redream_ai.core.*", "redream_ai.clinical_safety.*"]
+ignore_errors = true
+implicit_reexport = true

@@ -36,11 +36,23 @@ class IntensitySlider extends StatelessWidget {
           onChanged: (v) => onChanged(v.round()),
         ),
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(l10n.intensityMild, style: theme.textTheme.bodySmall),
+            Expanded(
+              child: Text(
+                l10n.intensityMild,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
             Chip(label: Text(l10n.intensitySelected(value))),
-            Text(l10n.intensityExtreme, style: theme.textTheme.bodySmall),
+            Expanded(
+              child: Text(
+                l10n.intensityExtreme,
+                textAlign: TextAlign.end,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall,
+              ),
+            ),
           ],
         ),
       ],

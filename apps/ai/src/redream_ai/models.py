@@ -9,12 +9,19 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class Stage(StrEnum):
-    """IRT therapy stages, in canonical forward order (see redream_ai.irt)."""
+    """Wire-contract IRT stages.
+
+    The ported core routes only `recording → rewriting → summary → final`
+    (`redream_ai.core.models.Stage`). `INTENSITY` is retained here for backward
+    wire compatibility (older backend/app history may carry it); the ported flow
+    never emits it — the 0-10 rating lives on `SummaryStructured.intensity`.
+    """
 
     RECORDING = "recording"
     INTENSITY = "intensity"
@@ -48,7 +55,9 @@ class Message(BaseModel):
     timestamp: datetime | None = None
 
 
+# ---------------------------------------------------------------------------
 # /chat — IRT turn
+# ---------------------------------------------------------------------------
 
 
 class ChatRequest(BaseModel):
@@ -59,6 +68,23 @@ class ChatRequest(BaseModel):
     session_id: str | None = Field(
         default=None,
         description="Optional opaque ID for Langfuse trace grouping. Not used for state.",
+    )
+    user_id: str | None = Field(
+        default=None,
+        description=(
+            "Optional opaque end-user ID stamped on Langfuse traces so the GDPR "
+            "purge can find and delete them by userId. Not used for state."
+        ),
+    )
+    nightmare_summary: str | None = Field(
+        default=None,
+        description=(
+            "The nightmare summary the AI generated once at the recording→rewriting "
+            "transition. The backend persists it and echoes it back on every "
+            "subsequent turn so the AI doesn't regenerate it each rewriting turn "
+            "(keeps ADR 0002 statelessness while honouring 'generated exactly once'). "
+            "None on turns before the summary exists."
+        ),
     )
 
 
@@ -73,7 +99,10 @@ class SummaryStructured(BaseModel):
     rewritten_summary: str
     dream_summary: str
     intensity: int | None = Field(
-        default=None, ge=0, le=10, description="Rating the user gave in the intensity stage."
+        default=None,
+        ge=0,
+        le=10,
+        description="The 0-10 distress rating the user gave, if they gave one.",
     )
 
 
@@ -85,8 +114,9 @@ class UsageStats(BaseModel):
 class ChatResponse(BaseModel):
     """Non-streaming chat response.
 
-    For streaming (ADR 0009), the SSE event stream emits text chunks followed by
-    a final `done` event carrying `{stage, structured, usage, prompt_version}`.
+    For streaming (ADR 0009), POST /chat/stream emits content chunks, then one
+    ``data: {"final": <this model as JSON>}`` frame, then the ``data: [DONE]``
+    sentinel — full frame contract in ``redream_ai.api.chat``'s module docstring.
     """
 
     stage: Stage
@@ -94,11 +124,28 @@ class ChatResponse(BaseModel):
     structured: SummaryStructured | None = None
     usage: UsageStats
     prompt_version: str
+    safety: dict[str, Any] | None = Field(
+        default=None,
+        description=(
+            "Clinical rewrite-safety verdict from the neuro-symbolic SafetyCritic. "
+            "Populated only during the `rewriting` stage; None otherwise or when the "
+            "critic is unavailable (None means 'not evaluated', not 'safe')."
+        ),
+    )
+    nightmare_summary: str | None = Field(
+        default=None,
+        description=(
+            "The once-generated nightmare summary, echoed so the backend can persist "
+            "it and send it back next turn (see ChatRequest.nightmare_summary)."
+        ),
+    )
 
     model_config = ConfigDict(extra="forbid")
 
 
+# ---------------------------------------------------------------------------
 # /safety/classify — crisis pre-classifier (ADR 0005)
+# ---------------------------------------------------------------------------
 
 
 class SafetyRisk(StrEnum):
@@ -119,6 +166,28 @@ class SafetyCategory(StrEnum):
 class SafetyRequest(BaseModel):
     text: str
     language: Language
+    stage: Stage | None = Field(
+        default=None,
+        description="IRT stage the message was sent in, for classifier context.",
+    )
+    context: str | None = Field(
+        default=None,
+        description=(
+            "The assistant message the user is replying to. Without it, terse "
+            "answers ('It is an 8 out of 10.') are uninterpretable."
+        ),
+    )
+    session_id: str | None = Field(
+        default=None,
+        description="Optional opaque ID for Langfuse trace grouping. Not used for state.",
+    )
+    user_id: str | None = Field(
+        default=None,
+        description=(
+            "Optional opaque end-user ID stamped on Langfuse traces so the GDPR "
+            "purge can find and delete them by userId. Not used for state."
+        ),
+    )
 
 
 class SafetyResponse(BaseModel):
@@ -128,7 +197,9 @@ class SafetyResponse(BaseModel):
     prompt_version: str
 
 
+# ---------------------------------------------------------------------------
 # /audio/transcribe — Voxtral STT (ADR 0010)
+# ---------------------------------------------------------------------------
 
 
 class TranscribeResponse(BaseModel):
@@ -138,11 +209,14 @@ class TranscribeResponse(BaseModel):
     output_tokens: int = 0
 
 
+# ---------------------------------------------------------------------------
 # /rehearsal/generate — Voxtral TTS + Supabase Storage upload
+# ---------------------------------------------------------------------------
 
 
 class RehearsalRequest(BaseModel):
     dream_id: str
+    user_id: str = Field(description="Owner; prefixes the Storage path for the GDPR purge.")
     rewritten_dream: str
     language: Language
 

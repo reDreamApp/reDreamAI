@@ -7,12 +7,19 @@ import 'package:redream_app/core/auth/auth_service.dart';
 import 'package:redream_app/core/settings/app_settings.dart';
 import 'package:redream_app/core/storage/local_store.dart';
 import 'package:redream_app/features/reminders/notification_service.dart';
+import 'package:redream_app/l10n/generated/app_localizations_en.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fake_api.dart';
 import 'fake_auth.dart';
 
-Future<(Widget, FakeApi, AppSettings)> _app({FakeAuth? auth}) async {
+final _en = AppLocalizationsEn();
+
+Future<(Widget, FakeApi, AppSettings)> _app({
+  FakeAuth? auth,
+  bool consentRequired = false,
+}) async {
+  var needsConsent = consentRequired;
   SharedPreferences.setMockInitialValues({});
   final store = await LocalStore.open();
   final settings = AppSettings(store, platformLanguage: 'en');
@@ -32,6 +39,19 @@ Future<(Widget, FakeApi, AppSettings)> _app({FakeAuth? auth}) async {
     )
     ..on('GET /api/v1/progress/stats', (_, _) => statsJson())
     ..on(
+      'GET /api/v1/users/me/consent',
+      (_, _) => consentJson(required: needsConsent),
+    )
+    ..on('POST /api/v1/users/me/consent', (_, _) {
+      needsConsent = false;
+      return null;
+    })
+    ..on('DELETE /api/v1/users/me/consent', (_, _) {
+      needsConsent = true;
+      return null;
+    })
+    ..on('PUT /api/v1/chats/{id}/intensity', (_, _) => {'ok': true})
+    ..on(
       'GET /api/v1/chats',
       (_, _) => [chatJson(3, done: true, title: 'Old chat')],
     )
@@ -48,23 +68,18 @@ Future<(Widget, FakeApi, AppSettings)> _app({FakeAuth? auth}) async {
       (_, _) => {'chat_id': 7, 'language': 'en', 'current_stage': 'recording'},
     )
     ..on(
-      'POST /api/v1/chats/{id}/message',
-      (_, body) => {
-        'chat_id': 7,
-        'user_message': messageJson(
-          'u1',
-          role: 'user',
-          content: body['content'] as String,
-        ),
-        'ai_message': messageJson(
-          'a1',
-          role: 'assistant',
-          content: 'Tell me more about it.',
-        ),
-        'stage': 'recording',
-        'is_done': false,
-        'safety_event': null,
-      },
+      'POST /api/v1/chats/{id}/message/stream',
+      (_, body) => body['content'] == 'yes, done'
+          ? streamTurn(
+              userText: 'yes, done',
+              reply: 'Thank you for this session.',
+              stage: 'final',
+              done: true,
+            )
+          : streamTurn(
+              userText: body['content'] as String,
+              reply: 'Tell me more about it.',
+            ),
     );
   final services = AppServices(
     api: api.client(token: 'test'),
@@ -164,10 +179,7 @@ void main() {
     await tester.tap(find.text('Session'));
     await _settle(tester);
     expect(find.text('reDreamAI Assistant'), findsOneWidget);
-    expect(
-      find.textContaining('Imagery Rehearsal Therapy for your nightmares'),
-      findsOneWidget,
-    );
+    expect(find.text(_en.chatWelcome), findsOneWidget);
 
     await tester.enterText(
       find.byType(TextField).last,
@@ -178,6 +190,7 @@ void main() {
     await _settle(tester);
 
     expect(api.calls, contains('POST /api/v1/chats/start'));
+    expect(api.calls, contains('POST /api/v1/chats/7/message/stream'));
     expect(find.text('I dreamt about losing my dog'), findsOneWidget);
     expect(find.text('Tell me more about it.'), findsOneWidget);
 
@@ -200,5 +213,89 @@ void main() {
       Theme.of(tester.element(find.text('Your Progress'))).brightness,
       Brightness.dark,
     );
+  });
+
+  testWidgets('consent gate blocks until the user agrees', (tester) async {
+    final (app, api, _) = await _app(
+      auth: FakeAuth(userId: 'user-1'),
+      consentRequired: true,
+    );
+    _tallPhone(tester);
+    await tester.pumpWidget(app);
+    await _settle(tester);
+
+    expect(find.text(_en.consentTitle), findsOneWidget);
+    expect(find.text('Your Progress'), findsNothing);
+    final agree = find.widgetWithText(FilledButton, _en.consentContinue);
+    expect(tester.widget<FilledButton>(agree).onPressed, isNull);
+
+    await tester.tap(find.byType(Checkbox));
+    await _settle(tester);
+    await tester.tap(agree);
+    await _settle(tester);
+
+    expect(api.calls, contains('POST /api/v1/users/me/consent'));
+    expect(find.text('Your Progress'), findsOneWidget);
+  });
+
+  testWidgets('settings opens with user state and can withdraw consent', (
+    tester,
+  ) async {
+    final (app, api, _) = await _app(auth: FakeAuth(userId: 'user-1'));
+    _tallPhone(tester);
+    await tester.pumpWidget(app);
+    await _settle(tester);
+
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await _settle(tester);
+    expect(tester.takeException(), isNull);
+    expect(api.calls, contains('GET /api/v1/profile'));
+
+    await tester.tap(find.text(_en.settingsWithdrawConsent));
+    await _settle(tester);
+    await tester.tap(find.text(_en.withdrawConsentConfirm));
+    await _settle(tester);
+
+    expect(api.calls, contains('DELETE /api/v1/users/me/consent'));
+    expect(find.text(_en.consentTitle), findsOneWidget);
+  });
+
+  testWidgets('dream details open from the journal', (tester) async {
+    final (app, _, _) = await _app(auth: FakeAuth(userId: 'user-1'));
+    _tallPhone(tester);
+    await tester.pumpWidget(app);
+    await _settle(tester);
+
+    await tester.tap(find.text('Journal'));
+    await _settle(tester);
+    await tester.tap(find.text('Flying'));
+    await _settle(tester);
+    expect(tester.takeException(), isNull);
+    expect(find.text('Flying'), findsWidgets);
+  });
+
+  testWidgets('a finished session asks for the intensity rating', (
+    tester,
+  ) async {
+    final (app, api, _) = await _app(auth: FakeAuth(userId: 'user-1'));
+    _tallPhone(tester);
+    await tester.pumpWidget(app);
+    await _settle(tester);
+
+    await tester.tap(find.text('Session'));
+    await _settle(tester);
+    await tester.enterText(find.byType(TextField).last, 'yes, done');
+    await _settle(tester);
+    await tester.tap(find.byIcon(Icons.send_rounded));
+    await _settle(tester);
+
+    expect(find.text('Thank you for this session.'), findsOneWidget);
+    expect(find.text(_en.chatIntensityPrompt), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, _en.submit));
+    await _settle(tester);
+
+    expect(api.calls, contains('PUT /api/v1/chats/7/intensity'));
+    expect(find.text(_en.chatIntensityPrompt), findsNothing);
+    expect(find.text(_en.chatSessionDoneCta), findsOneWidget);
   });
 }

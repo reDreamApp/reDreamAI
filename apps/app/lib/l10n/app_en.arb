@@ -1,7 +1,6 @@
 {
   "@@locale": "en",
   "appTitle": "reDreamAI",
-
   "ok": "OK",
   "cancel": "Cancel",
   "delete": "Delete",
@@ -23,14 +22,18 @@
   "dateToday": "Today",
   "dateYesterday": "Yesterday",
   "dateDaysAgo": "{count} days ago",
-  "@dateDaysAgo": {"placeholders": {"count": {"type": "int"}}},
-
+  "@dateDaysAgo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "navHome": "Home",
   "navSession": "Session",
   "navJournal": "Journal",
   "settingsTooltip": "Settings",
   "chatHistoryTooltip": "Chat history",
-
   "authSlogan": "Transform Your Nightmares",
   "signInTitle": "Sign in",
   "signInEmail": "Email",
@@ -55,20 +58,31 @@
   "forgotPasswordFailed": "Could not send reset code. Please try again.",
   "backToSignIn": "Back to sign in",
   "validationRequired": "{field} is required",
-  "@validationRequired": {"placeholders": {"field": {"type": "String"}}},
+  "@validationRequired": {
+    "placeholders": {
+      "field": {
+        "type": "String"
+      }
+    }
+  },
   "validationEmailInvalid": "Please enter a valid email address",
   "validationPasswordMin": "Password must be at least {min} characters",
-  "@validationPasswordMin": {"placeholders": {"min": {"type": "int"}}},
+  "@validationPasswordMin": {
+    "placeholders": {
+      "min": {
+        "type": "int"
+      }
+    }
+  },
   "signUpConfirmEmail": "Account created. Please confirm your email address, then sign in.",
-
   "onboardingCelebrateTitle": "Congratulations!",
   "onboardingCelebrateBody": "You just successfully took the first step towards better sleep!",
   "onboardingWelcomeTitle": "Welcome to",
   "onboardingWelcomeBody": "Your new favorite app to log dreams and fend off nightmares.",
-  "onboardingScienceTitle": "Science-backed methods",
-  "onboardingScienceBody": "Imagery Rehearsal Therapy (IRT) helps 70% of people to reduce their nightmare distress by 50%.",
-  "onboardingAiTitle": "AI powered IRT",
-  "onboardingAiBody": "reDreamAI uses advanced AI to guide you through IRT sessions:\n1) Record your nightmare\n2) Rewrite it with a happy ending\n3) Rehearse the new version",
+  "onboardingScienceTitle": "How it works",
+  "onboardingScienceBody": "Record a nightmare, rewrite it with a better ending, and practice the new version — a routine inspired by techniques from Imagery Rehearsal Therapy (IRT). reDreamAI itself is not therapy and does not treat any condition.",
+  "onboardingAiTitle": "AI-guided sessions",
+  "onboardingAiBody": "reDreamAI uses advanced AI to guide you through each session: 1) Record your nightmare 2) Rewrite it with a happy ending 3) Rehearse the new version",
   "onboardingPrivacyTitle": "Your dreams are private",
   "onboardingPrivacyBody": "reDreamAI is built with security in mind. We only use secure European services and are GDPR compliant.",
   "onboardingProfileTitle": "Help us get to know you better",
@@ -88,34 +102,75 @@
   "freqMonthly": "A few times a month",
   "freqRarely": "Rarely",
   "freqNever": "Never",
-
   "homeHeadline": "Transform Your Nightmares",
-  "homeMission": "AI-powered Imagery Rehearsal Therapy to reduce nightmare frequency and improve sleep quality",
-  "homeStartTitle": "Start IRT Session",
+  "homeMission": "Rewrite difficult dreams into new stories and practice them for calmer nights",
+  "homeStartTitle": "Start a session",
   "homeStartBody": "Our AI will transform your nightmares and help you sleep well!",
   "homeBeginSession": "Begin Session",
   "homeProgressTitle": "Your Progress",
-  "homeProgressSubtitle": "Track your therapy journey",
+  "homeProgressSubtitle": "Your dream journal at a glance",
   "homeViewJournal": "View Journal",
   "statStreak": "Streak",
   "statDreams": "Dreams",
   "statSessions": "Sessions",
   "statDays": "{count, plural, =1{1 day} other{{count} days}}",
-  "@statDays": {"placeholders": {"count": {"type": "int"}}},
+  "@statDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "homeWeeklyProgress": "Weekly Progress",
   "homeSessionsThisWeek": "{count}/{total} sessions this week",
-  "@homeSessionsThisWeek": {"placeholders": {"count": {"type": "int"}, "total": {"type": "int"}}},
+  "@homeSessionsThisWeek": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
   "homeJournalStatus": "Dream Journal Status",
   "homeJournalStatusBody": "{nightmares, plural, =0{No nightmares logged yet.} =1{1 nightmare logged, {transformed} transformed.} other{{nightmares} nightmares logged, {transformed} transformed.}}",
-  "@homeJournalStatusBody": {"placeholders": {"nightmares": {"type": "int"}, "transformed": {"type": "int"}}},
+  "@homeJournalStatusBody": {
+    "placeholders": {
+      "nightmares": {
+        "type": "int"
+      },
+      "transformed": {
+        "type": "int"
+      }
+    }
+  },
   "homeFocusDream": "Focus dream: {title}",
-  "@homeFocusDream": {"placeholders": {"title": {"type": "String"}}},
+  "@homeFocusDream": {
+    "placeholders": {
+      "title": {
+        "type": "String"
+      }
+    }
+  },
   "homeAvgIntensity": "Avg. nightmare intensity: {value}",
-  "@homeAvgIntensity": {"placeholders": {"value": {"type": "String"}}},
+  "@homeAvgIntensity": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "homeMoodQuestion": "How are you feeling today?",
   "homeMoodToday": "Today's mood",
   "homeMoodAverage": "30-day average: {value}",
-  "@homeMoodAverage": {"placeholders": {"value": {"type": "String"}}},
+  "@homeMoodAverage": {
+    "placeholders": {
+      "value": {
+        "type": "String"
+      }
+    }
+  },
   "homeMoodSaveFailed": "Failed to save your mood. Please try again.",
   "moodVeryDissatisfied": "Very dissatisfied",
   "moodDissatisfied": "Dissatisfied",
@@ -125,35 +180,32 @@
   "homePracticeTitle": "Daily rehearsal",
   "homePracticeBody": "Jump back into your current dream rehearsal. Practice daily for best results.",
   "homePracticeButton": "Practice",
-  "homeGuideTitle": "IRT Guide",
-  "homeGuideBody": "Quick guide to IRT and how you can use it to improve your sleep quality.",
+  "homeGuideTitle": "Rewriting Guide",
+  "homeGuideBody": "A quick guide to recording, rewriting, and rehearsing your dreams",
   "homeGuideButton": "Open guide",
   "homeLearnTitle": "Learn",
-  "homeLearnBody": "Articles about sleep, dreams and the science behind IRT.",
+  "homeLearnBody": "Articles about sleep, dreams and the ideas behind rewriting them.",
   "homeLearnButton": "Browse articles",
-
-  "guideWelcomeTitle": "Welcome to the IRT Guide",
-  "guideWelcomeBody": "This guide will walk you through the steps of Imagery Rehearsal Therapy (IRT).",
+  "guideWelcomeTitle": "Welcome to the Rewriting Guide",
+  "guideWelcomeBody": "This guide walks you through the three steps: identify, rewrite, rehearse.",
   "guideStep1Title": "Step 1: Identify Your Nightmare",
   "guideStep1Body": "Recall your nightmare. Focus on the most disturbing parts and the emotions it evokes.",
   "guideStep2Title": "Step 2: Rewrite Your Dream",
   "guideStep2Body": "Change the nightmare's narrative. Imagine a positive outcome or a way to overcome the threat.",
   "guideStep3Title": "Step 3: Rehearse Your New Dream",
   "guideStep3Body": "Mentally rehearse the rewritten dream daily. Focus on the positive feelings and outcomes.",
-
   "chatAssistantName": "reDreamAI Assistant",
-  "chatSessionSubtitle": "Imagery Rehearsal Therapy Session",
+  "chatSessionSubtitle": "Dream rewriting session",
   "chatInputHint": "Share your thoughts…",
   "chatSend": "Send",
-  "chatWelcome": "Hello! I'm here to help you with Imagery Rehearsal Therapy for your nightmares. This is a safe space where we can work together to transform your distressing dreams. Would you like to start by telling me about a recent nightmare you'd like to work on?",
+  "chatWelcome": "Hello! I'm here to help you rewrite difficult dreams. This is a safe space where we can work together to turn a distressing dream into a new story. Would you like to start by telling me about a recent nightmare you'd like to work on?",
   "chatThinking": "Thinking…",
   "chatLoading": "Loading chat…",
   "stageRecording": "Recording",
-  "stageIntensity": "Intensity",
   "stageRewriting": "Rewriting",
   "stageSummary": "Summary",
   "stageFinal": "Final",
-  "chatIntensityPrompt": "Rate nightmare intensity (0–10)",
+  "chatIntensityPrompt": "How intense did this nightmare feel? (0–10)",
   "chatSessionDoneCta": "Let's look at your new dream!",
   "chatSessionFinished": "This session is finished. Start a new chat to continue.",
   "chatNotDelivered": "Message not delivered",
@@ -178,7 +230,13 @@
   "chatReportDetails": "Details (optional)",
   "chatReportThanks": "Thanks for reporting. We will review it.",
   "chatReportFailed": "Failed to submit report: {error}",
-  "@chatReportFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@chatReportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "chatReportNotReady": "Report is not available for this message yet.",
   "reasonChildSafety": "Child safety / exploitation",
   "reasonSelfHarm": "Self-harm or suicide",
@@ -194,7 +252,6 @@
   "safetyHelplineUrl": "https://findahelpline.com",
   "budgetExceededTitle": "Daily limit reached",
   "budgetExceededBody": "You've reached today's chat limit. It resets at midnight UTC.",
-
   "journalTitle": "Dream Journal",
   "journalSubtitle": "Practice your transformed dreams and track your progress",
   "journalAddDream": "Add Dream manually",
@@ -203,12 +260,36 @@
   "filterDreams": "Dreams",
   "filterNightmares": "Nightmares",
   "journalShowing": "Showing {count} of {total} entries",
-  "@journalShowing": {"placeholders": {"count": {"type": "int"}, "total": {"type": "int"}}},
-  "journalEmpty": "No dreams yet. Add one manually or start an IRT session.",
+  "@journalShowing": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "journalEmpty": "No dreams yet. Add one manually or start a session.",
   "journalIntensity": "Intensity: {value}/10",
-  "@journalIntensity": {"placeholders": {"value": {"type": "int"}}},
+  "@journalIntensity": {
+    "placeholders": {
+      "value": {
+        "type": "int"
+      }
+    }
+  },
   "journalPracticed": "{count} practiced | {remaining} remaining",
-  "@journalPracticed": {"placeholders": {"count": {"type": "int"}, "remaining": {"type": "int"}}},
+  "@journalPracticed": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "remaining": {
+        "type": "int"
+      }
+    }
+  },
   "journalPracticeDream": "Practice Dream",
   "journalSetFocus": "Set as focus dream",
   "journalFocusLabel": "Focus dream",
@@ -216,14 +297,31 @@
   "journalDeleteTitle": "Delete dream",
   "journalDeleteBody": "Are you sure you want to delete this dream? This action cannot be undone.",
   "journalDeleteFailed": "Failed to delete dream: {error}",
-  "@journalDeleteFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@journalDeleteFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "journalFocusFailed": "Failed to set focus dream: {error}",
-  "@journalFocusFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@journalFocusFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "journalSyncDraftFirst": "Please refresh to sync this dream before selecting it as focus dream.",
   "journalCachedData": "No internet connection. Showing cached data.",
   "journalRefreshFailed": "Failed to refresh dreams: {error}",
-  "@journalRefreshFailed": {"placeholders": {"error": {"type": "String"}}},
-
+  "@journalRefreshFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "detailRewritten": "Rewritten Dream",
   "detailOriginal": "Original Dream",
   "detailDream": "Dream",
@@ -237,9 +335,8 @@
   "practiceReadingBody": "Guided text practice with your rewritten dream",
   "practiceAudioTitle": "Audio rehearsal",
   "practiceAudioBody": "Listen and rehearse with audio guidance",
-
   "practiceWelcomeTitle": "Welcome to the Guided Rehearsal",
-  "practiceWelcomeBody": "This guide will walk you through the steps of rehearsing a dream using Imagery Rehearsal Therapy (IRT).",
+  "practiceWelcomeBody": "This guide walks you through rehearsing your rewritten dream, step by step.",
   "practiceStep1Title": "Step 1: Read through your rewritten dream",
   "practiceStep1Body": "Read the transformed dream carefully and imagine how relieved you would feel if this was the version you dreamed. Swipe to the next page to see your rewritten dream.",
   "practiceStep2Title": "Step 2: Close your eyes and visualise",
@@ -249,9 +346,14 @@
   "practiceSavedOffline": "You're offline. This practice is saved on your device and will sync automatically when you're back online.",
   "practiceAlreadyToday": "Today's practice is already recorded.",
   "practiceSaveFailed": "Failed to save practice: {error}",
-  "@practiceSaveFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@practiceSaveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "practiceRecorded": "Practice recorded. Well done!",
-
   "audioLoading": "Loading your audio rehearsal…",
   "audioLoadFailed": "Could not load audio rehearsal",
   "audioTryAgain": "Try again",
@@ -260,12 +362,17 @@
   "audioSaved": "Audio saved for offline use.",
   "audioAlreadySaved": "Audio already saved for offline use.",
   "audioDownloadFailed": "Failed to download audio: {error}",
-  "@audioDownloadFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@audioDownloadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "audioSyncFirst": "Please sync this dream before starting audio rehearsal.",
   "audioNoRewritten": "This dream does not have a rewritten version yet.",
   "audioUnavailable": "Audio rehearsal is not available yet. Please try again later.",
   "audioSubtitleDefault": "A few minutes of guided rehearsal",
-
   "editorTitleNew": "Record Dream",
   "editorTitleEdit": "Edit Dream",
   "editorTitleLabel": "Title",
@@ -275,7 +382,7 @@
   "editorDreamHint": "Describe your dream in detail…",
   "editorDreamHelp": "Describe what happened. Include key scenes, feelings, and themes.",
   "editorIsNightmare": "This is a nightmare",
-  "editorIsNightmareHelp": "Enable to add an intensity rating and create a transformed version for IRT rehearsal.",
+  "editorIsNightmareHelp": "Enable to add an intensity rating and create a rewritten version to practice.",
   "editorIntensityTitle": "Nightmare intensity",
   "editorIntensityHelp": "Rate the intensity of your nightmare.",
   "editorRewrittenLabel": "Transformed dream",
@@ -287,30 +394,58 @@
   "editorTitleRequired": "Please enter a title.",
   "editorDreamRequired": "Please describe your dream.",
   "editorSavedNightmare": "Nightmare saved! (Intensity: {intensity})",
-  "@editorSavedNightmare": {"placeholders": {"intensity": {"type": "int"}}},
+  "@editorSavedNightmare": {
+    "placeholders": {
+      "intensity": {
+        "type": "int"
+      }
+    }
+  },
   "editorSavedDream": "Dream saved!",
   "editorUpdated": "Dream updated successfully!",
   "editorSavedOffline": "Saved on your device. We'll sync automatically when you're back online.",
   "editorSaveFailed": "Failed to save dream: {error}",
-  "@editorSaveFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@editorSaveFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "editorUnsavedTitle": "Unsaved changes",
   "editorUnsavedBody": "You have unsaved changes. Discard them?",
   "editorDiscard": "Discard",
   "intensityMild": "Mild",
   "intensityExtreme": "Extremely intense",
   "intensitySelected": "Selected: {value}",
-  "@intensitySelected": {"placeholders": {"value": {"type": "int"}}},
-
+  "@intensitySelected": {
+    "placeholders": {
+      "value": {
+        "type": "int"
+      }
+    }
+  },
   "reminderTitle": "Daily reminder",
   "reminderActiveAt": "A daily reminder is active at {time}.",
-  "@reminderActiveAt": {"placeholders": {"time": {"type": "String"}}},
+  "@reminderActiveAt": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "reminderOff": "Enable to set a daily reminder at your preferred time. Disable to cancel.",
   "reminderSet": "Reminder set for {time}",
-  "@reminderSet": {"placeholders": {"time": {"type": "String"}}},
+  "@reminderSet": {
+    "placeholders": {
+      "time": {
+        "type": "String"
+      }
+    }
+  },
   "reminderCancelled": "Daily reminder cancelled",
   "reminderNotificationTitle": "reDreamAI reminder",
   "reminderNotificationBody": "It's time to rehearse your dream.",
-
   "settingsTitle": "Profile & Settings",
   "settingsIntro": "Manage your account preferences, notifications, and privacy settings",
   "settingsProfileSection": "Profile Information",
@@ -339,11 +474,16 @@
   "settingsContact": "Contact support",
   "settingsPrivacyPolicy": "View privacy policy",
   "settingsVersion": "Version: {version}",
-  "@settingsVersion": {"placeholders": {"version": {"type": "String"}}},
-  "settingsTagline": "Evidence-based nightmare therapy using Imagery Rehearsal Therapy techniques",
+  "@settingsVersion": {
+    "placeholders": {
+      "version": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsTagline": "A self-help companion for working with difficult dreams. reDreamAI does not diagnose or treat any condition — if nightmares are seriously distressing you, please talk to a doctor or psychotherapist.",
   "settingsSignOut": "Sign out",
   "settingsSignOutSubtitle": "Sign out of your account",
-
   "changeEmailTitle": "Change email",
   "changeEmailHeading": "Update email address",
   "changeEmailBody": "Enter your new email address below. You will need to verify the new email address.",
@@ -363,13 +503,18 @@
   "changePasswordFailed": "Failed to update password. Please try again.",
   "changePasswordSuccess": "Password updated successfully",
   "changePasswordNoUser": "Unable to verify user. Please sign out and sign in again.",
-
   "exportTitle": "Export my data",
   "exportBody": "You can export your profile, chat messages, and dreams as a JSON file.",
   "exportButton": "Download JSON",
   "exportReadyTitle": "Export ready",
   "exportReadyBody": "Your data export has been saved to your device:\n{path}",
-  "@exportReadyBody": {"placeholders": {"path": {"type": "String"}}},
+  "@exportReadyBody": {
+    "placeholders": {
+      "path": {
+        "type": "String"
+      }
+    }
+  },
   "exportFailed": "Failed to export data. Please try again.",
   "deleteDataTitle": "Delete my data",
   "deleteDataBody": "Confirm your email address to delete all of your app data at once. Your login will remain active.",
@@ -389,7 +534,6 @@
   "deleteAccountSuccess": "Your account has been deleted.",
   "deleteAccountFailed": "Failed to delete account. Please try again.",
   "emailMismatch": "This is not the email address of your account.",
-
   "helpTitle": "Help center",
   "helpIntro": "Share your concern and we will take a look as soon as possible.",
   "helpCardTitle": "Tell us what is on your mind",
@@ -406,7 +550,6 @@
   "contactCopyEmail": "Copy email",
   "contactCopied": "Email address copied to clipboard",
   "contactOpenFailed": "Could not open email client",
-
   "privacyTitle": "Privacy Policy",
   "privacySubtitle": "Your privacy matters to us",
   "privacyUpdated": "Last updated: November 2025",
@@ -415,7 +558,7 @@
   "privacyS2Title": "Data Collection and Processing",
   "privacyS2Body": "We process the content you share with the chatbot (dream and nightmare descriptions, conversation history), technical data (IP address, device and browser information) and usage data (how you interact with the app).",
   "privacyS3Title": "Purpose of Data Processing",
-  "privacyS3Body": "Your data is used to provide and improve the IRT chatbot, to understand how the app is used, to keep the service secure, and to comply with legal obligations.",
+  "privacyS3Body": "Your data is used to provide and improve the dream chatbot, to understand how the app is used, to keep the service secure, and to comply with legal obligations.",
   "privacyS4Title": "Legal Basis",
   "privacyS4Body": "Processing is based on your consent (Art. 6(1)(a) GDPR) and on our legitimate interests in operating and securing the service (Art. 6(1)(f) GDPR).",
   "privacyS5Title": "Data Storage and Retention",
@@ -430,13 +573,44 @@
   "privacyS9Body": "We rely on European hosting and AI providers bound by data processing agreements. Dream content is only shared with the AI provider to generate responses.",
   "privacyS10Title": "Changes to This Policy",
   "privacyS10Body": "We may update this policy from time to time. The current version is always available in the app and on our website.",
-
   "learnTitle": "Learn",
   "learnTopics": "Topics",
   "learnFilteringBy": "Filtering by {tag}",
-  "@learnFilteringBy": {"placeholders": {"tag": {"type": "String"}}},
+  "@learnFilteringBy": {
+    "placeholders": {
+      "tag": {
+        "type": "String"
+      }
+    }
+  },
   "learnLoadFailed": "Unable to load articles right now.",
   "learnEmpty": "No articles found.",
   "learnOpenArticle": "Open the article",
-  "learnOpenFailed": "Unable to open article link."
+  "learnOpenFailed": "Unable to open article link.",
+  "chatMicPermissionDenied": "Microphone access is off. Enable it in your device settings to record your dream.",
+  "chatMicRecording": "Recording…",
+  "chatMicCancel": "Discard recording",
+  "chatMicStop": "Use recording",
+  "chatMicRecord": "Record your dream",
+  "chatStartErrorBody": "Couldn't start the conversation. Check your connection and try again.",
+  "chatFinishedReadOnly": "This session is finished and can only be viewed.",
+  "chatStartNewSession": "Start new session",
+  "consentTitle": "Your data, your consent",
+  "consentIntro": "reDreamAI helps you work through distressing dreams. To do that, the app processes what you share about your dreams and how you feel — information about your health. Under EU law (GDPR Art. 9), this needs your explicit consent.",
+  "consentBulletData": "What is processed: your dream descriptions and voice recordings (transcribed, then immediately discarded), rewritten dreams, intensity ratings, and mood entries.",
+  "consentBulletProcessors": "Who processes it: our servers hosted at Scaleway (France). AI responses are generated by Scaleway and, as a fallback, Mistral AI (France) — Mistral may retain inputs for up to 30 days for abuse monitoring. Technical diagnostics stay on our own EU servers.",
+  "consentBulletControl": "Your control: withdraw this consent anytime in Settings — dream features then pause until you consent again. You can view, export, or delete your data at any time regardless.",
+  "consentCheckbox": "I consent to the processing of my health-related data as described above",
+  "consentContinue": "Agree and continue",
+  "consentDeclineHint": "Without this consent, reDreamAI can't process dreams. You can sign out instead.",
+  "consentSignOut": "Sign out",
+  "consentLoadError": "Couldn't check your consent status.",
+  "settingsWithdrawConsent": "Withdraw data consent",
+  "settingsWithdrawConsentSubtitle": "Pause processing of your dream data",
+  "withdrawConsentTitle": "Withdraw consent?",
+  "withdrawConsentBody": "reDreamAI will stop processing your dream data, and dream features will pause until you consent again. Your saved data stays untouched — you can still view, export, or delete it.",
+  "withdrawConsentConfirm": "Withdraw",
+  "chatStreamInterrupted": "The connection dropped before the reply arrived. Please send your message again.",
+  "chatResendHint": "Your last message wasn't delivered.",
+  "chatTranscribing": "Transcribing your recording…"
 }

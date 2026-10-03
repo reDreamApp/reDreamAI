@@ -9,12 +9,12 @@ import 'package:redream_app/core/api/api_exception.dart';
 typedef TokenProvider = String? Function();
 typedef SessionRefresher = Future<void> Function();
 
-/// JSON client for `apps/api`. Adds the bearer token, maps transport failures
-/// to [NetworkException], non-2xx to [ApiException], and retries once after a
-/// session refresh on 401.
 /// Calls that wait on the LLM: the backend allows the AI service 90s.
 const aiTimeout = Duration(seconds: 100);
 
+/// JSON client for `apps/api`. Adds the bearer token, maps transport failures
+/// to [NetworkException], non-2xx to [ApiException], and retries once after a
+/// session refresh on 401.
 class ApiClient {
   ApiClient({
     required String baseUrl,
@@ -55,6 +55,53 @@ class ApiClient {
 
   Future<void> delete(String path) => _request('DELETE', path);
 
+  /// POSTs [body] to a `text/event-stream` endpoint and yields the response
+  /// as utf8 text chunks. Errors before the stream starts surface as the same
+  /// [ApiException] / [NetworkException] the JSON calls throw.
+  Stream<String> postStream(String path, Object? body) async* {
+    Future<http.StreamedResponse> open() {
+      final request = http.Request('POST', _uri(path, null))
+        ..headers.addAll(_headers(json: true))
+        ..headers['Accept'] = 'text/event-stream';
+      if (body != null) request.body = jsonEncode(body);
+      return _guard(() => _http.send(request).timeout(aiTimeout));
+    }
+
+    var res = await open();
+    if (res.statusCode == 401 && await _tryRefresh()) {
+      await res.stream.drain<void>();
+      res = await open();
+    }
+    if (res.statusCode < 200 || res.statusCode >= 300) {
+      _decode(await http.Response.fromStream(res));
+    }
+    yield* res.stream.transform(utf8.decoder);
+  }
+
+  /// POSTs [bytes] as a multipart upload in the form field `file`.
+  Future<Map<String, dynamic>> postMultipart(
+    String path, {
+    required List<int> bytes,
+    required String fileName,
+  }) async {
+    Future<http.Response> send() {
+      final request = http.MultipartRequest('POST', _uri(path, null))
+        ..headers.addAll(_headers())
+        ..files.add(
+          http.MultipartFile.fromBytes('file', bytes, filename: fileName),
+        );
+      return _guard(
+        () async => http.Response.fromStream(
+          await _http.send(request).timeout(aiTimeout),
+        ),
+      );
+    }
+
+    var res = await send();
+    if (res.statusCode == 401 && await _tryRefresh()) res = await send();
+    return _map(Future.value(_decode(res)));
+  }
+
   Future<Object?> _request(
     String method,
     String path, {
@@ -62,20 +109,49 @@ class ApiClient {
     Map<String, String>? query,
     Duration? timeout,
   }) async {
-    final uri = Uri.parse(
-      '$_baseUrl${path.startsWith('/') ? '' : '/'}$path',
-    ).replace(queryParameters: query == null || query.isEmpty ? null : query);
-
+    final uri = _uri(path, query);
     var res = await _send(method, uri, body, timeout ?? _timeout);
-    if (res.statusCode == 401 && _refreshSession != null) {
-      try {
-        await _refreshSession();
-      } on Exception {
-        return _decode(res);
-      }
+    if (res.statusCode == 401 && await _tryRefresh()) {
       res = await _send(method, uri, body, timeout ?? _timeout);
     }
     return _decode(res);
+  }
+
+  Uri _uri(String path, Map<String, String>? query) => Uri.parse(
+    '$_baseUrl${path.startsWith('/') ? '' : '/'}$path',
+  ).replace(queryParameters: query == null || query.isEmpty ? null : query);
+
+  Map<String, String> _headers({bool json = false}) {
+    final token = _tokenProvider();
+    return {
+      'Accept': 'application/json',
+      if (json) 'Content-Type': 'application/json',
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+    };
+  }
+
+  Future<bool> _tryRefresh() async {
+    final refresh = _refreshSession;
+    if (refresh == null) return false;
+    try {
+      await refresh();
+      return true;
+    } on Exception {
+      return false;
+    }
+  }
+
+  /// Maps transport failures to [NetworkException].
+  static Future<T> _guard<T>(Future<T> Function() call) async {
+    try {
+      return await call();
+    } on http.ClientException catch (e) {
+      throw NetworkException(e.message);
+    } on SocketException catch (e) {
+      throw NetworkException(e.message);
+    } on TimeoutException {
+      throw NetworkException('timeout');
+    }
   }
 
   Future<http.Response> _send(
@@ -84,14 +160,9 @@ class ApiClient {
     Object? body,
     Duration timeout,
   ) async {
-    final token = _tokenProvider();
-    final headers = <String, String>{
-      'Accept': 'application/json',
-      if (body != null) 'Content-Type': 'application/json',
-      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
-    };
+    final headers = _headers(json: body != null);
     final encoded = body == null ? null : jsonEncode(body);
-    try {
+    return _guard(() {
       final future = switch (method) {
         'GET' => _http.get(uri, headers: headers),
         'POST' => _http.post(uri, headers: headers, body: encoded),
@@ -100,14 +171,8 @@ class ApiClient {
         'DELETE' => _http.delete(uri, headers: headers),
         _ => throw ArgumentError.value(method, 'method'),
       };
-      return await future.timeout(timeout);
-    } on http.ClientException catch (e) {
-      throw NetworkException(e.message);
-    } on SocketException catch (e) {
-      throw NetworkException(e.message);
-    } on TimeoutException {
-      throw NetworkException('timeout');
-    }
+      return future.timeout(timeout);
+    });
   }
 
   Object? _decode(http.Response res) {

@@ -1,6 +1,9 @@
 import 'package:redream_app/core/api/api_client.dart';
 import 'package:redream_app/features/journal/dream.dart';
 
+/// The backend waits up to 150s for the AI service to synthesize audio.
+const rehearsalTimeout = Duration(seconds: 160);
+
 class DreamService {
   DreamService(this._api);
 
@@ -35,6 +38,6 @@ class DreamService {
       Dream.fromJson(
         await _api.post('$_base/$id/rehearsal', {
           'language': language,
-        }, aiTimeout),
+        }, rehearsalTimeout),
       );
 }

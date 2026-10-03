@@ -22,10 +22,10 @@ class MessageBubble extends StatelessWidget {
     final brand = BrandTheme.of(context);
     final scheme = Theme.of(context).colorScheme;
     final isUser = message.isUser;
-    final failed = message.status == MessageStatus.failed;
-    final text = message.id == ChatState.welcomeId && message.content.isEmpty
-        ? l10n.chatWelcome
-        : message.content;
+    final failed = context.select<ChatState, bool>(
+      (s) => s.failedMessageId == message.id,
+    );
+    final text = message.content;
     final textColor = isUser ? brand.onUserBubble : scheme.onSurface;
 
     final bubble = GestureDetector(

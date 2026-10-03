@@ -1,0 +1,8 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored —
+# never commit it.
+
+project_id = "00000000-0000-0000-0000-000000000000"
+
+# Optional overrides (defaults in variables.tf):
+# region             = "fr-par"
+# backup_bucket_name = "redreamai-backups"

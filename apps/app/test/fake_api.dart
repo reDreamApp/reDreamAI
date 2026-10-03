@@ -47,6 +47,13 @@ class FakeApi {
     try {
       final result = handler(request, body);
       if (result == null) return http.Response('', 204);
+      if (result is SseBody) {
+        return http.Response(
+          result.text,
+          200,
+          headers: {'content-type': 'text/event-stream; charset=utf-8'},
+        );
+      }
       return http.Response(
         jsonEncode(result),
         request.method == 'POST' ? 201 : 200,
@@ -71,6 +78,45 @@ class FakeApi {
     return true;
   }
 }
+
+/// A `text/event-stream` reply: each frame becomes one `data:` block.
+class SseBody {
+  SseBody(List<Object> frames)
+    : text = [
+        for (final f in frames) 'data: ${jsonEncode(f)}\n\n',
+        'data: [DONE]\n\n',
+      ].join();
+
+  final String text;
+}
+
+/// The frames `POST /chats/{id}/message/stream` sends for a normal turn.
+SseBody streamTurn({
+  required String userText,
+  required String reply,
+  String stage = 'recording',
+  bool done = false,
+}) => SseBody([
+  {'user_message': messageJson('u-$userText', role: 'user', content: userText)},
+  for (final word in reply.split(' ')) {'content': '$word '},
+  {
+    'done': {
+      'ai_message': messageJson(
+        'a-$userText',
+        role: 'assistant',
+        content: reply,
+      ),
+      'stage': stage,
+      'is_done': done,
+    },
+  },
+]);
+
+Map<String, Object?> consentJson({bool required = false}) => {
+  'required_version': '2026-07-10',
+  'granted_version': required ? null : '2026-07-10',
+  'consent_required': required,
+};
 
 class FakeApiError implements Exception {
   FakeApiError(this.status, this.message, {this.headers = const {}});

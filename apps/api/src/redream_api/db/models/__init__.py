@@ -10,6 +10,7 @@ from .help_center_concern import HelpCenterConcern
 from .report_action import ReportAction
 from .safety_event import SafetyEvent
 from .user import User
+from .user_consent import UserConsent
 from .user_daily_usage import UserDailyUsage
 
 __all__ = [
@@ -22,5 +23,6 @@ __all__ = [
     "ReportAction",
     "SafetyEvent",
     "User",
+    "UserConsent",
     "UserDailyUsage",
 ]

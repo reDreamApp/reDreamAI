@@ -1,14 +1,22 @@
-"""Supabase Storage helpers for the GDPR purge path.
+"""Supabase Storage cleanup for rehearsal audio (GDPR purge + dream deletion).
 
-Rehearsal audio lives in the AI service's bucket under `dreams/{dream_id}/`
-(see `apps/ai/src/redream_ai/audio/tts.py`). The purge lists and removes those
-objects over the Storage REST API with the service-role key.
+apps/ai writes rehearsal MP3s to ``users/{user_id}/{dream_id}/<file>.mp3`` in
+the rehearsal-audio bucket. This module deletes them through the Storage REST
+API with the service-role key:
+
+- ``POST   /storage/v1/object/list/{bucket}``  ``{"prefix": ...}`` lists one
+  folder level (sub-folders come back with ``id: null``)
+- ``DELETE /storage/v1/object/{bucket}``       ``{"prefixes": [paths]}``
+
+Best-effort like the Langfuse purge: failures are logged, never raised, so
+the Postgres deletion (the load-bearing part) always completes.
 """
 
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from typing import Any
+from uuid import UUID
 
 import httpx
 
@@ -16,43 +24,67 @@ from ..core.config import settings
 
 log = logging.getLogger(__name__)
 
+_LIST_LIMIT = 1000
+_TIMEOUT = 30.0
 
-async def delete_rehearsal_audio(dream_ids: Sequence[int]) -> int:
-    """Delete every rehearsal audio object of the given dreams. Returns the count."""
+# Test seam: tests install an httpx.MockTransport here; None means real HTTP.
+_transport: httpx.AsyncBaseTransport | None = None
+
+
+async def delete_rehearsal_audio_for_user(user_id: UUID) -> int:
+    """Delete every rehearsal audio object owned by `user_id`. Returns count."""
+    return await _purge(f"users/{user_id}", recursive=True)
+
+
+async def delete_rehearsal_audio_for_dream(user_id: UUID, dream_id: int) -> int:
+    """Delete the rehearsal audio of one dream. Returns count."""
+    return await _purge(f"users/{user_id}/{dream_id}", recursive=False)
+
+
+async def _purge(prefix: str, *, recursive: bool) -> int:
     if not settings.supabase_url or not settings.supabase_service_role_key:
-        log.warning(
-            "storage.delete.skipped reason=supabase_not_configured dreams=%d", len(dream_ids)
-        )
+        log.warning("storage.delete.skipped reason=supabase_not_configured prefix=%s", prefix)
         return 0
-    if not dream_ids:
-        return 0
-
-    base = f"{settings.supabase_url.rstrip('/')}/storage/v1/object"
-    bucket = settings.supabase_storage_bucket
-    headers = {
-        "Authorization": f"Bearer {settings.supabase_service_role_key}",
-        "apikey": settings.supabase_service_role_key,
-    }
-    deleted = 0
     try:
-        async with httpx.AsyncClient(headers=headers, timeout=20.0) as client:
-            for dream_id in dream_ids:
-                prefix = f"dreams/{dream_id}"
-                listing = await client.post(
-                    f"{base}/list/{bucket}", json={"prefix": prefix, "limit": 1000}
+        async with httpx.AsyncClient(timeout=_TIMEOUT, transport=_transport) as client:
+            paths = await _list_files(client, prefix, recursive=recursive)
+            if paths:
+                r = await client.request(
+                    "DELETE",
+                    f"{_base()}/object/{settings.supabase_storage_bucket}",
+                    headers=_headers(),
+                    json={"prefixes": paths},
                 )
-                listing.raise_for_status()
-                names = [f"{prefix}/{item['name']}" for item in listing.json() if item.get("name")]
-                if not names:
-                    continue
-                removal = await client.request(
-                    "DELETE", f"{base}/{bucket}", json={"prefixes": names}
-                )
-                removal.raise_for_status()
-                deleted += len(names)
+                r.raise_for_status()
     except httpx.HTTPError as exc:
-        log.error("storage.delete.failed error=%s deleted_so_far=%d", exc, deleted)
-        return deleted
+        log.error("storage.delete.failed prefix=%s error=%s", prefix, exc)
+        return 0
+    log.info("storage.delete.ok prefix=%s count=%d", prefix, len(paths))
+    return len(paths)
 
-    log.info("storage.delete.done objects=%d dreams=%d", deleted, len(dream_ids))
-    return deleted
+
+async def _list_files(client: httpx.AsyncClient, prefix: str, *, recursive: bool) -> list[str]:
+    r = await client.post(
+        f"{_base()}/object/list/{settings.supabase_storage_bucket}",
+        headers=_headers(),
+        json={"prefix": prefix, "limit": _LIST_LIMIT},
+    )
+    r.raise_for_status()
+    files: list[str] = []
+    entries: list[dict[str, Any]] = r.json()
+    for entry in entries:
+        path = f"{prefix}/{entry['name']}"
+        if entry.get("id") is not None:
+            files.append(path)
+        elif recursive:
+            files += await _list_files(client, path, recursive=True)
+    return files
+
+
+def _base() -> str:
+    return f"{settings.supabase_url.rstrip('/')}/storage/v1"
+
+
+def _headers() -> dict[str, str]:
+    key = settings.supabase_service_role_key
+    return {"Authorization": f"Bearer {key}", "apikey": key}

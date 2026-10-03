@@ -131,10 +131,8 @@ class NotificationService {
         >();
     if (android == null) return AndroidScheduleMode.exactAllowWhileIdle;
     try {
-      if (await android.canScheduleExactNotifications() ?? false) {
-        return AndroidScheduleMode.exactAllowWhileIdle;
-      }
-      await android.requestExactAlarmsPermission();
+      // The manifest deliberately doesn't request exact alarms; a daily
+      // reminder can drift a few minutes, so inexact is the fallback.
       if (await android.canScheduleExactNotifications() ?? false) {
         return AndroidScheduleMode.exactAllowWhileIdle;
       }

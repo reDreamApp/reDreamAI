@@ -9,6 +9,7 @@ import 'package:redream_app/core/auth/auth_service.dart';
 import 'package:redream_app/core/env.dart';
 import 'package:redream_app/core/settings/app_settings.dart';
 import 'package:redream_app/core/storage/local_store.dart';
+import 'package:redream_app/features/chat/voice_recorder.dart';
 import 'package:redream_app/features/reminders/notification_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -34,6 +35,7 @@ Future<void> main() async {
     ),
     store: store,
     notifications: notifications,
+    voiceRecorder: RecordVoiceRecorder.new,
   );
 
   runApp(

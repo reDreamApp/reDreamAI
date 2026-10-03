@@ -5,25 +5,24 @@ import 'package:redream_app/l10n/generated/app_localizations.dart';
 extension IrtStageLabel on IrtStage {
   String label(AppLocalizations l10n) => switch (this) {
     IrtStage.recording => l10n.stageRecording,
-    IrtStage.intensity => l10n.stageIntensity,
     IrtStage.rewriting => l10n.stageRewriting,
     IrtStage.summary => l10n.stageSummary,
     IrtStage.finalStage => l10n.stageFinal,
   };
 }
 
-/// Compact step row for the IRT stage path.
+/// Compact step row for the routed chat stages.
 class StageIndicator extends StatelessWidget {
-  const StageIndicator({required this.path, required this.current, super.key});
+  const StageIndicator({required this.current, super.key});
 
-  final List<IrtStage> path;
   final IrtStage current;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final scheme = Theme.of(context).colorScheme;
-    final index = path.indexOf(current).clamp(0, path.length - 1);
+    const path = IrtStage.values;
+    final index = path.indexOf(current);
     final inactive = scheme.outline;
 
     return Column(

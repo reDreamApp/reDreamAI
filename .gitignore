@@ -26,15 +26,27 @@ apps/app/.fvm/flutter_sdk
 # Node (Supabase CLI / tooling)
 node_modules/
 
-# Env files
+# Env files — real secrets live in .env (ignored); *.env.example are committed templates
 .env
-.env.*.bak
+**/.env
 **/.env.local
+**/.env.*.bak
 infra/env/
 
 # Supabase CLI local state
 supabase/.branches/
 supabase/.temp/
+
+# Terraform (infra/terraform/) — state lives remotely on Scaleway Object
+# Storage; nothing local should ever be committed.
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/*.tfvars
+!infra/terraform/*.tfvars.example
+infra/terraform/crash.log
+infra/terraform/override.tf
+infra/terraform/override.tf.json
 
 # Laptop-transfer bundle with real secrets — never commit
 /transfer/

@@ -6,6 +6,7 @@ import 'package:redream_app/core/auth/auth_service.dart';
 import 'package:redream_app/core/settings/app_settings.dart';
 import 'package:redream_app/core/theme/app_theme.dart';
 import 'package:redream_app/features/auth/sign_in_screen.dart';
+import 'package:redream_app/features/consent/consent_screen.dart';
 import 'package:redream_app/features/onboarding/onboarding_screen.dart';
 import 'package:redream_app/features/shell/main_shell.dart';
 import 'package:redream_app/features/shell/user_scope.dart';
@@ -36,8 +37,7 @@ class ReDreamApp extends StatelessWidget {
   }
 }
 
-/// Signed out → sign in. Signed in → per-user scope with onboarding once
-/// after sign-up, otherwise the tabbed shell.
+/// Signed out → sign in. Signed in → per-user scope.
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
@@ -45,10 +45,25 @@ class AuthGate extends StatelessWidget {
   Widget build(BuildContext context) {
     final userId = context.watch<AuthService>().userId;
     if (userId == null) return const SignInScreen();
-    final onboarding = context.watch<AppSettings>().needsOnboarding(userId);
     return UserScope(
       key: ValueKey(userId),
       userId: userId,
+      child: const UserHome(),
+    );
+  }
+}
+
+/// First screen inside the user scope: the Art. 9 consent gate, then
+/// onboarding once after sign-up, otherwise the tabbed shell.
+class UserHome extends StatelessWidget {
+  const UserHome({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final userId = context.watch<AuthService>().userId;
+    final settings = context.watch<AppSettings>();
+    final onboarding = userId != null && settings.needsOnboarding(userId);
+    return ConsentGate(
       child: onboarding ? const OnboardingScreen() : const MainShell(),
     );
   }

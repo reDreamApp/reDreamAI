@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:redream_app/core/theme/app_theme.dart';
 import 'package:redream_app/core/utils/formatting.dart';
 import 'package:redream_app/core/widgets/feedback.dart';
+import 'package:redream_app/features/chat/chat_actions.dart';
 import 'package:redream_app/features/chat/chat_models.dart';
 import 'package:redream_app/features/chat/chat_state.dart';
 import 'package:redream_app/l10n/generated/app_localizations.dart';
@@ -59,8 +60,8 @@ class ChatHistoryDrawer extends StatelessWidget {
               leading: const Icon(Icons.add),
               title: Text(l10n.chatNewChat),
               onTap: () {
-                state.startNewChat();
                 Navigator.pop(context);
+                unawaited(context.startNewChat());
               },
             ),
             const Divider(),
@@ -87,12 +88,15 @@ class _ChatList extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     final scheme = Theme.of(context).colorScheme;
 
+    if (state.chats.isEmpty && state.chatsLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
     if (state.chats.isEmpty) {
       return ListView(
         children: [
           const SizedBox(height: 48),
           Icon(
-            state.chatsLoadFailed
+            state.chatsError != null
                 ? Icons.cloud_off_outlined
                 : Icons.chat_bubble_outline,
             size: 48,
@@ -100,7 +104,7 @@ class _ChatList extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            state.chatsLoadFailed
+            state.chatsError != null
                 ? l10n.chatHistoryLoadFailed
                 : l10n.chatHistoryEmpty,
             textAlign: TextAlign.center,
@@ -112,16 +116,24 @@ class _ChatList extends StatelessWidget {
 
     return ListView.builder(
       itemCount: state.chats.length,
-      itemBuilder: (_, i) => _ChatTile(chat: state.chats[i], state: state),
+      itemBuilder: (_, i) =>
+          _ChatTile(chat: state.chats[i], state: state, host: context),
     );
   }
 }
 
 class _ChatTile extends StatelessWidget {
-  const _ChatTile({required this.chat, required this.state});
+  const _ChatTile({
+    required this.chat,
+    required this.state,
+    required this.host,
+  });
 
   final ChatSummary chat;
   final ChatState state;
+
+  /// The list's context: it outlives this tile, which disappears on delete.
+  final BuildContext host;
 
   Future<void> _delete(BuildContext context) async {
     final l10n = AppLocalizations.of(context)!;
@@ -134,14 +146,15 @@ class _ChatTile extends StatelessWidget {
       destructive: true,
     );
     if (!ok || !context.mounted) return;
-    try {
-      await state.deleteChat(chat.id);
-      if (context.mounted) showAppSnackBar(context, l10n.chatDeleted);
-    } on Exception catch (_) {
-      if (context.mounted) {
-        showAppSnackBar(context, l10n.chatDeleteFailed, error: true);
-      }
+    final wasActive = state.chatId == chat.id;
+    final deleted = await state.deleteChat(chat.id);
+    if (!host.mounted) return;
+    if (!deleted) {
+      showAppSnackBar(host, l10n.chatDeleteFailed, error: true);
+      return;
     }
+    showAppSnackBar(host, l10n.chatDeleted);
+    if (wasActive) unawaited(host.startNewChat());
   }
 
   @override
@@ -176,7 +189,7 @@ class _ChatTile extends StatelessWidget {
       ),
       onTap: () {
         Navigator.pop(context);
-        unawaited(state.openChat(chat.id));
+        unawaited(context.openChat(chat.id));
       },
     );
   }

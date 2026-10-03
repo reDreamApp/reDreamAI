@@ -9,6 +9,7 @@ import 'package:redream_app/core/utils/errors.dart';
 import 'package:redream_app/core/widgets/app_card.dart';
 import 'package:redream_app/core/widgets/feedback.dart';
 import 'package:redream_app/core/widgets/theme_mode_toggle.dart';
+import 'package:redream_app/features/consent/consent_state.dart';
 import 'package:redream_app/features/reminders/reminder_tile.dart';
 import 'package:redream_app/features/settings/change_email_screen.dart';
 import 'package:redream_app/features/settings/change_password_screen.dart';
@@ -69,6 +70,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await auth.signOut();
   }
 
+  /// Withdrawal is as easy as granting (Art. 7(3)): the consent gate
+  /// blocks dream features again, the user's data stays untouched.
+  Future<void> _withdrawConsent() async {
+    final l10n = AppLocalizations.of(context)!;
+    final consent = context.read<ConsentState>();
+    final ok = await confirmDialog(
+      context,
+      title: l10n.withdrawConsentTitle,
+      body: l10n.withdrawConsentBody,
+      confirmLabel: l10n.withdrawConsentConfirm,
+      cancelLabel: l10n.cancel,
+      destructive: true,
+    );
+    if (!ok || !mounted) return;
+    if (await consent.withdraw()) {
+      if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
+    } else if (mounted) {
+      showAppSnackBar(
+        context,
+        consent.errorMessage ?? l10n.errorUnknown,
+        error: true,
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
@@ -91,7 +117,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             const Icon(Icons.person_outline),
             const SizedBox(width: 8),
-            Text(l10n.settingsTitle),
+            Flexible(
+              child: Text(l10n.settingsTitle, overflow: TextOverflow.ellipsis),
+            ),
           ],
         ),
       ),
@@ -196,6 +224,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: Text(l10n.settingsDeleteData),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _push(const DeleteDataScreen()),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.gpp_maybe_outlined),
+                  title: Text(l10n.settingsWithdrawConsent),
+                  subtitle: Text(l10n.settingsWithdrawConsentSubtitle),
+                  onTap: _withdrawConsent,
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
@@ -306,10 +340,12 @@ class _Section extends StatelessWidget {
               children: [
                 Icon(icon, color: color ?? theme.colorScheme.primary),
                 const SizedBox(width: 8),
-                Text(
-                  title,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
+                Expanded(
+                  child: Text(
+                    title,
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ],

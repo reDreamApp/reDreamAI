@@ -5,8 +5,9 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from .. import observability as obs
 from ..llm.base import LlmClient
-from ..models import Language, SafetyCategory, SafetyResponse, SafetyRisk
+from ..models import Language, SafetyCategory, SafetyResponse, SafetyRisk, Stage
 from ..prompts.safety import PROMPT_VERSION, SAFETY_PROMPT_DE, SAFETY_PROMPT_EN
 
 _PROMPT_BY_LANG: dict[Language, str] = {
@@ -23,23 +24,43 @@ async def classify(
     model: str,
     text: str,
     language: Language,
+    stage: Stage | None = None,
+    context: str | None = None,
+    trace: obs.Trace = None,
 ) -> SafetyResponse:
     """Run the safety classifier over user-supplied text.
 
     The classifier is prompted to err on false positives — see ADR 0005.
+    `stage` and `context` (the assistant message being answered) disambiguate
+    terse replies: "It is an 8 out of 10." is a scale answer, not ideation.
     """
 
     system_prompt = _PROMPT_BY_LANG[language]
+    parts: list[str] = []
+    if stage is not None:
+        parts.append(f"[IRT stage: {stage.value}]")
+    if context:
+        parts.append(f"[Assistant message being replied to]\n{context}")
+    parts.append(f"[User message to classify]\n{text}" if parts else text)
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},
-        {"role": "user", "content": text},
+        {"role": "user", "content": "\n\n".join(parts)},
     ]
 
-    content, _usage = await llm.chat(
+    content, usage = await llm.chat(
         model=model,
         messages=messages,
         temperature=0.0,
         response_format=_RESPONSE_FORMAT,
+    )
+    obs.record_generation(
+        trace,
+        name="safety-classify",
+        model=model,
+        input=messages,
+        output=content,
+        usage=usage,
+        metadata={"prompt_version": PROMPT_VERSION},
     )
 
     parsed = json.loads(content)

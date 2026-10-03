@@ -1,4 +1,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required in the MAIN manifest: debug builds inherit INTERNET from the
+         debug manifest, so its absence here only breaks RELEASE builds (found
+         2026-07-14: first release APK could not reach the backend at all). -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Voice journaling: record dream narration for transcription (audio is
+         never stored — see the STT storage policy in apps/ai). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Practice reminders: reschedule them after a reboot. Exact alarms are
+         not requested; the app falls back to inexact scheduling. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <application
         android:label="redream_app"
         android:name="${applicationName}"
@@ -25,6 +35,21 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- flutter_local_notifications: deliver scheduled reminders and
+             restore them after a reboot or app update. -->
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver" />
+        <receiver
+            android:exported="false"
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED"/>
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON"/>
+            </intent-filter>
+        </receiver>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
@@ -40,6 +65,13 @@
         <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
+        </intent>
+        <!-- Package visibility for url_launcher (Android 11+): without this,
+             canLaunchUrl() is false for every https link and the Learn
+             articles can never open (found 2026-07-14 on-device). -->
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="https"/>
         </intent>
     </queries>
 </manifest>

@@ -28,4 +28,6 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
     CMD curl -fsS http://127.0.0.1:8080/health || exit 1
 
-CMD ["uv", "run", "uvicorn", "redream_ai.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# Run uvicorn from the synced venv directly: `uv run` at runtime needs a
+# writable $HOME cache, which the no-home appuser doesn't have.
+CMD ["/app/.venv/bin/uvicorn", "redream_ai.main:app", "--host", "0.0.0.0", "--port", "8080"]

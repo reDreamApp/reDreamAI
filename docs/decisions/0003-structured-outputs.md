@@ -1,6 +1,6 @@
 # 0003 — Structured outputs for routing and summary
 
-- Status: accepted
+- Status: accepted (routing output shape **amended 2026-07-02** — see Amendment below)
 - Date: 2026-05-11
 - Deciders: Daniel
 
@@ -29,3 +29,16 @@ Backend reads these fields directly and stores them into `dreams` columns. No st
 ## Alternatives considered
 - **Keep `_parse_summary`, port verbatim**: rejected; flagged as one of the legacy pitfalls.
 - **Function calling / tool use** instead of `response_format`: equivalent in shape, but JSON mode is simpler for non-tool semantics.
+
+## Amendment (2026-07-02) — routing no longer uses JSON; summary requirement unchanged
+
+The 2026-07 core port replaced the routing agent: it emits a one-word stage name, parsed
+via the `Stage` enum with a stay-in-current-stage fallback (turn 1 defaults to `recording`)
+— see `apps/ai/src/redream_ai/core/irt_app.py::determine_stage_async`. The routing-JSON
+shape above (`{"stage": ..., "confidence": ...}`) is superseded; no confidence value is
+returned.
+
+The structured-output requirement **remains in force for the summary stage**: the ported
+core's summary prose gets a JSON-mode extraction pass
+(`apps/ai/src/redream_ai/summary_structured.py`) that fills `ChatResponse.structured`.
+The `_parse_summary` ban is untouched — no string-matching of LLM prose, anywhere.

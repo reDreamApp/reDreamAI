@@ -14,6 +14,8 @@ This folder holds the binding architectural decisions for the reDreamAI rebuild.
 - [0008 — 100k LLM tokens / user / day](0008-token-budget.md)
 - [0009 — Streaming chat via SSE end-to-end](0009-streaming-chat.md)
 - [0010 — Pinned Mistral / Voxtral model IDs](0010-mistral-models-pinned.md)
+- [0011 — Postgres connection mode: Supavisor pooler everywhere](0011-postgres-connection-mode.md)
+- [0012 — Terraform for Scaleway infra provisioning](0012-terraform-scaleway.md)
 
 ## Status conventions
 

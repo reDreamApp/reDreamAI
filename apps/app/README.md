@@ -28,9 +28,9 @@ the API verifies the resulting JWT.
 ```
 lib/
   main.dart            bootstrap + dependency wiring
-  app.dart             MaterialApp, theme/locale, AuthGate
+  app.dart             MaterialApp, theme/locale, AuthGate → UserScope → consent gate → onboarding or shell
   core/                app-wide plumbing, no feature knowledge
-    api/               ApiClient (JSON, bearer token, 401 refresh, error mapping)
+    api/               ApiClient (JSON, SSE stream, multipart; bearer token, 401 refresh, error mapping)
     auth/              AuthService (Supabase session as a ChangeNotifier)
     settings/          AppSettings (theme mode, language, onboarding flag)
     storage/           LocalStore (shared_preferences as JSON key/value)
@@ -38,9 +38,10 @@ lib/
     widgets/           AppCard, AppButton, BrandLogo, ThemeModeToggle, IntensitySlider, snackbars/dialogs
     utils/             error → message mapping, date formatting
   features/            one folder per feature: models, service (HTTP), state (ChangeNotifier), screens
-    shell/             MainShell (app bar, 3 tabs, chat drawer), UserScope (per-user providers)
+    shell/             MainShell (app bar, 3 tabs, chat drawer), UserScope (per-user providers + nested navigator)
     home/              home tab, progress stats + mood, IRT guide
-    chat/              Session tab: ChatState, bubbles, stage indicator, history drawer, reports
+    chat/              Session tab: streamed replies (SSE), voice input, rating card after a session, history drawer, reports
+    consent/           Art. 9 consent gate + screen; withdrawal lives in settings
     journal/           dreams: offline-capable JournalState, cards, detail, editor, practice (reading/audio)
     reminders/         daily local notification + settings tile
     settings/          profile, account (email/password/export/delete), help center, privacy policy
@@ -55,9 +56,18 @@ Rules of thumb:
 - Screens only read/watch a `*State` and call its methods; states own the
   data and call a `*Service`; services only talk HTTP through `ApiClient`.
 - Per-user state lives under `UserScope`, keyed by user id, so signing out
-  disposes it and signing in starts clean.
+  disposes it and signing in starts clean. `UserScope` owns a nested
+  `Navigator`, so pushed screens (settings, dream details, practice) can read
+  the per-user providers. Dialogs use the root navigator: pass state in.
+- Chat stages are `recording → rewriting → summary → final`. The chat never
+  asks for the 0–10 rating; the finished panel does (`PUT /chats/{id}/intensity`).
+- Voice input records WAV (16 kHz mono) and puts the transcript into the input
+  field for review; it is never sent automatically.
 - Offline: the journal caches the last server list and queues drafts and
   practices in `LocalStore`; `JournalState.syncPending()` flushes them on the
   next refresh or app resume. Chat keeps the last failed message for resend.
-- `flutter test` covers `ApiClient`, `JournalState`, `ChatState` and the main
-  screens against an in-memory fake API (`test/fake_api.dart`).
+- `flutter test` covers `ApiClient`, `JournalState`, `ChatState` (streaming,
+  session switching, voice, rating), `ConsentState` and the main screens
+  against an in-memory fake API (`test/fake_api.dart`).
+- `integration_test/live_smoke_test.dart` drives the real app against a real
+  stack (sign-in, consent, one streamed AI turn). It is not part of CI.

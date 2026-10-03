@@ -1,12 +1,15 @@
 name: Deploy to Scaleway
 
-# Manual-only. Auto-deploy on push to `main` is intentionally NOT enabled.
-# Once a `production` branch is in use, add:
-#   push:
-#     branches: [production]
+# Release gate = the `production` branch (decided 2026-07-02, see RELEASING.md):
+# pushing it deploys code AND applies pending migrations in the same run, so the
+# API can never run against a schema its migration hasn't reached (the
+# main-vs-deploy drift class). `main` is integrated with the Supabase Cloud dev
+# project instead and never auto-deploys.
 
 on:
   workflow_dispatch:
+  push:
+    branches: [production]
 
 permissions:
   contents: read
@@ -37,8 +40,32 @@ jobs:
             --exclude "infra/env/" \
             --exclude "supabase/.branches" \
             --exclude "supabase/.temp" \
+            --exclude "tests/" \
+            --exclude "docs/" \
+            --exclude ".claude/" \
+            --exclude "node_modules/" \
+            --exclude "**/__pycache__" \
+            --exclude "**/*.pyc" \
+            --exclude "**/.pytest_cache" \
+            --exclude "**/.mypy_cache" \
+            --exclude "**/.ruff_cache" \
+            --exclude "**/.venv" \
+            --exclude "**/.DS_Store" \
             -e "ssh -i ~/.ssh/id_ed25519 -p ${{ secrets.SCALEWAY_PORT }}" \
             ./ ${{ secrets.SCALEWAY_USER }}@${{ secrets.SCALEWAY_HOST }}:/srv/redreamai/
+
+      - name: Apply pending migrations (before the new code starts)
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -p "${{ secrets.SCALEWAY_PORT }}" "${{ secrets.SCALEWAY_USER }}@${{ secrets.SCALEWAY_HOST }}" <<'EOF'
+            set -euo pipefail
+            cd /srv/redreamai
+            # SUPABASE_DB_URL lives only on the host (infra/env/ is never rsynced).
+            . infra/env/deploy.env
+            : "${SUPABASE_DB_URL:?SUPABASE_DB_URL missing from infra/env/deploy.env}"
+            # Idempotent: the CLI tracks applied versions in
+            # supabase_migrations.schema_migrations on the target DB.
+            supabase db push --db-url "$SUPABASE_DB_URL" --include-all
+          EOF
 
       - name: docker compose up
         run: |

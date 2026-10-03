@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:redream_app/core/theme/app_theme.dart';
-import 'package:redream_app/core/utils/errors.dart';
 import 'package:redream_app/core/widgets/app_button.dart';
 import 'package:redream_app/core/widgets/app_card.dart';
 import 'package:redream_app/core/widgets/feedback.dart';
+import 'package:redream_app/features/chat/chat_actions.dart';
 import 'package:redream_app/features/chat/chat_state.dart';
 import 'package:redream_app/features/journal/dream.dart';
 import 'package:redream_app/features/journal/journal_state.dart';
@@ -45,14 +45,22 @@ class _DreamDetailScreenState extends State<DreamDetailScreen> {
     final tabs = context.read<ShellTabs>();
     try {
       await chat.loadChats();
-      await chat.openChat(chatId);
       if (!mounted) return;
+      final opened = await context.openChat(chatId);
+      if (!mounted) return;
+      if (!opened) {
+        final message = chat.errorMessage;
+        showAppSnackBar(
+          context,
+          message == ChatState.offline
+              ? l10n.errorOffline
+              : (message ?? l10n.errorUnknown),
+          error: true,
+        );
+        return;
+      }
       tabs.select(ShellTab.session);
       Navigator.popUntil(context, (r) => r.isFirst);
-    } on Exception catch (e) {
-      if (mounted) {
-        showAppSnackBar(context, describeError(e, l10n), error: true);
-      }
     } finally {
       if (mounted) setState(() => _openingChat = false);
     }

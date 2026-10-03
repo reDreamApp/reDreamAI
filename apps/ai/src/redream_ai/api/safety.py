@@ -1,28 +1,55 @@
 """POST /safety/classify — crisis pre-classifier (ADR 0005).
 
-The backend calls this BEFORE every /chat turn; a high-risk result
-short-circuits the IRT machine and triggers a helpline overlay client-side.
+Backend must call this BEFORE every /chat turn. High-risk responses short-circuit
+the IRT machine and trigger a helpline overlay client-side.
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException
 
+from .. import observability as obs
 from ..config import settings
+from ..llm.base import LlmClient
 from ..models import SafetyRequest, SafetyResponse
 from ..safety import classify
-from .deps import Llm
+from .chat import get_llm_client
 
 router = APIRouter()
 
 
 @router.post("/safety/classify", response_model=SafetyResponse)
-async def safety_classify(req: SafetyRequest, llm: Llm) -> SafetyResponse:
+async def safety_classify(
+    req: SafetyRequest,
+    llm: LlmClient = Depends(get_llm_client),
+) -> SafetyResponse:
     if not req.text.strip():
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "text must not be empty")
-    return await classify(
+        raise HTTPException(400, "text must not be empty")
+
+    # session_id groups the trace with its chat; user_id makes it reachable by
+    # the backend's GDPR purge (traces contain the user's raw text).
+    trace = obs.start_trace(
+        "safety-classify",
+        session_id=req.session_id,
+        user_id=req.user_id,
+        input={"text": req.text, "stage": req.stage.value if req.stage else None},
+        metadata={"language": req.language.value},
+    )
+    result = await classify(
         llm=llm,
         model=settings.mistral_safety_model,
         text=req.text,
         language=req.language,
+        stage=req.stage,
+        context=req.context,
+        trace=trace,
     )
+    obs.update_trace(
+        trace,
+        output={
+            "risk": result.risk.value,
+            "categories": [c.value for c in result.categories],
+            "confidence": result.confidence,
+        },
+    )
+    return result
