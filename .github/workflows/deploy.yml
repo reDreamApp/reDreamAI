@@ -30,7 +30,9 @@ jobs:
 
       - name: Sync repo to server
         run: |
-          rsync -az --delete \
+          # --no-owner/--no-group: files land as root on the box instead of
+          # carrying the runner's uid; root's timers execute scripts from here.
+          rsync -az --no-owner --no-group --delete \
             --exclude ".git" \
             --exclude ".github" \
             --exclude "apps/app" \
