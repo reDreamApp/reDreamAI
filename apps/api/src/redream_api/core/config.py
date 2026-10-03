@@ -53,7 +53,7 @@ class Settings(BaseSettings):
     # Art. 9 consent — the consent-text version users must have granted.
     # Bump ONLY on material changes to the consent copy (new processor, new
     # purpose): a bump forces every user through re-consent on next launch.
-    consent_version: str = "2026-07-10"
+    consent_version: str = "2026-10-03"
 
     # AI service
     ai_service_url: str = "http://localhost:8080"
@@ -64,10 +64,9 @@ class Settings(BaseSettings):
     # docs/ROADMAP.md tracks the re-enable gate.
     safety_classifier_enabled: bool = True
 
-    # Langfuse (ADR 0007 — used by GDPR purge path)
-    langfuse_host: str = ""
-    langfuse_public_key: str = ""
-    langfuse_secret_key: str = ""
+    # Langfuse's own database (ADR 0007). Only the GDPR purge uses it, to
+    # delete a user's traces: Langfuse v2 has no API for that. Empty = skip.
+    langfuse_database_url: str = ""
 
     # Runtime
     environment: str = "development"

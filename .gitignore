@@ -37,13 +37,16 @@ infra/env/
 supabase/.branches/
 supabase/.temp/
 
-# Terraform (infra/terraform/) — state lives remotely on Scaleway Object
-# Storage; nothing local should ever be committed.
+# Terraform / OpenTofu (infra/terraform/) — state is local and holds the
+# runtime API key's secret; state and tfvars must never be committed.
 infra/terraform/.terraform/
 infra/terraform/*.tfstate
 infra/terraform/*.tfstate.*
 infra/terraform/*.tfvars
+infra/terraform/*.tfvars.json
 !infra/terraform/*.tfvars.example
+infra/terraform/*.tfplan
+infra/terraform/tfplan
 infra/terraform/crash.log
 infra/terraform/override.tf
 infra/terraform/override.tf.json

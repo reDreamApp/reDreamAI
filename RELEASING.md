@@ -1,18 +1,11 @@
 # Releasing
 
-Decided 2026-07-02 (amended 2026-07-06). Two long-lived branches, one release
-gate:
+Decided 2026-07-02. Two long-lived branches, one release gate:
 
 - **`main`** — development. The dev database is the **local Supabase stack**
   (`supabase start`, see docs/LOCAL_TESTING.md); CI's `migrations` job proves
   every push applies `supabase/migrations/` cleanly from zero. Pushing main
   never deploys anything.
-  *(2026-07-06: this replaces the original plan of wiring the Supabase Cloud
-  project `niypesvrzqkkylpnbksq` to main via the dashboard GitHub integration —
-  that free-tier project auto-pauses after inactivity (found paused, DNS gone),
-  which makes it useless as an always-on dev DB or migration gate. It stays
-  paused as a cold backup; restore via the dashboard if anything in it is ever
-  needed.)*
 - **`production`** — the release gate. Pushing it runs
   `.github/workflows/deploy.yml`, which rsyncs the repo to the Scaleway host,
   **applies pending migrations to the self-hosted Postgres first**, then
@@ -30,27 +23,23 @@ gate:
    `git push origin main:production`
    → migrations apply to the self-hosted DB, then containers rebuild.
 
-## One-time setup (manual, host)
+## One-time setup
 
-- ~~Supabase dashboard → GitHub integration to `main`~~ — superseded
-  2026-07-06 by the CI `migrations` job (cloud project paused; see above).
+- The box: `infra/bootstrap.sh` installs the Supabase CLI and writes
+  `/srv/redreamai/infra/env/deploy.env` with
+  `SUPABASE_DB_URL=postgresql://postgres:<password>@127.0.0.1:54322/postgres?sslmode=disable`
+  (host-only file; `infra/env/` is excluded from rsync and git). Port 54322 is
+  Postgres on loopback, published by `infra/supabase/docker-compose.redream.yml`.
+  The CLI needs the connection string **percent-encoded**; the generated
+  password is hex, so that only matters if you change it by hand.
+- GitHub: the four deploy secrets (`SCALEWAY_HOST`, `SCALEWAY_PORT`,
+  `SCALEWAY_USER`, `SCALEWAY_SSH_KEY`; see infra/README.md).
 - [ ] Create the branch: `git branch production && git push origin production`.
-- [ ] On the Scaleway host: install the Supabase CLI and create
-      `/srv/redreamai/infra/env/deploy.env` containing
-      `SUPABASE_DB_URL=postgresql://postgres:<password>@localhost:5432/postgres`
-      (host-only file; `infra/env/` is excluded from rsync and git).
-      The CLI requires the connection string to be **percent-encoded** — if the
-      password contains special characters (`@ : / # ?` …), encode them
-      (e.g. `p@ss` → `p%40ss`) or the push fails with a parse error.
-- ~~Backfill the Cloud dev DB~~ — moot since 2026-07-06 (cloud project
-  demoted/paused; the local stack always builds from the full migration
-  chain).
 
 ## Caveats
 
-- First-ever deploy: the migration step needs the self-hosted Supabase stack
-  (and its Postgres) already running on the host — bring that up before the
-  first `production` push.
+- First-ever deploy: the workflow needs a bootstrapped box (infra/README.md,
+  "First deploy") — Supabase running and `deploy.env` in place.
 - Auth (`auth.*`) is Supabase-managed and works regardless of branch wiring;
   only `public.*` schema depends on migrations reaching the DB.
 - `apps/api` tests don't need any of this (in-memory SQLite from the ORM

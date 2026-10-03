@@ -1,6 +1,6 @@
 # 0012 — Terraform for Scaleway infra provisioning
 
-- Status: accepted with narrowed scope (see Amendment, 2026-07-02)
+- Status: accepted; scope is the whole Scaleway side of the box (narrowed 2026-07-02, widened again 2026-10-03 — see Amendments)
 - Date: 2026-07-02
 - Deciders: Daniel
 
@@ -86,3 +86,42 @@ state is local and gitignored, acceptable because losing it costs one
 **Revisit triggers** (re-open toward the original full scope): a second box
 (staging), the estate passing ~10 resources, or the first console fat-finger
 that a `terraform plan` diff would have caught.
+
+## Amendment (2026-10-03) — scope widened again: the whole Scaleway side of the box
+
+The hand-built box from July no longer exists and the Scaleway account is
+empty. That removes the two objections that carried the narrowing:
+
+- **No cutover problem.** Nothing has to be imported, and no config describes
+  a box that was made some other way. The first apply is greenfield.
+- **The runbook was the only record, and the box it described is gone.** The
+  next box has to be built from the repo anyway.
+
+Two things are new:
+
+- **The box gets its own restricted API key.** Until now the runtime used a
+  personal key with the full rights of its owner. An IAM application with a
+  policy limited to Generative APIs and Object Storage objects is three
+  resources that are easy to get wrong by hand and easy to read as code.
+- **The repo is being open-sourced.** Someone else must be able to stand up
+  the same box from what is checked in.
+
+Terraform (run with OpenTofu) now manages: the SSH keys, the reserved IP, the
+security group, the instance (GP1-XS, Ubuntu 24.04, `infra/cloud-init.yaml`
+as first-boot user-data), the runtime IAM application / policy / API key, and
+the backup bucket. Not in Terraform: DNS (not at Scaleway), and everything on
+the box — Supabase install, env files, compose — which `infra/bootstrap.sh`
+sets up (`infra/README.md`, "First deploy").
+
+The drift risk named above is real, so the config carries guards rather than
+relying on discipline:
+
+- the instance is `protected` — the Scaleway API refuses to delete it, so a
+  plan that would replace the box fails instead of destroying it;
+- the root volume keeps `delete_on_termination = false`;
+- changes to `cloud-init.yaml` are ignored for an existing instance.
+
+State stays local and gitignored, for the bootstrap reason given in the first
+amendment. It now contains the runtime key's secret, so it must never be
+committed or shared. Losing it costs a handful of `import` commands and a
+replaced key (`infra/terraform/README.md`).

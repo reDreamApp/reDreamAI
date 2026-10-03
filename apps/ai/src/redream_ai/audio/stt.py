@@ -34,8 +34,17 @@ from ..models import Language, TranscribeResponse
 
 log = logging.getLogger(__name__)
 
-SCALEWAY_TRANSCRIPTIONS_URL = "https://api.scaleway.ai/v1/audio/transcriptions"
 MISTRAL_TRANSCRIPTIONS_URL = "https://api.mistral.ai/v1/audio/transcriptions"
+
+
+def _scaleway_transcriptions_url() -> str:
+    # Same rule as core/agent.py: a project-restricted key must name its
+    # project in the URL (SCALEWAY_PROJECT_ID); without it Scaleway uses the
+    # organization's default project.
+    project = f"/{settings.scaleway_project_id}" if settings.scaleway_project_id else ""
+    return f"https://api.scaleway.ai{project}/v1/audio/transcriptions"
+
+
 
 # Audio upload + inference is slow; chat-style short timeouts would false-fail.
 _TIMEOUT = 120.0
@@ -163,7 +172,7 @@ async def transcribe(*, audio_bytes: bytes, file_name: str) -> TranscribeRespons
     try:
         return await _transcribe_via(
             provider="scaleway",
-            url=SCALEWAY_TRANSCRIPTIONS_URL,
+            url=_scaleway_transcriptions_url(),
             api_key=settings.scaleway_api_key,
             model=settings.whisper_stt_model,
             audio_bytes=audio_bytes,

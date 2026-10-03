@@ -22,6 +22,7 @@ from redream_ai.models import Language
 def _fast_and_keyed(monkeypatch):
     monkeypatch.setattr(stt, "_RETRY_DELAY", 0.0)
     monkeypatch.setattr(stt.settings, "scaleway_api_key", "scw-test")
+    monkeypatch.setattr(stt.settings, "scaleway_project_id", "")
     monkeypatch.setattr(stt.settings, "mistral_api_key", "mst-test")
 
 
@@ -72,6 +73,17 @@ async def test_scaleway_primary_success(monkeypatch):
     assert resp.language_detected == Language.EN  # "english" mapped to enum
     assert (resp.input_tokens, resp.output_tokens) == (120, 9)
     assert len(requests) == 1  # no fallback touched
+
+
+async def test_scaleway_project_id_scopes_the_url(monkeypatch):
+    monkeypatch.setattr(stt.settings, "scaleway_project_id", "proj-123")
+    requests = _install_transport(
+        monkeypatch, lambda request: httpx.Response(200, json={"text": "ok", "language": "english"})
+    )
+
+    await stt.transcribe(audio_bytes=b"fake-audio", file_name="dream.mp3")
+
+    assert str(requests[0].url) == "https://api.scaleway.ai/proj-123/v1/audio/transcriptions"
 
 
 async def test_usage_shapes_observed_live(monkeypatch):

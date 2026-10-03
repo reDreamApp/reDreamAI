@@ -3,8 +3,8 @@ name: Deploy to Scaleway
 # Release gate = the `production` branch (decided 2026-07-02, see RELEASING.md):
 # pushing it deploys code AND applies pending migrations in the same run, so the
 # API can never run against a schema its migration hasn't reached (the
-# main-vs-deploy drift class). `main` is integrated with the Supabase Cloud dev
-# project instead and never auto-deploys.
+# main-vs-deploy drift class). `main` never deploys; its dev database is the
+# local Supabase stack.
 
 on:
   workflow_dispatch:
@@ -63,7 +63,7 @@ jobs:
             : "${SUPABASE_DB_URL:?SUPABASE_DB_URL missing from infra/env/deploy.env}"
             # Idempotent: the CLI tracks applied versions in
             # supabase_migrations.schema_migrations on the target DB.
-            supabase db push --db-url "$SUPABASE_DB_URL" --include-all
+            supabase db push --db-url "$SUPABASE_DB_URL" --include-all --yes
           EOF
 
       - name: docker compose up

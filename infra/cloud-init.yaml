@@ -1,9 +1,7 @@
 #cloud-config
-# User-data for provisioning the production box BY HAND (infra/README.md,
-# "First-time setup" step 1): paste this into the Scaleway console's
-# cloud-init field when creating the instance. Replaces the manual Docker
-# install. (Formerly wired into Terraform; scope narrowed per ADR 0012's
-# 2026-07-02 amendment — Terraform now manages Object Storage only.)
+# First-boot user-data for the production box. infra/terraform/compute.tf
+# passes it to the instance; it installs Docker and nothing else. Everything
+# after that is infra/bootstrap.sh (infra/README.md, "First deploy").
 package_update: true
 runcmd:
   - curl -fsSL https://get.docker.com | sh

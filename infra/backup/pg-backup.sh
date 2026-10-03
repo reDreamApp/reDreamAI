@@ -13,8 +13,11 @@
 set -euo pipefail
 
 ENV_FILE="${ENV_FILE:-/srv/redreamai/infra/env/backup.env}"
+# Exported, so the aws CLI sees the credentials.
+set -a
 # shellcheck disable=SC1090
 . "$ENV_FILE"
+set +a
 : "${BACKUP_BUCKET:?missing from backup.env}"
 : "${AWS_ACCESS_KEY_ID:?missing from backup.env}"
 : "${AWS_SECRET_ACCESS_KEY:?missing from backup.env}"

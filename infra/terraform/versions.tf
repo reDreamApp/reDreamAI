@@ -1,10 +1,11 @@
-# ADR 0012 (as amended 2026-07-02) — Terraform for Scaleway OBJECT STORAGE only.
-# The compute/network layer is provisioned by hand per the runbook in
-# infra/README.md ("First-time setup" step 1) + infra/cloud-init.yaml.
+# ADR 0012 (as amended 2026-10-03) — the whole Scaleway side of the box:
+# SSH keys, reserved IP, security group, instance, runtime API key, backup
+# bucket. What runs on the box is set up by infra/bootstrap.sh; DNS stays
+# manual (infra/README.md, "First deploy").
 #
-# Provider version verified against the terraform-provider-scaleway GitHub
-# releases (latest was v2.77.1 as of 2026-06-26) — re-check before bumping
-# the upper bound.
+# The lock file pins the provider version the box was created with (2.84.0,
+# 2026-10-03). Re-check the provider's release notes before bumping the upper
+# bound.
 
 terraform {
   required_version = ">= 1.6"
@@ -16,9 +17,8 @@ terraform {
     }
   }
 
-  # State is LOCAL (gitignored), deliberately: with the scope narrowed to a
-  # single bucket, a remote-state bucket would mean managing a second bucket
-  # (plus its bootstrap and credentials) just to track one. Losing this state
-  # is a non-event — recover with:
-  #   terraform import scaleway_object_bucket.backups <region>/<bucket-name>
+  # State is LOCAL and gitignored. It holds the runtime API key's secret
+  # (iam.tf), so never commit or share it. A remote-state bucket would need
+  # its own bootstrap and credentials to track one box, so it stays out. If
+  # the state is lost, import the resources (README.md) and replace the key.
 }

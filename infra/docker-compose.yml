@@ -64,7 +64,6 @@ services:
       - ./env/api.env
     environment:
       AI_SERVICE_URL: http://ai:8080
-      LANGFUSE_HOST: http://langfuse:3000
     expose:
       - "8001"
     networks:

@@ -154,6 +154,7 @@ def test_scaleway_provider_uses_scaleway_base_url(monkeypatch):
             captured.update(kwargs)
 
     monkeypatch.setenv("SCALEWAY_API_KEY", "test-scaleway-key")
+    monkeypatch.delenv("SCALEWAY_PROJECT_ID", raising=False)
     monkeypatch.setattr(agent, "AsyncOpenAI", FakeAsyncOpenAI)
 
     llm = agent.Agent(agent.MODELS["MISTRAL_SMALL"], "system prompt")
@@ -163,6 +164,24 @@ def test_scaleway_provider_uses_scaleway_base_url(monkeypatch):
         "api_key": "test-scaleway-key",
         "base_url": "https://api.scaleway.ai/v1",
     }
+
+
+def test_scaleway_project_id_scopes_the_base_url(monkeypatch):
+    """A key restricted to one project gets 403 on the bare URL (seen live
+    2026-10-03): the project has to be part of the path."""
+    captured = {}
+
+    class FakeAsyncOpenAI:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setenv("SCALEWAY_API_KEY", "test-scaleway-key")
+    monkeypatch.setenv("SCALEWAY_PROJECT_ID", "11111111-2222-3333-4444-555555555555")
+    monkeypatch.setattr(agent, "AsyncOpenAI", FakeAsyncOpenAI)
+
+    agent.Agent(agent.MODELS["MISTRAL_SMALL"], "system prompt")
+
+    assert captured["base_url"] == "https://api.scaleway.ai/11111111-2222-3333-4444-555555555555/v1"
 
 
 def test_mistral_provider_requires_mistral_api_key(monkeypatch):
@@ -181,6 +200,7 @@ def test_agent_builds_primary_and_fallback_clients(monkeypatch):
 
     monkeypatch.setenv("SCALEWAY_API_KEY", "sk")
     monkeypatch.setenv("MISTRAL_API_KEY", "mk")
+    monkeypatch.delenv("SCALEWAY_PROJECT_ID", raising=False)
     monkeypatch.setattr(agent, "AsyncOpenAI", FakeAsyncOpenAI)
 
     llm = agent.Agent(

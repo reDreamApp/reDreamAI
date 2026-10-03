@@ -4,9 +4,9 @@
 # Routes:
 #   {$DOMAIN}           → api:8001        (mobile clients hit /api/v1/...)
 #   supabase.{$DOMAIN}  → kong:8000       (mobile clients: auth/GoTrue — the app's
-#                                          SUPABASE_URL; kong lives in the external
+#                                          SUPABASE_URL; `kong` is the alias of
+#                                          Supabase's API gateway in the external
 #                                          supabase network this stack attaches to)
-#   ai.{$DOMAIN}        → ai:8080         (internal-only — restrict by IP if exposed)
 #   langfuse.{$DOMAIN}  → langfuse:3000   (auth handled by Langfuse itself)
 #
 # Caddy does not buffer reverse-proxied responses, so SSE chat streams flow
@@ -32,23 +32,27 @@
 }
 
 supabase.{$DOMAIN} {
-    # The mobile app's SUPABASE_URL: GoTrue sign-in/refresh via kong. Without
-    # this route the app cannot authenticate at all (found 2026-07-14 during
-    # first-deploy prep).
+    # The mobile app's SUPABASE_URL. Only two things are public: GoTrue
+    # (sign-in, refresh, JWKS) and the signed URLs of rehearsal audio.
+    # PostgREST, GraphQL, Realtime, Functions and Studio stay unreachable from
+    # outside: the app tables carry no user-facing RLS policies, apps/api is
+    # the only door to them.
     encode zstd gzip
-    reverse_proxy kong:8000
+    @public path /auth/v1/* /storage/v1/object/sign/*
+    handle @public {
+        reverse_proxy kong:8000
+    }
+    handle {
+        respond 404
+    }
     log {
         output stdout
         format console
     }
 }
 
-ai.{$DOMAIN} {
-    # Internal service. Either:
-    #  - keep this site removed from public DNS, or
-    #  - add `@allowed remote_ip <your-cidr>` + `handle @allowed { ... }` here.
-    reverse_proxy ai:8080
-}
+# apps/ai has no site on purpose: it takes unauthenticated requests and is
+# only called by apps/api over the internal network (http://ai:8080).
 
 langfuse.{$DOMAIN} {
     reverse_proxy langfuse:3000

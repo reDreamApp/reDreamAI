@@ -1,141 +1,179 @@
 # Production deployment (Scaleway)
 
-This stack runs on a single Scaleway compute instance alongside a self-hosted Supabase install. The compose file here does **not** include Postgres — Supabase owns it (ADR 0001).
+One Scaleway instance runs everything: the official self-hosted Supabase stack
+and, next to it, this repo's compose stack. The compose file here does **not**
+include Postgres — Supabase owns it (ADR 0001).
 
 ## Topology
 
 ```
-Scaleway compute instance (Ubuntu LTS)
-├── Self-hosted Supabase compose (postgres, kong, auth, storage, …) — network: supabase
-└── reDreamAI compose (this file)         — network: default + attaches to supabase
-    ├── caddy        TLS via Let's Encrypt, public on 80 / 443
-    ├── api          apps/api — backend, connects to supabase-db
-    ├── ai           apps/ai — stateless AI service
-    └── langfuse     self-hosted v2 (ADR 0007)
+Scaleway instance (GP1-XS, Ubuntu 24.04 — infra/terraform)
+├── /srv/supabase    official self-hosted Supabase (Postgres 17, Auth, Storage, …)
+│                    nothing published except on loopback: gateway :8000, Postgres :54322
+└── /srv/redreamai   this repo — network: default + Supabase's `supabase_default`
+    ├── caddy        TLS via Let's Encrypt; the only thing on public ports (80 / 443)
+    ├── api          apps/api — backend, talks to supabase-db and ai
+    ├── ai           apps/ai — stateless AI service, internal only
+    └── langfuse     self-hosted v2 (ADR 0007), database in the same Postgres
 ```
 
-`caddy` is the only service binding to host ports. Everything else is internal to the docker network.
+What Caddy lets in (`caddy/Caddyfile`):
 
-## First-time setup
+| Host | Goes to | Notes |
+|---|---|---|
+| `DOMAIN` | api | the app's `API_BASE_URL` |
+| `supabase.DOMAIN` | Supabase gateway | **only** `/auth/v1/*` and `/storage/v1/object/sign/*`; the app's `SUPABASE_URL` |
+| `langfuse.DOMAIN` | langfuse | sign-up disabled |
 
-1. **Provision the instance (by hand — this IS the runbook).** Terraform's
-   scope was deliberately narrowed to the backup bucket only (ADR 0012,
-   2026-07-02 amendment); the box is console-provisioned to this exact spec:
-   - **Instance**: GP1-S (4 vCPU / 8 GB RAM), image **Ubuntu 24.04 (Noble
-     Numbat)**, zone `fr-par-1`, root volume **50 GB** with
-     *delete-on-termination OFF* (the volume must survive an instance
-     termination).
-   - **Public IP**: attach a reserved (not ephemeral) IPv4 — DNS points here.
-   - **Security group**: inbound default *drop*, outbound *accept*. Allow
-     inbound **22/tcp** (optionally restrict to your IP/VPN range), **80/tcp**,
-     **443/tcp**, and **443/udp** (HTTP/3 — Caddy binds QUIC too).
-   - **Cloud-init**: paste `infra/cloud-init.yaml` into the user-data field —
-     it installs Docker on first boot.
-   - Login: `root` via your account's registered SSH key (Scaleway marketplace
-     image default).
+PostgREST, GraphQL, Realtime, Functions, Studio and the AI service are not
+reachable from outside.
 
-2. ~~Install Docker~~ — done by step 1's cloud-init user-data.
+## First deploy
 
-3. **Install self-hosted Supabase** into `/srv/supabase`. Follow [the official guide](https://supabase.com/docs/guides/self-hosting/docker). Bring it up:
-   ```bash
-   cd /srv/supabase
-   docker compose up -d
-   ```
-   Confirm the docker network name (default: `supabase_default`). If it differs from `supabase`, adjust the `networks.supabase.external` block in `infra/docker-compose.yml`.
+Three steps. The whole path was run end to end on 2026-10-03.
 
-4. **Create the Langfuse database** inside the Supabase Postgres:
-   ```bash
-   docker compose -f /srv/supabase/docker-compose.yml exec db psql -U postgres -c \
-     "CREATE DATABASE langfuse; \
-      CREATE USER langfuse WITH PASSWORD '<strong-password>'; \
-      GRANT ALL ON DATABASE langfuse TO langfuse;"
-   ```
-
-5. **Clone reDreamAI** to `/srv/redreamai`:
-   ```bash
-   git clone <repo-url> /srv/redreamai
-   ```
-
-6. **Fill in env files.** The compose stack reads from `/srv/redreamai/infra/env/`:
-   ```bash
-   cd /srv/redreamai
-   cp infra/env.example/caddy.env.example   infra/env/caddy.env
-   cp infra/env.example/ai.env.example      infra/env/ai.env
-   cp infra/env.example/api.env.example     infra/env/api.env
-   cp infra/env.example/langfuse.env.example infra/env/langfuse.env
-   # edit each to fill in real values; never commit them
-   ```
-
-7. **DNS.** Point three A records at the instance:
-   - `redream.example.com`        (api)
-   - `supabase.redream.example.com` (Supabase kong — the mobile app's
-     `SUPABASE_URL`; sign-in breaks without it)
-   - `ai.redream.example.com`     (ai — keep DNS private or IP-restrict in Caddyfile)
-   - `langfuse.redream.example.com` (langfuse)
-
-8. **Bring the stack up:**
-   ```bash
-   cd /srv/redreamai/infra
-   docker compose up -d --build
-   ```
-   Caddy will provision TLS certificates on first request.
-
-## Apply DB migrations
-
-Migrations live in `supabase/migrations/`. From your laptop pointed at the production DB:
+### 1. Create the box
 
 ```bash
-supabase db push --db-url "postgresql://postgres:<password>@<scaleway-host>:5432/postgres"
+cd infra/terraform
+cp terraform.tfvars.example terraform.tfvars   # project_id + SSH public key(s)
+tofu init && tofu apply
 ```
 
-Or via the Supabase CLI installed on the box.
+Creates the instance (Docker installed on first boot), a reserved IP, the
+firewall, the restricted runtime API key and the backup bucket. Details and
+costs: [`terraform/README.md`](terraform/README.md).
+
+### 2. Put the repo on the box
+
+On the box, `git clone <repo-url> /srv/redreamai`. Or push your checkout's
+committed tree from the laptop:
+
+```bash
+git archive HEAD | ssh root@<server_ip> 'mkdir -p /srv/redreamai && tar -x -C /srv/redreamai'
+```
+
+### 3. Run the bootstrap
+
+On the box, write the inputs to `/srv/redreamai/infra/env/bootstrap.env`
+(`chmod 600`), then run the script:
+
+```bash
+# /srv/redreamai/infra/env/bootstrap.env
+DOMAIN=              # your domain, or `tofu output -raw test_domain` (needs no DNS)
+SCALEWAY_API_KEY=    # tofu output -raw runtime_secret_key
+SCALEWAY_PROJECT_ID= # tofu output -raw project_id
+MISTRAL_API_KEY=     # Mistral La Plateforme key (fallback models, text-to-speech)
+BACKUP_ACCESS_KEY=   # tofu output -raw runtime_access_key
+BACKUP_BUCKET=       # tofu output -raw backup_bucket_name
+```
+
+```bash
+bash /srv/redreamai/infra/bootstrap.sh
+```
+
+[`bootstrap.sh`](bootstrap.sh) takes about ten minutes on a fresh box and:
+
+- installs Supabase with **Supabase's own installer** (`setup.sh`, pinned
+  release): compose files, every secret, the ES256 signing key, the AWS CLI;
+- layers [`supabase/docker-compose.redream.yml`](supabase/docker-compose.redream.yml)
+  on top, which takes Supabase off the public interfaces;
+- generates `infra/env/*.env` from `env.example/` (secrets are created on the
+  box and never printed);
+- creates the Langfuse database, with an admin user and an API key pair
+  provisioned on first start;
+- applies `supabase/migrations/`, builds and starts the stack, enables the
+  nightly backup.
+
+It is safe to run again: existing secrets are kept, URLs and keys from
+`bootstrap.env` are re-applied. That is also how you **change the domain**:
+edit `DOMAIN` in `bootstrap.env`, point DNS, run it again.
+
+With your own domain, `DOMAIN`, `supabase.DOMAIN` and `langfuse.DOMAIN` need A
+records to `tofu output server_ip` before the run, or Caddy cannot get
+certificates.
+
+### The app's `.env`
+
+```
+SUPABASE_URL=https://supabase.<DOMAIN>
+API_BASE_URL=https://<DOMAIN>
+SUPABASE_ANON_KEY=<ANON_KEY from /srv/supabase/.env on the box>
+```
+
+### Things to know
+
+- **Mail.** No SMTP is configured, and Scaleway blocks outbound ports
+  25/465/587 by default. So sign-up confirms addresses automatically
+  (`ENABLE_EMAIL_AUTOCONFIRM=true` in `/srv/supabase/.env`), and password-reset
+  and moderation mails are not delivered until you configure an SMTP relay
+  there and in `infra/env/api.env`.
+- **Scaleway project.** A key restricted to one project gets `403` on
+  `https://api.scaleway.ai/v1`: that URL means the organization's default
+  project. `SCALEWAY_PROJECT_ID` puts the project into the URL.
+- **Langfuse sign-up.** `AUTH_DISABLE_SIGNUP=true` is what closes it;
+  `NEXT_PUBLIC_SIGN_UP_DISABLED` alone does not (checked on v2.95.11).
+- **Langfuse and account deletion.** Langfuse v2 cannot delete traces through
+  its API, so apps/api deletes a user's traces in the `langfuse` database
+  (`LANGFUSE_DATABASE_URL` in `api.env`, ADR 0007).
+- **SSH keys.** The box rebuilds `/root/.ssh/authorized_keys` at every boot from
+  the Scaleway project's SSH keys. Add keys through `ssh_public_keys` in
+  terraform, then run `scw-fetch-ssh-keys --upgrade` on the box.
+- **Scanners.** Expect 404/502 noise in the Caddy log within minutes: new
+  certificates are public in the certificate-transparency logs.
 
 ## Deploy a new version
 
-Manual, via GitHub Actions:
-
-1. GitHub UI → Actions → **Deploy to Scaleway** → Run workflow.
-2. The workflow rsyncs a clean checkout to `/srv/redreamai/` and re-runs `docker compose up -d --build` on the box.
-
-There is **no auto-deploy on `main`** (ADR conventions). Once a `production` branch is in use, the workflow can be wired to trigger on push there.
+Push the `production` branch (`git push origin main:production`), or run
+**Deploy to Scaleway** by hand from the Actions tab. The workflow rsyncs a clean
+checkout to `/srv/redreamai/`, applies pending migrations
+(`supabase db push` with `SUPABASE_DB_URL` from the host-only
+`infra/env/deploy.env`), then runs `docker compose up -d --build` on the box.
+Pushing `main` never deploys. More in [`RELEASING.md`](../RELEASING.md).
 
 ### Required GitHub secrets
 
 | Secret | What it is |
 |---|---|
-| `SCALEWAY_HOST`     | Public IP or hostname of the Scaleway instance |
-| `SCALEWAY_PORT`     | SSH port (usually `22`) |
-| `SCALEWAY_USER`     | SSH user (`root` or your sudo user) |
-| `SCALEWAY_SSH_KEY`  | Private SSH key for that user (Ed25519 recommended) |
+| `SCALEWAY_HOST`     | `tofu output -raw server_ip` |
+| `SCALEWAY_PORT`     | SSH port (`22`) |
+| `SCALEWAY_USER`     | SSH user (`root`) |
+| `SCALEWAY_SSH_KEY`  | Private half of a dedicated deploy key; its public half goes into `ssh_public_keys` |
 
-## Observability
+## Looking inside
 
-- **Caddy access logs**: `docker compose logs caddy`
-- **API + AI structured logs**: `docker compose logs -f api ai`
-- **Langfuse traces**: `https://langfuse.redream.example.com`
-- **Postgres**: managed via Supabase Studio at the Supabase domain
+- **Logs**: `cd /srv/redreamai/infra && docker compose logs -f api ai caddy`
+- **Supabase**: `cd /srv/supabase && sh run.sh status` (its own helper; also
+  `logs`, `restart`, `secrets`)
+- **Supabase Studio**: `ssh -L 8000:127.0.0.1:8000 root@<server_ip>`, then
+  `http://localhost:8000` (user and password: `DASHBOARD_USERNAME` /
+  `DASHBOARD_PASSWORD` in `/srv/supabase/.env`)
+- **Langfuse**: `https://langfuse.<DOMAIN>` (login: `LANGFUSE_INIT_USER_EMAIL` /
+  `LANGFUSE_INIT_USER_PASSWORD` in `infra/env/langfuse.env`)
 
 ## Backups
 
 The Supabase Postgres is the single backup target (one Postgres, ADR 0001).
+`bootstrap.sh` enables a nightly `pg_dump` to the bucket from `infra/terraform`,
+whose lifecycle rules are the retention policy (7 days / 4 weeks / 12 months).
+The job uploads with the runtime key, which cannot delete objects. Restore
+steps and the rehearsal log: [`backup/README.md`](backup/README.md).
 
-The destination bucket and retention policy are provisioned by `infra/terraform/` (ADR 0012, bucket-only scope) — `nightly/` (7-day), `weekly/` (4-week), `monthly/` (12-month) prefixes with matching lifecycle expiration, output as `backup_bucket_name`.
+Caddy's volumes (`caddy_data`, `caddy_config`) hold the TLS certificates; they
+are re-issued on a rebuild.
 
-The `pg_dump` job that uploads into those prefixes lives in `infra/backup/`
-(script + systemd timer + install and **restore runbook**). Install it per
-`infra/backup/README.md` — and rehearse the restore once.
+## Updating Supabase
 
-Caddy data volumes (`caddy_data`, `caddy_config`) hold the TLS certs — back these up too unless you're happy re-issuing on rebuild.
+`cd /srv/supabase`, back up the database, then `sh update.sh` followed by
+`sh run.sh pull && sh run.sh recreate` (Supabase's own procedure). Bump
+`SUPABASE_REF` in `bootstrap.sh` to the release you moved to.
 
-## Tearing down (dev / staging)
+## Tearing down
 
 ```bash
-cd /srv/redreamai/infra
-docker compose down
-# DOES NOT touch Supabase or the Postgres data — only this stack.
+cd /srv/redreamai/infra && docker compose down   # this stack only
+cd /srv/supabase && sh run.sh stop               # Supabase; data stays in volumes/
 ```
 
-To wipe Caddy certs (forces re-issuance):
-```bash
-docker compose down -v   # WARNING: destroys caddy_data + caddy_config volumes
-```
+The instance itself is protected against deletion; see
+[`terraform/README.md`](terraform/README.md).

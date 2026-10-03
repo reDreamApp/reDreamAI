@@ -13,37 +13,32 @@ Each run produces two objects:
 - `roles_<stamp>.sql` — cluster roles (`pg_dumpall --roles-only`). Only needed
   for a from-scratch restore (roles are not part of `pg_dump`).
 
-## Install (once, on the Scaleway host)
+## Install
+
+`infra/bootstrap.sh` does it when `BACKUP_BUCKET` and `BACKUP_ACCESS_KEY` are
+set: it installs the AWS CLI (through Supabase's installer), writes the
+host-only `/srv/redreamai/infra/env/backup.env` and enables the timer.
 
 ```bash
-# 1. aws CLI (any S3 client works; the script uses `aws s3 cp`)
-sudo apt-get install -y awscli
-
-# 2. Host-only credentials (never in git/rsync)
-sudo tee /srv/redreamai/infra/env/backup.env >/dev/null <<'EOF'
-AWS_ACCESS_KEY_ID=<scaleway-access-key>
-AWS_SECRET_ACCESS_KEY=<scaleway-secret-key>
-BACKUP_BUCKET=<bucket name from terraform>
+# backup.env — values are outputs of infra/terraform
+AWS_ACCESS_KEY_ID=<runtime_access_key>
+AWS_SECRET_ACCESS_KEY=<runtime_secret_key>
+BACKUP_BUCKET=<backup_bucket_name>
+S3_ENDPOINT=https://s3.fr-par.scw.cloud
 # Optional overrides (defaults shown):
-# S3_ENDPOINT=https://s3.fr-par.scw.cloud
 # DB_CONTAINER=supabase-db
 # PGUSER=postgres
 # PGDATABASE=postgres
-EOF
-sudo chmod 600 /srv/redreamai/infra/env/backup.env
-
-# 3. Units + timer
-chmod +x /srv/redreamai/infra/backup/pg-backup.sh
-sudo ln -sf /srv/redreamai/infra/backup/pg-backup.service /etc/systemd/system/
-sudo ln -sf /srv/redreamai/infra/backup/pg-backup.timer /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now pg-backup.timer
-
-# 4. Verify
-systemctl list-timers pg-backup.timer
-sudo systemctl start pg-backup.service        # run one backup right now
-aws s3 ls "s3://<bucket>/nightly/" --endpoint-url https://s3.fr-par.scw.cloud
 ```
+
+```bash
+systemctl list-timers pg-backup.timer         # next run
+systemctl start pg-backup.service             # run one backup right now
+journalctl -u pg-backup.service -n 20         # what it did
+```
+
+The runtime key may upload, list and download, but not delete: expiry is the
+bucket's lifecycle rules.
 
 ## Restore
 
@@ -88,4 +83,4 @@ docker exec supabase-db rm /tmp/restore.dump
 
 | Date | Dump used | Result | Notes |
 |---|---|---|---|
-| _none yet_ | | | first rehearsal pending — do it once the timer has produced a real dump |
+| 2026-10-03 | `db_20261003T184217Z.dump` | OK: row counts identical to live (app users, chats, messages, consents, auth users) | Fresh box, test data only. `pg_restore` exits 1 with two expected errors as `postgres` (not a superuser): `set parameter "log_min_messages"` and `table secrets` (Supabase Vault). Neither touches app data. |

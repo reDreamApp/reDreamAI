@@ -1,107 +1,119 @@
 """GDPR purge: Langfuse trace deletion + the /users/me/data route.
 
-`delete_user_traces` talks to the Langfuse public API over httpx; tests
-install an `httpx.MockTransport` via the module's `_transport` seam — no
-network, and the request shapes (list-by-userId, bulk-delete body) are
-asserted against the real API contract.
+`delete_user_traces` deletes straight in Langfuse's database (v2 has no API
+for it). The tests point it at a throwaway SQLite file carrying the four
+Langfuse tables it touches, reduced to the columns it uses.
 """
 
 from __future__ import annotations
 
-import json
 from typing import Any
 from uuid import uuid4
 
-import httpx
 import pytest
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from redream_api.services import langfuse_service
 
+_SCHEMA = [
+    "CREATE TABLE trace_sessions (id TEXT PRIMARY KEY)",
+    "CREATE TABLE traces (id TEXT PRIMARY KEY, user_id TEXT, session_id TEXT, input TEXT)",
+    "CREATE TABLE observations (id TEXT PRIMARY KEY, trace_id TEXT)",
+    "CREATE TABLE scores (id TEXT PRIMARY KEY, trace_id TEXT)",
+]
+
 
 @pytest.fixture
-def langfuse_settings(monkeypatch):
-    monkeypatch.setattr(langfuse_service.settings, "langfuse_host", "http://langfuse.test")
-    monkeypatch.setattr(langfuse_service.settings, "langfuse_public_key", "pk-test")
-    monkeypatch.setattr(langfuse_service.settings, "langfuse_secret_key", "sk-test")
+async def langfuse_db(tmp_path, monkeypatch):
+    """A Langfuse-shaped database; yields a helper that runs SQL against it."""
+    url = f"sqlite+aiosqlite:///{tmp_path / 'langfuse.db'}"
+    engine = create_async_engine(url)
+    async with engine.begin() as conn:
+        for statement in _SCHEMA:
+            await conn.execute(text(statement))
+    monkeypatch.setattr(langfuse_service.settings, "langfuse_database_url", url)
+
+    async def run(sql: str, **params: Any) -> list[Any]:
+        async with engine.begin() as conn:
+            result = await conn.execute(text(sql), params)
+            return list(result.scalars().all()) if result.returns_rows else []
+
+    yield run
+    await engine.dispose()
 
 
-def _install_transport(monkeypatch, handler) -> list[httpx.Request]:
-    """Route the service's httpx client through `handler`; returns the request log."""
-    requests: list[httpx.Request] = []
-
-    def _logging_handler(request: httpx.Request) -> httpx.Response:
-        requests.append(request)
-        return handler(request)
-
-    monkeypatch.setattr(langfuse_service, "_transport", httpx.MockTransport(_logging_handler))
-    return requests
-
-
-def _list_response(ids: list[str], *, page: int, total_pages: int) -> httpx.Response:
-    return httpx.Response(
-        200,
-        json={
-            "data": [{"id": i} for i in ids],
-            "meta": {"page": page, "totalPages": total_pages, "limit": 100},
-        },
+async def _add_trace(run, trace_id: str, *, user_id: str | None, session_id: str | None) -> None:
+    if session_id is not None:
+        await run("INSERT OR IGNORE INTO trace_sessions (id) VALUES (:s)", s=session_id)
+    await run(
+        "INSERT INTO traces (id, user_id, session_id, input) VALUES (:t, :u, :s, 'a nightmare')",
+        t=trace_id,
+        u=user_id,
+        s=session_id,
     )
+    for table in ("observations", "scores"):
+        await run(
+            f"INSERT INTO {table} (id, trace_id) VALUES (:i, :t)",
+            i=f"{table}-{trace_id}",
+            t=trace_id,
+        )
 
 
-async def test_deletes_all_traces_across_pages(monkeypatch, langfuse_settings):
-    """Two list pages → one paginated listing, then bulk deletes of every id."""
-    user_id = uuid4()
-    page_ids = {1: [f"tr-{i}" for i in range(100)], 2: ["tr-100", "tr-101"]}
+async def test_deletes_everything_of_the_user_and_nothing_else(langfuse_db):
+    user, other = str(uuid4()), str(uuid4())
+    await _add_trace(langfuse_db, "tr-1", user_id=user, session_id="11")
+    await _add_trace(langfuse_db, "tr-2", user_id=user, session_id="11")
+    await _add_trace(langfuse_db, "tr-3", user_id=user, session_id=None)
+    await _add_trace(langfuse_db, "tr-other", user_id=other, session_id="22")
+    await _add_trace(langfuse_db, "tr-untagged", user_id=None, session_id=None)
 
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.method == "GET":
-            page = int(request.url.params["page"])
-            assert request.url.params["userId"] == str(user_id)
-            return _list_response(page_ids[page], page=page, total_pages=2)
-        assert request.method == "DELETE"
-        return httpx.Response(200, json={"success": True})
+    assert await langfuse_service.delete_user_traces(user) is True
 
-    requests = _install_transport(monkeypatch, handler)
-
-    assert await langfuse_service.delete_user_traces(user_id) is True
-
-    deletes = [r for r in requests if r.method == "DELETE"]
-    deleted_ids = [i for r in deletes for i in json.loads(r.content.decode())["traceIds"]]
-    assert deleted_ids == page_ids[1] + page_ids[2]
-    # Basic-auth with the project keys on every request.
-    assert all(r.headers["Authorization"].startswith("Basic ") for r in requests)
+    kept = ["tr-other", "tr-untagged"]
+    assert sorted(await langfuse_db("SELECT id FROM traces")) == kept
+    assert sorted(await langfuse_db("SELECT trace_id FROM observations")) == kept
+    assert sorted(await langfuse_db("SELECT trace_id FROM scores")) == kept
+    # The user's chat session goes with its traces; the other user's stays.
+    assert await langfuse_db("SELECT id FROM trace_sessions") == ["22"]
 
 
-async def test_no_traces_is_success_without_delete_call(monkeypatch, langfuse_settings):
-    def handler(request: httpx.Request) -> httpx.Response:
-        assert request.method == "GET"
-        return _list_response([], page=1, total_pages=1)
+async def test_session_with_someone_elses_trace_survives(langfuse_db):
+    """Sessions are only removed once empty — never out from under a trace."""
+    user, other = str(uuid4()), str(uuid4())
+    await _add_trace(langfuse_db, "tr-mine", user_id=user, session_id="shared")
+    await _add_trace(langfuse_db, "tr-theirs", user_id=other, session_id="shared")
 
-    requests = _install_transport(monkeypatch, handler)
+    assert await langfuse_service.delete_user_traces(user) is True
+
+    assert await langfuse_db("SELECT id FROM traces") == ["tr-theirs"]
+    assert await langfuse_db("SELECT id FROM trace_sessions") == ["shared"]
+
+
+async def test_no_traces_is_success(langfuse_db):
+    await _add_trace(langfuse_db, "tr-other", user_id=str(uuid4()), session_id="22")
 
     assert await langfuse_service.delete_user_traces(uuid4()) is True
-    assert [r.method for r in requests] == ["GET"]
+    assert await langfuse_db("SELECT id FROM traces") == ["tr-other"]
 
 
-async def test_delete_failure_returns_false(monkeypatch, langfuse_settings):
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.method == "GET":
-            return _list_response(["tr-1"], page=1, total_pages=1)
-        return httpx.Response(500, text="boom")
-
-    _install_transport(monkeypatch, handler)
+async def test_database_failure_returns_false(monkeypatch, tmp_path):
+    """Best-effort: an unusable Langfuse database must not raise into the purge."""
+    empty = f"sqlite+aiosqlite:///{tmp_path / 'no-langfuse-tables.db'}"
+    monkeypatch.setattr(langfuse_service.settings, "langfuse_database_url", empty)
 
     assert await langfuse_service.delete_user_traces(uuid4()) is False
 
 
 async def test_unconfigured_langfuse_returns_false(monkeypatch):
-    monkeypatch.setattr(langfuse_service.settings, "langfuse_host", "")
+    monkeypatch.setattr(langfuse_service.settings, "langfuse_database_url", "")
 
     assert await langfuse_service.delete_user_traces(uuid4()) is False
 
 
 async def test_ai_calls_carry_user_and_session_ids(client, fake_ai, fake_user):
     """Both AI calls of a turn must send user_id/session_id — apps/ai stamps
-    them on the Langfuse traces the purge later deletes by userId."""
+    them on the Langfuse traces the purge later deletes by user id."""
     from .conftest import start_chat
 
     fake_ai.queue_chat(

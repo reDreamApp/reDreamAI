@@ -14,6 +14,9 @@ class Settings(BaseSettings):
 
     mistral_api_key: str = Field(default="", description="Mistral API key (fallback path)")
     scaleway_api_key: str = Field(default="", description="Scaleway API key (primary path)")
+    # Needed when the key is restricted to a project other than the
+    # organization's default one; empty = default project.
+    scaleway_project_id: str = ""
 
     # Pinned model IDs (ADR 0010 — never floating aliases for prod models).
     # Chat/routing/safety-critic IDs live in core/agent.py::MODELS, not here.

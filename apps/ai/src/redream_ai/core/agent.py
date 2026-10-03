@@ -113,7 +113,11 @@ class Agent:
             api_key = os.getenv('SCALEWAY_API_KEY')
             if not api_key:
                 raise ValueError("SCALEWAY_API_KEY not found in environment")
-            return AsyncOpenAI(api_key=api_key, base_url="https://api.scaleway.ai/v1")
+            # The bare URL resolves to the organization's default project. A key
+            # whose rights are limited to another project must name it in the URL.
+            project_id = os.getenv('SCALEWAY_PROJECT_ID')
+            base_url = f"https://api.scaleway.ai/{project_id}/v1" if project_id else "https://api.scaleway.ai/v1"
+            return AsyncOpenAI(api_key=api_key, base_url=base_url)
         elif provider == "openrouter":
             api_key = os.getenv('OPENROUTER_API_KEY')
             if not api_key:

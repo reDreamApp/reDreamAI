@@ -1,6 +1,5 @@
-# Automates the "recommended (not yet automated)" backup retention policy
-# from infra/README.md's "Backups" section: nightly/7-day, weekly/4-week,
-# monthly/12-month. The backup job (not part of this ADR's scope) uploads
+# Backup bucket. Its lifecycle rules ARE the retention policy: nightly/7-day,
+# weekly/4-week, monthly/12-month. The backup job (infra/backup/) only uploads
 # pg_dump output under the matching nightly/, weekly/, monthly/ prefix.
 
 resource "scaleway_object_bucket" "backups" {

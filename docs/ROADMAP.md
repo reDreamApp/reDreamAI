@@ -11,26 +11,32 @@ decisions in `docs/decisions/`.
    apps/api lint runs informational (`continue-on-error`) until the
    lint-baseline cleanup below; plus a migrations-from-zero job
    (`supabase db start` + `migration up --local`).
-2. **Backup job + restore rehearsal** (~a day). Bucket + retention exist; still
-   missing: the scheduled `pg_dump` upload (cron/systemd timer on the host) and
-   a written restore runbook that has been **rehearsed once** against a scratch
-   database. A backup nobody has restored from is a hope, not a backup.
-3. **DNS ownership note** (5 min). `infra/README.md` says "point three
-   A records" but not where the domain is registered, under which account, or
-   who renews it. One paragraph; batch into the next infra commit.
-4. **Old Supabase Cloud project: dump + delete before ~2026-10-01** (minutes,
-   €0). One-click restore expires 90 days after the early-July pause; after
-   that only a "download before deletion" option with UNPUBLISHED deletion
-   timing remains. Restore once → `supabase db dump` + download storage →
-   store offline → delete project (COMPLIANCE.md §4).
+2. ~~**Rebuild the production box**~~ DONE 2026-10-03. The 2026-07 instance was
+   gone; the new one comes from `infra/terraform` (ADR 0012 amendment) plus
+   `infra/bootstrap.sh`, which installs Supabase with Supabase's own installer
+   and brings the stack up (`infra/README.md`, "First deploy"). Verified from
+   outside: sign-up, ES256 token, consent gate, a live chat turn, rehearsal
+   audio through a signed URL, account deletion. Runs on the sslip.io test
+   domain. Still open: the first push of the `production` branch.
+3. ~~**Backup job + restore rehearsal**~~ DONE 2026-10-03: nightly timer enabled
+   by `bootstrap.sh`, first dump uploaded with the restricted runtime key, and
+   one restore rehearsed into a scratch database (log in
+   `infra/backup/README.md`).
+4. **DNS ownership note** (5 min). `infra/README.md` lists the A records but not
+   where the domain is registered, under which account, or who renews it. Also
+   remove every record that still points at an earlier server before the new
+   box goes live.
+5. **Old Supabase Cloud project: confirm it is deleted.** Its one-click restore
+   window closed around 2026-10-01 (COMPLIANCE.md §4). Nothing in this repo
+   uses it any more.
 
 ## Next — needs an ADR before the work
 
-4. **Mobile release pipeline.** Decide: distribution channel (TestFlight /
+6. **Mobile release pipeline.** Decide: distribution channel (TestFlight /
    Play internal track vs. sideload beta), signing-key custody, versioning
    scheme, CI builds (fastlane/Codemagic vs. manual). Write the ADR when the
    first external tester is a few weeks away — not speculatively before.
-5. **Infra monitoring/alerting.** Langfuse watches LLM traces; nothing watches
+7. **Infra monitoring/alerting.** Langfuse watches LLM traces; nothing watches
    "is the box up / disk full / DB connections exhausted". Decision: external
    ping service (healthchecks.io / UptimeRobot) vs. self-hosted uptime-kuma
    vs. Scaleway alerts. The box is a single point of failure, so prefer
@@ -67,19 +73,25 @@ sources: `docs/COMPLIANCE.md` (researched 2026-07-06).
   Daniel's decision): `user_consents` proof log (migration
   20260710000001), grant/withdraw endpoints, `require_consent` gate on
   health-data routes, blocking consent screen after sign-in + settings
-  withdrawal, DE+EN copy near-final. STILL OPEN: Verzeichnis von Verarbeitungstätigkeiten,
+  withdrawal. Consent version `2026-10-03` names Mistral for AI responses and
+  rehearsal audio. STILL OPEN: Verzeichnis von Verarbeitungstätigkeiten,
   documented TOMs.
 - **Vendor DPAs**: sign/collect Scaleway + Mistral DPAs (both self-serve);
   request Mistral zero-data-retention, disclose their 30-day abuse-monitoring
   window in the privacy policy until granted.
-- ~~**Langfuse erasure path**~~ DONE 2026-07-09: apps/ai stamps every trace
-  (chat + safety-classify) with the backend-sent `user_id`/`session_id`, and
-  `delete_user_traces` really deletes now — paginated
-  `GET /api/public/traces?userId=` then bulk `DELETE {"traceIds": [...]}`
-  (there is no delete-by-user endpoint; verified against the Langfuse OpenAPI
-  spec). Traces recorded before this change carry no userId, but Langfuse keys
-  were never set in prod, so none exist.
-- **Langfuse retention TTL** (30–90 d) on traces.
+- ~~**Langfuse erasure path**~~ DONE 2026-10-03 (ADR 0007 amendment). apps/ai
+  stamps every trace with the backend-sent `user_id`/`session_id`, and
+  `delete_user_traces` deletes them directly in the `langfuse` database
+  (`scores`, `observations`, `traces`, emptied sessions). The earlier version
+  called `DELETE /api/public/traces`, which the self-hosted v2 server answers
+  with `405`; it had only been checked against the OpenAPI spec. Verified on
+  the box: two traces and three observations before account deletion, none
+  after.
+- **Langfuse retention TTL** (30–90 d) on traces. Langfuse v2 has no setting
+  for it either: it would be a scheduled SQL delete in the same database.
+- **Mail delivery.** No SMTP on the box and Scaleway blocks ports 25/465/587:
+  sign-up auto-confirms addresses, and password-reset and moderation mails
+  (ADR 0006) are not delivered. Needs an SMTP relay on another port.
 - **Edge rate limiting**: Caddy has no request-flood protection (the ADR 0008
   token budget only caps per-user LLM cost). Needs the non-bundled Caddy
   rate-limit module — a deliberate image build change, ~half a day.
@@ -95,7 +107,7 @@ sources: `docs/COMPLIANCE.md` (researched 2026-07-06).
 - **TTS voice choice** — TTS is implemented (2026-10-01, ADR 0010 amendment) with the
   Mistral preset `gb_jane_neutral` for both languages. Still open: a proper German voice
   (record Daniel vs. hire a speaker vs. the user's own voice, which adds Art. 9 biometric
-  consent and purge scope), and the consent-text update for TTS via Mistral (see ADR 0010).
+  consent and purge scope).
 - **Staging environment** — the release topology (RELEASING.md: preview
   branches / local stack for schema, `production` as the only deploy gate)
   covers pre-launch risk. A standing staging box is a solo-dev time sink;

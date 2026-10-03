@@ -77,7 +77,9 @@ serves. The primary and all other roles stay pinned.
 
 These IDs live in the ported `redream_ai/core/agent.py::MODELS` registry (pinned; a typo
 fails `tests/test_ported_core.py`). Base URLs `https://api.scaleway.ai/v1` and
-`https://api.mistral.ai/v1` are load-bearing.
+`https://api.mistral.ai/v1` are load-bearing. With `SCALEWAY_PROJECT_ID` set (2026-10-03)
+the Scaleway URL becomes `https://api.scaleway.ai/{project_id}/v1`: the bare URL resolves to
+the organization's default project and answers 403 to a key restricted to another one.
 
 **Config change:** `SCALEWAY_API_KEY` is now **required** alongside `MISTRAL_API_KEY`. The
 old `MISTRAL_RESPONSE_MODEL` / `MISTRAL_ROUTING_MODEL` (`mistral-small-4-0-26-03`,
@@ -131,6 +133,6 @@ the user's voice.
   URL on `SUPABASE_PUBLIC_URL` (default lifetime one year, `REHEARSAL_URL_TTL_SECONDS`).
 - Privacy: there is still no Scaleway TTS, so rewritten dream text reaches Mistral
   directly (30-day abuse-monitoring retention until ZDR, COMPLIANCE.md §3). The consent
-  text currently names Mistral only as an AI fallback; it needs the lawyer pass to cover
-  rehearsal audio before launch.
+  text names Mistral for AI responses and rehearsal audio since consent version
+  `2026-10-03`.
 
