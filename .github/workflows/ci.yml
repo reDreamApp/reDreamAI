@@ -1,10 +1,9 @@
 name: CI
 
-# Gates (docs/ROADMAP.md item 1): tests for all three apps + lint for apps/ai
-# (fully green). apps/api lint (80 ruff / 15 mypy) and the Flutter analyzer
-# (366 infos) are RED AT BASELINE — they run as informational steps
-# (continue-on-error) until the dedicated cleanup pass, so CI is meaningful
-# from day one instead of permanently red.
+# Gates (docs/ROADMAP.md item 1): tests for all three apps, lint for apps/ai
+# and the Flutter analyzer (both fully green). apps/api lint (ruff / mypy) is
+# RED AT BASELINE — it runs as an informational step (continue-on-error) until
+# the dedicated cleanup pass, so CI is meaningful instead of permanently red.
 
 on:
   pull_request:
@@ -74,7 +73,7 @@ jobs:
       - run: supabase migration up --local
 
   app:
-    name: apps/app — flutter test (analyze informational)
+    name: apps/app — flutter analyze + test
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -89,7 +88,5 @@ jobs:
       # pubspec bundles .env as an asset and .env is gitignored.
       - run: cp .env.example .env
       - run: flutter pub get
+      - run: flutter analyze
       - run: flutter test
-      - name: analyze (informational — 366-info baseline, see docs/ROADMAP.md)
-        run: flutter analyze
-        continue-on-error: true

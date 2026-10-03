@@ -7,8 +7,8 @@ decisions in `docs/decisions/`.
 ## Now — concrete work, no decision needed
 
 1. ~~**CI test pipeline**~~ DONE (`.github/workflows/ci.yml`): tests for all
-   three apps + apps/ai lint gate on PR + push to main; apps/api lint and the
-   Flutter analyzer run informational (`continue-on-error`) until the
+   three apps + apps/ai lint and Flutter analyzer gates on PR + push to main;
+   apps/api lint runs informational (`continue-on-error`) until the
    lint-baseline cleanup below; plus a migrations-from-zero job
    (`supabase db start` + `migration up --local`).
 2. **Backup job + restore rehearsal** (~a day). Bucket + retention exist; still
@@ -103,7 +103,8 @@ sources: `docs/COMPLIANCE.md` (researched 2026-07-06).
 - **Monetization/billing** — open product question, not engineering. Write the
   ADR when the business model is actually decided; billing code before a
   business model is speculation.
-- **Lint-baseline cleanup** — apps/api (80 ruff / 15 mypy) and apps/app
-  (366 analyzer infos) are red at baseline with zero new issues from recent
-  work. One dedicated cleanup pass each, whenever convenient; unblocks strict
-  CI gating (item 1).
+- **Lint-baseline cleanup** — apps/api (ruff B008/UP017 + 14 mypy errors as of
+  2026-10-03) is red at baseline with zero new issues from recent work. One
+  dedicated cleanup pass whenever convenient; unblocks strict CI gating
+  (item 1). apps/app is clean since the 2026-10 frontend port and its analyzer
+  is a CI gate.
