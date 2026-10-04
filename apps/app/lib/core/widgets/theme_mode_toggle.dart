@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'package:redream_app/core/settings/app_settings.dart';
+import 'package:redream_app/core/theme/app_theme.dart';
 
 /// Sun/moon pill from the app bar. Explicit light/dark; never "system".
 class ThemeModeToggle extends StatelessWidget {
@@ -25,11 +26,13 @@ class ThemeModeToggle extends StatelessWidget {
           _Segment(
             icon: Icons.light_mode_outlined,
             selected: !dark,
+            selectedColor: BrandColors.sun,
             onTap: () => settings.setThemeMode(ThemeMode.light),
           ),
           _Segment(
             icon: Icons.dark_mode_outlined,
             selected: dark,
+            selectedColor: scheme.primary,
             onTap: () => settings.setThemeMode(ThemeMode.dark),
           ),
         ],
@@ -42,11 +45,13 @@ class _Segment extends StatelessWidget {
   const _Segment({
     required this.icon,
     required this.selected,
+    required this.selectedColor,
     required this.onTap,
   });
 
   final IconData icon;
   final bool selected;
+  final Color selectedColor;
   final VoidCallback onTap;
 
   @override
@@ -65,7 +70,7 @@ class _Segment extends StatelessWidget {
         child: Icon(
           icon,
           size: 16,
-          color: selected ? scheme.primary : scheme.onSurfaceVariant,
+          color: selected ? selectedColor : scheme.onSurfaceVariant,
         ),
       ),
     );

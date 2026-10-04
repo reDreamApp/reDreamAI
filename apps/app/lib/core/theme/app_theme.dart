@@ -9,6 +9,7 @@ class BrandColors {
   static const deepViolet = Color(0xFF7C3AED);
   static const flame = Color(0xFFFF6F00);
   static const flameChip = Color(0xFFFFE0B2);
+  static const sun = Color(0xFFE6B313);
 }
 
 /// Theme-dependent colours that Material's [ColorScheme] does not model.

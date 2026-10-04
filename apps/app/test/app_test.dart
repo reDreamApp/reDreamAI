@@ -7,6 +7,7 @@ import 'package:redream_app/core/app_services.dart';
 import 'package:redream_app/core/auth/auth_service.dart';
 import 'package:redream_app/core/settings/app_settings.dart';
 import 'package:redream_app/core/storage/local_store.dart';
+import 'package:redream_app/core/theme/app_theme.dart';
 import 'package:redream_app/features/reminders/notification_service.dart';
 import 'package:redream_app/l10n/generated/app_localizations_en.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -255,6 +256,10 @@ void main() {
     await tester.pumpWidget(app);
     await _settle(tester);
 
+    Color? sunColor() =>
+        tester.widget<Icon>(find.byIcon(Icons.light_mode_outlined)).color;
+    expect(sunColor(), BrandColors.sun);
+
     await tester.tap(find.byIcon(Icons.dark_mode_outlined));
     await _settle(tester);
     expect(settings.themeMode, ThemeMode.dark);
@@ -262,6 +267,21 @@ void main() {
       Theme.of(tester.element(find.text('Your Progress'))).brightness,
       Brightness.dark,
     );
+    // The sun is only yellow while light mode is the active one.
+    expect(sunColor(), isNot(BrandColors.sun));
+  });
+
+  testWidgets('lists stop at their ends without stretching the screen', (
+    tester,
+  ) async {
+    final (app, _, _) = await _app(auth: FakeAuth(userId: 'user-1'));
+    _tallPhone(tester);
+    await tester.pumpWidget(app);
+    await _settle(tester);
+
+    // Widget tests run as Android, where Material 3 stretches by default.
+    expect(find.byType(Scrollable), findsWidgets);
+    expect(find.byType(StretchingOverscrollIndicator), findsNothing);
   });
 
   testWidgets('consent gate blocks until the user agrees', (tester) async {

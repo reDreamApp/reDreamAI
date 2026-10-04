@@ -24,6 +24,7 @@ class ReDreamApp extends StatelessWidget {
       theme: AppTheme.light,
       darkTheme: AppTheme.dark,
       themeMode: settings.themeMode,
+      scrollBehavior: const _ScrollBehavior(),
       locale: settings.locale,
       localizationsDelegates: const [
         AppLocalizations.delegate,
@@ -35,6 +36,20 @@ class ReDreamApp extends StatelessWidget {
       home: const AuthGate(),
     );
   }
+}
+
+/// Lists stop at their ends on Android instead of stretching the screen.
+/// Flutter 3.41 draws the platform's stretch effect, which distorts cards and
+/// images far more than the slight scaling of earlier versions.
+class _ScrollBehavior extends MaterialScrollBehavior {
+  const _ScrollBehavior();
+
+  @override
+  Widget buildOverscrollIndicator(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) => child;
 }
 
 /// Signed out → sign in. Signed in → per-user scope.
