@@ -28,6 +28,7 @@ dependencies:
   url_launcher: ^6.3.2
 
 dev_dependencies:
+  flutter_launcher_icons: ^0.14.4
   flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter
@@ -41,3 +42,17 @@ flutter:
   assets:
     - .env
     - assets/images/
+
+# App icon: replace assets/icon/app_icon.png (1024x1024, transparent), then
+#   fvm dart run flutter_launcher_icons
+#   git checkout ios/Runner.xcodeproj/project.pbxproj
+# The checkout undoes a generator bug (0.14.4): it overwrites the unrelated
+# Xcode setting ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS.
+flutter_launcher_icons:
+  image_path: assets/icon/app_icon.png
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  min_sdk_android: 24
+  adaptive_icon_background: "#FFFFFF"
+  adaptive_icon_foreground: assets/icon/app_icon.png

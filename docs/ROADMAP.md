@@ -17,7 +17,7 @@ decisions in `docs/decisions/`.
    and brings the stack up (`infra/README.md`, "First deploy"). Verified from
    outside: sign-up, ES256 token, consent gate, a live chat turn, rehearsal
    audio through a signed URL, account deletion. Runs on the sslip.io test
-   domain. Still open: the first push of the `production` branch.
+   domain. The `production` branch deploys to it since 2026-10-03.
 3. ~~**Backup job + restore rehearsal**~~ DONE 2026-10-03: nightly timer enabled
    by `bootstrap.sh`, first dump uploaded with the restricted runtime key, and
    one restore rehearsed into a scratch database (log in
