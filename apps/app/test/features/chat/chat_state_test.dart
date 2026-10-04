@@ -269,9 +269,12 @@ void main() {
       await resume();
       expect(state.chatId, 7);
       expect(state.isDone, isFalse);
-      expect(state.messages, hasLength(2));
-      // No local welcome bubble for resumed chats with history.
-      expect(state.messages.first.content, 'my dream');
+      // The display-only welcome bubble comes back above the history.
+      expect(state.messages.map((m) => m.content), [
+        'Welcome!',
+        'my dream',
+        'tell me more',
+      ]);
     });
 
     test('sorts chats newest first before picking', () async {
@@ -333,11 +336,30 @@ void main() {
       expect(state.stage, IrtStage.finalStage);
     });
 
-    test('inserts welcome bubble only when the chat has no messages', () async {
+    test('inserts the welcome bubble when the chat has no messages', () async {
       service.chatList = [_chat(5)];
       await state.loadChats();
       await state.loadChat(5, welcomeMessage: 'Welcome!');
       expect(state.messages.single.content, 'Welcome!');
+    });
+
+    test('puts the welcome bubble back above a reloaded chat', () async {
+      service.chatList = [_chat(5)];
+      await state.loadChats();
+      service.messagesByChat[5] = [
+        service.serverMessage('user', 'dream', stage: 'recording'),
+        service.serverMessage('assistant', 'go on', stage: 'recording'),
+      ];
+      await state.loadChat(5, welcomeMessage: 'Welcome!');
+      final welcome = state.messages.first;
+      expect(welcome.content, 'Welcome!');
+      expect(welcome.isLocal, isTrue);
+      // Dated like the first stored message, not like the moment of loading.
+      expect(welcome.createdAt, state.messages[1].createdAt);
+      expect(state.messages, hasLength(3));
+      // Reloading again must not stack a second greeting.
+      await state.loadChat(5, welcomeMessage: 'Welcome!');
+      expect(state.messages, hasLength(3));
     });
 
     test('maps the legacy intensity stage to rewriting', () async {

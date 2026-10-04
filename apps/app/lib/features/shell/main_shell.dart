@@ -73,8 +73,16 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   }
 }
 
-class _ShellScaffold extends StatelessWidget {
+class _ShellScaffold extends StatefulWidget {
   const _ShellScaffold();
+
+  @override
+  State<_ShellScaffold> createState() => _ShellScaffoldState();
+}
+
+class _ShellScaffoldState extends State<_ShellScaffold> {
+  final _scaffold = GlobalKey<ScaffoldState>();
+  bool _drawerOpen = false;
 
   @override
   Widget build(BuildContext context) {
@@ -82,64 +90,74 @@ class _ShellScaffold extends StatelessWidget {
     final tabs = context.watch<ShellTabs>();
     final onSession = tabs.current == ShellTab.session;
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: onSession
-            ? Builder(
-                builder: (ctx) => IconButton(
-                  icon: const Icon(Icons.menu),
-                  tooltip: l10n.chatHistoryTooltip,
-                  onPressed: Scaffold.of(ctx).openDrawer,
-                ),
-              )
-            : null,
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const BrandLogo(height: 34),
-            const SizedBox(width: 10),
-            Flexible(
-              child: Text(l10n.appTitle, overflow: TextOverflow.ellipsis),
+    // An open drawer does not register with the system back gesture on its
+    // own, so Android's Back would leave the app instead of closing it.
+    return PopScope<Object?>(
+      canPop: !_drawerOpen,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _scaffold.currentState?.closeDrawer();
+      },
+      child: Scaffold(
+        key: _scaffold,
+        onDrawerChanged: (open) => setState(() => _drawerOpen = open),
+        appBar: AppBar(
+          leading: onSession
+              ? Builder(
+                  builder: (ctx) => IconButton(
+                    icon: const Icon(Icons.menu),
+                    tooltip: l10n.chatHistoryTooltip,
+                    onPressed: Scaffold.of(ctx).openDrawer,
+                  ),
+                )
+              : null,
+          title: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const BrandLogo(height: 34),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(l10n.appTitle, overflow: TextOverflow.ellipsis),
+              ),
+            ],
+          ),
+          actions: [
+            const ThemeModeToggle(),
+            IconButton(
+              icon: const Icon(Icons.settings_outlined),
+              tooltip: l10n.settingsTooltip,
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
+              ),
+            ),
+            const SizedBox(width: 4),
+          ],
+        ),
+        drawer: onSession ? const ChatHistoryDrawer() : null,
+        body: IndexedStack(
+          index: tabs.current.index,
+          children: const [HomeScreen(), ChatScreen(), JournalScreen()],
+        ),
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: tabs.current.index,
+          onDestinationSelected: (i) => tabs.select(ShellTab.values[i]),
+          destinations: [
+            NavigationDestination(
+              icon: const Icon(Icons.home_outlined),
+              selectedIcon: const Icon(Icons.home),
+              label: l10n.navHome,
+            ),
+            NavigationDestination(
+              icon: const Icon(Icons.chat_bubble_outline),
+              selectedIcon: const Icon(Icons.chat_bubble),
+              label: l10n.navSession,
+            ),
+            NavigationDestination(
+              icon: const Icon(Icons.menu_book_outlined),
+              selectedIcon: const Icon(Icons.menu_book),
+              label: l10n.navJournal,
             ),
           ],
         ),
-        actions: [
-          const ThemeModeToggle(),
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            tooltip: l10n.settingsTooltip,
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
-            ),
-          ),
-          const SizedBox(width: 4),
-        ],
-      ),
-      drawer: onSession ? const ChatHistoryDrawer() : null,
-      body: IndexedStack(
-        index: tabs.current.index,
-        children: const [HomeScreen(), ChatScreen(), JournalScreen()],
-      ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: tabs.current.index,
-        onDestinationSelected: (i) => tabs.select(ShellTab.values[i]),
-        destinations: [
-          NavigationDestination(
-            icon: const Icon(Icons.home_outlined),
-            selectedIcon: const Icon(Icons.home),
-            label: l10n.navHome,
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.chat_bubble_outline),
-            selectedIcon: const Icon(Icons.chat_bubble),
-            label: l10n.navSession,
-          ),
-          NavigationDestination(
-            icon: const Icon(Icons.menu_book_outlined),
-            selectedIcon: const Icon(Icons.menu_book),
-            label: l10n.navJournal,
-          ),
-        ],
       ),
     );
   }

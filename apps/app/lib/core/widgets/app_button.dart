@@ -4,7 +4,8 @@ import 'package:redream_app/core/theme/app_theme.dart';
 
 enum AppButtonStyle { inverse, gradient, outlined }
 
-/// Full-width action button with the three brand looks and a busy state.
+/// Action button with the three brand looks and a busy state. Full width
+/// unless [expand] is false, which sizes it to its label.
 class AppButton extends StatelessWidget {
   const AppButton({
     required this.label,
@@ -13,6 +14,7 @@ class AppButton extends StatelessWidget {
     this.style = AppButtonStyle.inverse,
     this.icon,
     this.busy = false,
+    this.expand = true,
   });
 
   final String label;
@@ -20,6 +22,7 @@ class AppButton extends StatelessWidget {
   final AppButtonStyle style;
   final IconData? icon;
   final bool busy;
+  final bool expand;
 
   @override
   Widget build(BuildContext context) {
@@ -41,15 +44,20 @@ class AppButton extends StatelessWidget {
             ],
           );
 
+    // The theme makes buttons full width through an infinite minimum width.
+    final minimumSize = expand ? null : const Size(0, 48);
+
     switch (style) {
       case AppButtonStyle.outlined:
         return OutlinedButton(
           onPressed: enabled ? onPressed : null,
+          style: OutlinedButton.styleFrom(minimumSize: minimumSize),
           child: child,
         );
       case AppButtonStyle.inverse:
         return FilledButton(
           onPressed: enabled ? onPressed : null,
+          style: FilledButton.styleFrom(minimumSize: minimumSize),
           child: child,
         );
       case AppButtonStyle.gradient:
@@ -69,6 +77,7 @@ class AppButton extends StatelessWidget {
                 foregroundColor: Colors.white,
                 disabledForegroundColor: Colors.white70,
                 shadowColor: Colors.transparent,
+                minimumSize: minimumSize,
               ),
               child: child,
             ),

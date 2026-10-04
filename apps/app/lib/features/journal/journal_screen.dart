@@ -94,27 +94,35 @@ class _JournalScreenState extends State<JournalScreen> {
             style: theme.textTheme.bodyLarge?.copyWith(color: brand.muted),
           ),
           const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                flex: 5,
-                child: AppButton(
-                  label: l10n.journalAddDream,
-                  icon: Icons.add,
-                  onPressed: _addDream,
+          // Both buttons keep their full labels: on a narrow screen or with
+          // long translations the row shrinks as a whole instead of cutting
+          // the text off.
+          LayoutBuilder(
+            builder: (context, constraints) => FittedBox(
+              fit: BoxFit.scaleDown,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minWidth: constraints.maxWidth),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    AppButton(
+                      label: l10n.journalAddDream,
+                      icon: Icons.add,
+                      expand: false,
+                      onPressed: _addDream,
+                    ),
+                    const SizedBox(width: 12),
+                    AppButton(
+                      label: l10n.journalNotifications,
+                      icon: Icons.notifications_none,
+                      style: AppButtonStyle.outlined,
+                      expand: false,
+                      onPressed: _showReminders,
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 4,
-                child: AppButton(
-                  label: l10n.journalNotifications,
-                  icon: Icons.notifications_none,
-                  style: AppButtonStyle.outlined,
-                  onPressed: _showReminders,
-                ),
-              ),
-            ],
+            ),
           ),
           const SizedBox(height: 16),
           Wrap(

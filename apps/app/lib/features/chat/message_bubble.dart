@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:redream_app/core/theme/app_theme.dart';
 import 'package:redream_app/core/utils/errors.dart';
 import 'package:redream_app/core/utils/formatting.dart';
+import 'package:redream_app/core/widgets/assistant_sheep.dart';
 import 'package:redream_app/core/widgets/feedback.dart';
 import 'package:redream_app/features/chat/chat_models.dart';
 import 'package:redream_app/features/chat/chat_state.dart';
@@ -132,19 +133,15 @@ class _AssistantAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final dark = Theme.of(context).brightness == Brightness.dark;
     return Container(
       width: 36,
       height: 36,
-      padding: const EdgeInsets.all(5),
+      alignment: Alignment.center,
       decoration: BoxDecoration(
         color: scheme.primaryContainer,
         shape: BoxShape.circle,
       ),
-      child: Image.asset(
-        dark ? 'assets/images/logo_dark.png' : 'assets/images/logo_light.png',
-        fit: BoxFit.contain,
-      ),
+      child: const AssistantSheep(),
     );
   }
 }

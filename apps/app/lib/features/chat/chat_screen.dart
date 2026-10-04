@@ -5,7 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:redream_app/core/theme/app_theme.dart';
 import 'package:redream_app/core/widgets/app_button.dart';
 import 'package:redream_app/core/widgets/app_card.dart';
-import 'package:redream_app/core/widgets/brand_logo.dart';
+import 'package:redream_app/core/widgets/assistant_sheep.dart';
 import 'package:redream_app/core/widgets/intensity_slider.dart';
 import 'package:redream_app/features/chat/chat_actions.dart';
 import 'package:redream_app/features/chat/chat_state.dart';
@@ -429,7 +429,7 @@ class _Header extends StatelessWidget {
         children: [
           Row(
             children: [
-              const BrandLogo(height: 26),
+              const AssistantSheep(),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

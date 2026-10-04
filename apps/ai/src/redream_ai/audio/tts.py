@@ -4,8 +4,9 @@ Contract (what the backend's `ai_client.rehearsal_generate` calls):
     POST /rehearsal/generate {dream_id, user_id, rewritten_dream, language}
     -> {audio_url, script, duration_estimate, voice_id, cache_hit}
 
-The MP3 goes straight to Supabase Storage with the service-role key; the
-backend only stores the signed URL and never sees the audio bytes.
+The MP3 gets a Xing header (`mp3.py`, so players report its real length) and
+goes straight to Supabase Storage with the service-role key; the backend only
+stores the signed URL and never sees the audio bytes.
 
 Object path: ``users/{user_id}/{dream_id}/{language}-{hash}.mp3``. The hash
 covers script, language and voice, so an unchanged dream re-uses its file
@@ -38,6 +39,7 @@ import httpx
 from ..config import settings
 from ..llm.base import LlmUnavailableError
 from ..models import Language, RehearsalRequest, RehearsalResponse
+from .mp3 import add_seek_header
 
 log = logging.getLogger(__name__)
 
@@ -75,7 +77,8 @@ async def generate_rehearsal(req: RehearsalRequest) -> RehearsalResponse:
         cache_hit = await storage.exists(path)
         if not cache_hit:
             audio = await _synthesize(client, text=script, voice_id=voice_id)
-            await storage.upload(path, audio)
+            # Without it players misreport the length and seek inaccurately.
+            await storage.upload(path, add_seek_header(audio))
         url = await storage.signed_url(path, settings.rehearsal_url_ttl_seconds)
 
     return RehearsalResponse(

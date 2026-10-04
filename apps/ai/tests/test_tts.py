@@ -41,9 +41,10 @@ def _req(text: str = "You walk home with a warm lantern.", lang: Language = Lang
 class _Fake:
     """Mistral speech + a dict-backed Storage bucket."""
 
-    def __init__(self, *, speech_status: int = 200) -> None:
+    def __init__(self, *, speech_status: int = 200, audio: bytes = _AUDIO) -> None:
         self.objects: dict[str, bytes] = {}
         self.speech_status = speech_status
+        self.audio = audio
         self.speech_calls: list[dict[str, object]] = []
         self.requests: list[httpx.Request] = []
 
@@ -55,7 +56,7 @@ class _Fake:
             self.speech_calls.append(json.loads(request.content))
             if self.speech_status != 200:
                 return httpx.Response(self.speech_status, text="nope")
-            return httpx.Response(200, json={"audio_data": base64.b64encode(_AUDIO).decode()})
+            return httpx.Response(200, json={"audio_data": base64.b64encode(self.audio).decode()})
         assert request.headers["apikey"] == "srk"
         prefix = "http://kong:8000/storage/v1/object/"
         assert url.startswith(prefix), url
@@ -117,6 +118,19 @@ async def test_generates_uploads_and_signs(monkeypatch):
     assert resp.audio_url == (
         f"https://supabase.example.com/storage/v1/object/sign/rehearsal-audio/{path}?token=t"
     )
+
+
+async def test_stored_audio_gets_a_seek_header(monkeypatch):
+    """Voxtral's MP3 carries no length header; players misreport it without one."""
+    # MPEG-2 Layer III frames, 80 kbit/s, 22.05 kHz mono.
+    audio = ((0xFFF390C0).to_bytes(4, "big") + bytes(257)) * 4
+    fake = _install(monkeypatch, _Fake(audio=audio))
+
+    await tts.generate_rehearsal(_req())
+
+    (stored,) = fake.objects.values()
+    assert b"Xing" in stored
+    assert stored.endswith(audio)
 
 
 async def test_unchanged_dream_reuses_the_stored_file(monkeypatch):

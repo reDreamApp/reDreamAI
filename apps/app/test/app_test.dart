@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:redream_app/app.dart';
@@ -198,6 +199,54 @@ void main() {
     await _settle(tester);
     expect(find.text('Chat History'), findsOneWidget);
     expect(find.text('Old chat'), findsOneWidget);
+  });
+
+  testWidgets('back closes the chat history instead of leaving the app', (
+    tester,
+  ) async {
+    final (app, _, _) = await _app(
+      auth: FakeAuth(userId: 'user-1', email: 'me@example.com'),
+    );
+    _tallPhone(tester);
+    await tester.pumpWidget(app);
+    await _settle(tester);
+
+    await tester.tap(find.text('Session'));
+    await _settle(tester);
+    await tester.tap(find.byIcon(Icons.menu));
+    await _settle(tester);
+    expect(find.text('Chat History'), findsOneWidget);
+
+    // What Android's back button or gesture sends.
+    await tester.binding.handlePopRoute();
+    await _settle(tester);
+    expect(find.text('Chat History'), findsNothing);
+    expect(find.text('reDreamAI Assistant'), findsOneWidget);
+  });
+
+  testWidgets('journal buttons show their full labels', (tester) async {
+    final (app, _, _) = await _app(
+      auth: FakeAuth(userId: 'user-1', email: 'me@example.com'),
+    );
+    _tallPhone(tester);
+    await tester.pumpWidget(app);
+    await _settle(tester);
+
+    await tester.tap(find.text('Journal'));
+    await _settle(tester);
+
+    for (final label in [_en.journalAddDream, _en.journalNotifications]) {
+      final text = tester.renderObject<RenderParagraph>(find.text(label));
+      // A label cut off with "…" is laid out narrower than its text needs.
+      expect(
+        text.size.width,
+        moreOrLessEquals(
+          text.getMaxIntrinsicWidth(double.infinity),
+          epsilon: 0.5,
+        ),
+        reason: label,
+      );
+    }
   });
 
   testWidgets('theme toggle persists the chosen mode', (tester) async {

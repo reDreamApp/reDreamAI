@@ -8,7 +8,7 @@ Self-help mobile app based on CBT / IRT (Imagery Rehearsal Therapy) for processi
 apps/
   ai/        Python FastAPI (stateless): chat, safety classifier, TTS, STT
   api/       Python FastAPI + async SQLAlchemy: source of truth for users, chats, dreams
-  app/       Flutter (FVM 3.35.5): iOS + Android client, EN + DE
+  app/       Flutter (version pinned in apps/app/.fvmrc): iOS + Android client, EN + DE
 
 supabase/
   migrations/    SQL migrations (managed by Supabase CLI, single Postgres)

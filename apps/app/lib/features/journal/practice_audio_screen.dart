@@ -181,15 +181,23 @@ class _PracticeAudioScreenState extends State<PracticeAudioScreen> {
                                           : _dream.title,
                                       style: theme.textTheme.titleLarge,
                                     ),
-                                    Text(
-                                      _dream.rehearsalDuration ??
-                                          l10n.audioSubtitleDefault,
-                                      style: theme.textTheme.bodyMedium
-                                          ?.copyWith(
-                                            color: theme
-                                                .colorScheme
-                                                .onSurfaceVariant,
-                                          ),
+                                    // The player's own length, so it
+                                    // always matches the slider below.
+                                    StreamBuilder<Duration?>(
+                                      stream: _player.durationStream,
+                                      initialData: _player.duration,
+                                      builder: (_, snap) => Text(
+                                        switch (snap.data) {
+                                          final d? => _PlayerControls._fmt(d),
+                                          null => l10n.audioSubtitleDefault,
+                                        },
+                                        style: theme.textTheme.bodyMedium
+                                            ?.copyWith(
+                                              color: theme
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
+                                            ),
+                                      ),
                                     ),
                                   ],
                                 ),

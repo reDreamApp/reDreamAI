@@ -192,8 +192,9 @@ class ChatState extends ChangeNotifier {
 
   /// Loads an existing chat from the backend (drawer tap / resume / refresh).
   ///
-  /// [welcomeMessage] is only inserted when the chat has no messages yet
-  /// (brand-new session that was started but never written to).
+  /// [welcomeMessage] is the display-only greeting. It is never stored, so
+  /// every load puts it back as the first bubble, dated like the chat's
+  /// first message.
   /// Returns false (and sets [errorMessage]) when loading failed.
   Future<bool> loadChat(int id, {String? welcomeMessage}) async {
     _loadingChat = true;
@@ -219,14 +220,17 @@ class ChatState extends ChangeNotifier {
         _intensitySaving = false;
       }
       _chatId = id;
-      _messages
-        ..clear()
-        ..addAll(fetched);
-      if (fetched.isEmpty && welcomeMessage != null) {
+      _messages.clear();
+      if (welcomeMessage != null) {
         _messages.add(
-          _localMessage(role: 'assistant', content: welcomeMessage),
+          _localMessage(
+            role: 'assistant',
+            content: welcomeMessage,
+            createdAt: fetched.firstOrNull?.createdAt,
+          ),
         );
       }
+      _messages.addAll(fetched);
       _isDone = summary?.isDone ?? false;
       _resumedDone = _isDone;
       if (_isDone) {
@@ -708,14 +712,17 @@ class ChatState extends ChangeNotifier {
   static String _describe(Exception e) =>
       e is NetworkException ? offline : e.toString();
 
-  ChatMessage _localMessage({required String role, required String content}) =>
-      ChatMessage(
-        id: 'local-${_localSeq++}',
-        role: role,
-        content: content,
-        stage: null,
-        createdAt: DateTime.now(),
-      );
+  ChatMessage _localMessage({
+    required String role,
+    required String content,
+    DateTime? createdAt,
+  }) => ChatMessage(
+    id: 'local-${_localSeq++}',
+    role: role,
+    content: content,
+    stage: null,
+    createdAt: createdAt ?? DateTime.now(),
+  );
 
   List<ChatSummary> _sortedNewestFirst(List<ChatSummary> list) =>
       [...list]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
