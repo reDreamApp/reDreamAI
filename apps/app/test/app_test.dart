@@ -8,7 +8,10 @@ import 'package:redream_app/core/auth/auth_service.dart';
 import 'package:redream_app/core/settings/app_settings.dart';
 import 'package:redream_app/core/storage/local_store.dart';
 import 'package:redream_app/core/theme/app_theme.dart';
+import 'package:redream_app/core/widgets/brand_logo.dart';
+import 'package:redream_app/core/widgets/theme_mode_toggle.dart';
 import 'package:redream_app/features/reminders/notification_service.dart';
+import 'package:redream_app/features/settings/profile.dart';
 import 'package:redream_app/l10n/generated/app_localizations_en.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -130,6 +133,21 @@ void main() {
 
     expect(auth.signIns, ['me@example.com']);
     expect(find.text('Your Progress'), findsOneWidget);
+  });
+
+  testWidgets('sign-up states the age the app is made for', (tester) async {
+    final (app, _, _) = await _app(auth: FakeAuth());
+    _tallPhone(tester);
+    await tester.pumpWidget(app);
+    await _settle(tester);
+
+    await tester.tap(find.text("Don't have an account? Sign up"));
+    await _settle(tester);
+
+    expect(
+      find.text('By signing up you confirm that you are 18 or older.'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('home shows progress from the API and tabs switch screens', (
@@ -259,7 +277,8 @@ void main() {
         tester.widget<Icon>(find.byIcon(Icons.light_mode_outlined)).color;
     expect(sunColor(), BrandColors.sun);
 
-    await tester.tap(find.byIcon(Icons.dark_mode_outlined));
+    // A tap anywhere on the pill switches mode, also on the active symbol.
+    await tester.tap(find.byIcon(Icons.light_mode_outlined));
     await _settle(tester);
     expect(settings.themeMode, ThemeMode.dark);
     expect(
@@ -268,6 +287,103 @@ void main() {
     );
     // The sun is only yellow while light mode is the active one.
     expect(sunColor(), isNot(BrandColors.sun));
+
+    await tester.tap(find.byType(ThemeModeToggle));
+    await _settle(tester);
+    expect(settings.themeMode, ThemeMode.light);
+  });
+
+  testWidgets('the guide shows three steps and leads into a session', (
+    tester,
+  ) async {
+    final (app, _, _) = await _app(
+      auth: FakeAuth(userId: 'user-1', email: 'me@example.com'),
+    );
+    _tallPhone(tester);
+    await tester.pumpWidget(app);
+    await _settle(tester);
+
+    await tester.tap(find.text('Rewriting Guide'));
+    await _settle(tester);
+    for (final step in [
+      '1. Identify your nightmare',
+      '2. Rewrite your dream',
+      '3. Rehearse your new dream',
+    ]) {
+      expect(find.text(step), findsOneWidget);
+    }
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Begin Session').last);
+    await _settle(tester);
+    expect(find.text('reDreamAI Assistant'), findsOneWidget);
+  });
+
+  testWidgets('onboarding ends without any profile answer', (tester) async {
+    final (app, api, settings) = await _app(
+      auth: FakeAuth(userId: 'user-1', email: 'me@example.com'),
+    );
+    await settings.markOnboardingPending('user-1');
+    _tallPhone(tester);
+    await tester.pumpWidget(app);
+    await _settle(tester);
+
+    // The title reads on into the logo, which carries the app's name.
+    expect(
+      tester.getTopLeft(find.text('Welcome to')).dy,
+      lessThan(tester.getTopLeft(find.byType(BrandLogo)).dy),
+    );
+    for (var page = 1; page < 5; page++) {
+      await tester.tap(find.byIcon(Icons.arrow_forward));
+      await _settle(tester);
+      if (page == 2) {
+        expect(
+          find.textContaining(
+            'each session:\n1) Record your nightmare\n2) Rewrite it',
+          ),
+          findsOneWidget,
+        );
+      }
+    }
+    expect(find.text('All answers are optional.'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Get started'));
+    await _settle(tester);
+
+    expect(api.calls, isNot(contains('POST /api/v1/profile')));
+    expect(find.text('Your Progress'), findsOneWidget);
+  });
+
+  testWidgets('onboarding saves the answers that were given', (tester) async {
+    final (app, api, settings) = await _app(
+      auth: FakeAuth(userId: 'user-1', email: 'me@example.com'),
+    );
+    await settings.markOnboardingPending('user-1');
+    Map<String, dynamic>? saved;
+    api.on('POST /api/v1/profile', (_, body) => saved = body);
+    _tallPhone(tester);
+    await tester.pumpWidget(app);
+    await _settle(tester);
+    for (var page = 1; page < 5; page++) {
+      await tester.tap(find.byIcon(Icons.arrow_forward));
+      await _settle(tester);
+    }
+
+    await tester.tap(find.text('Age range'));
+    await _settle(tester);
+    // The app is not offered to minors as an age group.
+    expect(find.text('Under 18'), findsNothing);
+    expect(Profile.ageRanges.first, '18-24');
+    await tester.tap(find.text('25-34').last);
+    await _settle(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Get started'));
+    await _settle(tester);
+
+    expect(saved, {
+      'gender': null,
+      'age_range': '25-34',
+      'nightmare_frequency': null,
+    });
+    expect(find.text('Your Progress'), findsOneWidget);
   });
 
   testWidgets('lists stop at their ends without stretching the screen', (

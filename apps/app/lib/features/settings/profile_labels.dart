@@ -6,7 +6,6 @@ String profileLabel(String wire, AppLocalizations l10n) => switch (wire) {
   'Female' => l10n.genderFemale,
   'Non-binary' => l10n.genderNonBinary,
   'Prefer not to say' => l10n.genderPreferNot,
-  'Under 18' => l10n.ageUnder18,
   '65+' => l10n.age65Plus,
   'Almost every night' => l10n.freqNightly,
   'A few times a week' => l10n.freqWeekly,

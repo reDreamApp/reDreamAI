@@ -3,7 +3,6 @@ import 'package:redream_app/core/widgets/app_button.dart';
 import 'package:redream_app/core/widgets/app_card.dart';
 import 'package:redream_app/core/widgets/feedback.dart';
 import 'package:redream_app/features/learn/article.dart';
-import 'package:redream_app/features/learn/learn_screen.dart';
 import 'package:redream_app/l10n/generated/app_localizations.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -35,10 +34,6 @@ class ArticleScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          if (article.tags.isNotEmpty) ...[
-            TagRow(tags: article.tags),
-            const SizedBox(height: 16),
-          ],
           AppCard(
             highlight: true,
             child: Column(

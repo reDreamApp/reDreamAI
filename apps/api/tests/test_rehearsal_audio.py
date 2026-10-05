@@ -181,10 +181,15 @@ async def test_account_deletion_purges_storage_and_traces(client, fake_user, mon
         calls["langfuse"] = user_id
         return True
 
+    async def fake_login(user_id):
+        calls["login"] = user_id
+        return True
+
     monkeypatch.setattr(user_routes, "delete_rehearsal_audio_for_user", fake_storage)
     monkeypatch.setattr(user_routes, "delete_user_traces", fake_langfuse)
+    monkeypatch.setattr(user_routes, "delete_login", fake_login)
 
     r = await client.delete("/api/v1/users/me")
 
     assert r.status_code == 204
-    assert calls == {"storage": fake_user.id, "langfuse": fake_user.id}
+    assert calls == {"storage": fake_user.id, "langfuse": fake_user.id, "login": fake_user.id}

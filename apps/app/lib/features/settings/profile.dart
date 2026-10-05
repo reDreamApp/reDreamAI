@@ -12,7 +12,6 @@ class Profile {
   /// Wire values; labels are localized in the UI.
   static const genders = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];
   static const ageRanges = [
-    'Under 18',
     '18-24',
     '25-34',
     '35-44',

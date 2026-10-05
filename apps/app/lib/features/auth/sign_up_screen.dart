@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:redream_app/core/auth/auth_service.dart';
 import 'package:redream_app/core/settings/app_settings.dart';
+import 'package:redream_app/core/theme/app_theme.dart';
 import 'package:redream_app/core/utils/errors.dart';
 import 'package:redream_app/core/widgets/app_button.dart';
 import 'package:redream_app/core/widgets/feedback.dart';
@@ -115,6 +116,14 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     label: l10n.signUpButton,
                     busy: _busy,
                     onPressed: _submit,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    l10n.signUpAgeNote,
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: BrandTheme.of(context).muted,
+                    ),
                   ),
                   TextButton(
                     onPressed: () => Navigator.of(context).maybePop(),

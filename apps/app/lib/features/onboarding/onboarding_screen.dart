@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:redream_app/core/settings/app_settings.dart';
+import 'package:redream_app/core/theme/app_theme.dart';
 import 'package:redream_app/core/utils/errors.dart';
 import 'package:redream_app/core/widgets/app_button.dart';
 import 'package:redream_app/core/widgets/brand_logo.dart';
@@ -18,7 +19,7 @@ class OnboardingScreen extends StatefulWidget {
 }
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
-  static const _pageCount = 6;
+  static const _pageCount = 5;
 
   final _controller = PageController();
   int _page = 0;
@@ -56,16 +57,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 controller: _controller,
                 onPageChanged: (i) => setState(() => _page = i),
                 children: [
-                  _InfoPage(
-                    title: l10n.onboardingCelebrateTitle,
-                    body: l10n.onboardingCelebrateBody,
-                    image: 'assets/images/onboarding_celebrate.png',
-                  ),
-                  _InfoPage(
-                    title: l10n.onboardingWelcomeTitle,
-                    body: l10n.onboardingWelcomeBody,
-                    child: const BrandLogo(height: 200),
-                  ),
+                  const _WelcomePage(),
                   _InfoPage(
                     title: l10n.onboardingScienceTitle,
                     body: l10n.onboardingScienceBody,
@@ -110,46 +102,97 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 }
 
-class _InfoPage extends StatelessWidget {
-  const _InfoPage({
-    required this.title,
-    required this.body,
-    this.image,
-    this.child,
-  });
-
-  final String title;
-  final String body;
-  final String? image;
-  final Widget? child;
+/// "Welcome to" reads on into the logo, which carries the app's name.
+class _WelcomePage extends StatelessWidget {
+  const _WelcomePage();
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context)!;
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+      padding: _pagePadding,
       child: Column(
         children: [
-          const SizedBox(height: 24),
-          child ?? Image.asset(image!, height: 220, fit: BoxFit.contain),
           const SizedBox(height: 32),
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.headlineMedium?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            body,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyLarge?.copyWith(height: 1.5),
-          ),
+          _Title(l10n.onboardingWelcomeTitle),
+          const SizedBox(height: 8),
+          const BrandLogo(height: 220),
+          const SizedBox(height: 24),
+          _Body(l10n.onboardingWelcomeBody),
         ],
       ),
     );
   }
+}
+
+/// A picture on the home screen's gradient, a title and a short text.
+class _InfoPage extends StatelessWidget {
+  const _InfoPage({
+    required this.title,
+    required this.body,
+    required this.image,
+  });
+
+  final String title;
+  final String body;
+  final String image;
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: _pagePadding,
+      child: Column(
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: BrandTheme.of(context).heroGradient,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Image.asset(image, height: 200, excludeFromSemantics: true),
+          ),
+          const SizedBox(height: 32),
+          _Title(title),
+          const SizedBox(height: 12),
+          _Body(body),
+        ],
+      ),
+    );
+  }
+}
+
+const _pagePadding = EdgeInsets.fromLTRB(24, 8, 24, 16);
+
+class _Title extends StatelessWidget {
+  const _Title(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    text,
+    textAlign: TextAlign.center,
+    style: Theme.of(
+      context,
+    ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700),
+  );
+}
+
+class _Body extends StatelessWidget {
+  const _Body(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    text,
+    textAlign: TextAlign.center,
+    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+      color: BrandTheme.of(context).muted,
+      height: 1.5,
+    ),
+  );
 }
 
 class _ProfilePage extends StatefulWidget {
@@ -160,7 +203,6 @@ class _ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<_ProfilePage> {
-  final _form = GlobalKey<FormState>();
   String? _gender;
   String? _ageRange;
   String? _frequency;
@@ -168,22 +210,21 @@ class _ProfilePageState extends State<_ProfilePage> {
   String? _error;
 
   Future<void> _submit() async {
-    if (!_form.currentState!.validate()) return;
     final l10n = AppLocalizations.of(context)!;
     final profile = context.read<ProfileState>();
     final settings = context.read<AppSettings>();
+    final answers = Profile(
+      gender: _gender,
+      ageRange: _ageRange,
+      nightmareFrequency: _frequency,
+    );
     setState(() {
       _busy = true;
       _error = null;
     });
     try {
-      await profile.save(
-        Profile(
-          gender: _gender,
-          ageRange: _ageRange,
-          nightmareFrequency: _frequency,
-        ),
-      );
+      // Every answer is optional; with none chosen there is nothing to save.
+      if (!answers.isEmpty) await profile.save(answers);
       await settings.completeOnboarding();
     } on Exception catch (e) {
       if (mounted) setState(() => _error = describeError(e, l10n));
@@ -200,71 +241,64 @@ class _ProfilePageState extends State<_ProfilePage> {
     required AppLocalizations l10n,
   }) => DropdownButtonFormField<String>(
     initialValue: value,
+    // Long choices shrink to the field instead of overflowing it.
+    isExpanded: true,
     decoration: InputDecoration(labelText: label),
     items: [
       for (final v in values)
         DropdownMenuItem(value: v, child: Text(profileLabel(v, l10n))),
     ],
-    validator: (v) => v == null ? l10n.profileSelectPrompt : null,
     onChanged: onChanged,
   );
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
-    final theme = Theme.of(context);
     return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-      child: Form(
-        key: _form,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 24),
-            Text(
-              l10n.onboardingProfileTitle,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            const SizedBox(height: 32),
-            _dropdown(
-              label: l10n.profileGender,
-              values: Profile.genders,
-              value: _gender,
-              onChanged: (v) => setState(() => _gender = v),
-              l10n: l10n,
-            ),
+      padding: _pagePadding,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const SizedBox(height: 32),
+          _Title(l10n.onboardingProfileTitle),
+          const SizedBox(height: 12),
+          _Body(l10n.onboardingProfileHint),
+          const SizedBox(height: 32),
+          _dropdown(
+            label: l10n.profileGender,
+            values: Profile.genders,
+            value: _gender,
+            onChanged: (v) => setState(() => _gender = v),
+            l10n: l10n,
+          ),
+          const SizedBox(height: 16),
+          _dropdown(
+            label: l10n.profileAgeRange,
+            values: Profile.ageRanges,
+            value: _ageRange,
+            onChanged: (v) => setState(() => _ageRange = v),
+            l10n: l10n,
+          ),
+          const SizedBox(height: 16),
+          _dropdown(
+            label: l10n.profileNightmareFrequency,
+            values: Profile.nightmareFrequencies,
+            value: _frequency,
+            onChanged: (v) => setState(() => _frequency = v),
+            l10n: l10n,
+          ),
+          const SizedBox(height: 24),
+          if (_error != null) ...[
+            InlineNotice(message: _error!),
             const SizedBox(height: 16),
-            _dropdown(
-              label: l10n.profileAgeRange,
-              values: Profile.ageRanges,
-              value: _ageRange,
-              onChanged: (v) => setState(() => _ageRange = v),
-              l10n: l10n,
-            ),
-            const SizedBox(height: 16),
-            _dropdown(
-              label: l10n.profileNightmareFrequency,
-              values: Profile.nightmareFrequencies,
-              value: _frequency,
-              onChanged: (v) => setState(() => _frequency = v),
-              l10n: l10n,
-            ),
-            const SizedBox(height: 24),
-            if (_error != null) ...[
-              InlineNotice(message: _error!),
-              const SizedBox(height: 16),
-            ],
-            AppButton(
-              label: l10n.onboardingSubmit,
-              style: AppButtonStyle.gradient,
-              busy: _busy,
-              onPressed: _submit,
-            ),
           ],
-        ),
+          AppButton(
+            label: l10n.onboardingSubmit,
+            style: AppButtonStyle.gradient,
+            busy: _busy,
+            onPressed: _submit,
+          ),
+        ],
       ),
     );
   }

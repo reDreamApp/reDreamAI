@@ -18,7 +18,6 @@ class _LearnScreenState extends State<LearnScreen> {
   final _service = ArticlesService();
   late Future<List<Article>> _future;
   String? _language;
-  String? _selectedTag;
 
   @override
   void didChangeDependencies() {
@@ -27,7 +26,6 @@ class _LearnScreenState extends State<LearnScreen> {
     if (language != _language) {
       _language = language;
       _future = _service.fetch(language: language);
-      _selectedTag = null;
     }
   }
 
@@ -40,7 +38,6 @@ class _LearnScreenState extends State<LearnScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
-    final dark = theme.brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(title: Text(l10n.learnTitle)),
       body: FutureBuilder<List<Article>>(
@@ -62,71 +59,17 @@ class _LearnScreenState extends State<LearnScreen> {
             );
           }
           final articles = snap.data ?? const <Article>[];
-          final tags = _collectTags(articles);
-          final selected = _selectedTag?.toLowerCase();
-          final visible = selected == null
-              ? articles
-              : articles
-                    .where(
-                      (a) => a.tags.any((t) => t.toLowerCase() == selected),
-                    )
-                    .toList();
           return RefreshIndicator(
             onRefresh: _reload,
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                if (tags.isNotEmpty) ...[
-                  Text(
-                    l10n.learnTopics,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  if (_selectedTag case final tag?)
-                    Text(
-                      l10n.learnFilteringBy(tag),
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final tag in tags)
-                        FilterChip(
-                          avatar: _Dot(color: tagColor(tag)),
-                          label: Text(tag),
-                          labelStyle: TextStyle(
-                            color: tagInk(tag, theme.brightness),
-                            fontWeight: FontWeight.w600,
-                          ),
-                          backgroundColor: tagColor(
-                            tag,
-                          ).withValues(alpha: dark ? 0.16 : 0.12),
-                          selectedColor: tagColor(
-                            tag,
-                          ).withValues(alpha: dark ? 0.45 : 0.35),
-                          side: BorderSide(
-                            color: tagColor(tag).withValues(
-                              alpha: tag.toLowerCase() == selected ? 1 : 0.5,
-                            ),
-                          ),
-                          showCheckmark: false,
-                          selected: tag.toLowerCase() == selected,
-                          onSelected: (on) =>
-                              setState(() => _selectedTag = on ? tag : null),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                ],
-                if (visible.isEmpty)
+                if (articles.isEmpty)
                   Padding(
                     padding: const EdgeInsets.all(24),
                     child: Text(l10n.learnEmpty, textAlign: TextAlign.center),
                   ),
-                for (final article in visible)
+                for (final article in articles)
                   AppCard(
                     margin: const EdgeInsets.only(bottom: 12),
                     onTap: () => Navigator.push(
@@ -154,10 +97,6 @@ class _LearnScreenState extends State<LearnScreen> {
                                   style: theme.textTheme.bodyMedium,
                                 ),
                               ],
-                              if (article.tags.isNotEmpty) ...[
-                                const SizedBox(height: 10),
-                                TagRow(tags: article.tags),
-                              ],
                             ],
                           ),
                         ),
@@ -173,61 +112,4 @@ class _LearnScreenState extends State<LearnScreen> {
       ),
     );
   }
-
-  static List<String> _collectTags(List<Article> articles) {
-    final seen = <String>{};
-    final tags = [
-      for (final a in articles)
-        for (final t in a.tags)
-          if (seen.add(t.toLowerCase())) t,
-    ];
-    return tags..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-  }
-}
-
-class TagRow extends StatelessWidget {
-  const TagRow({required this.tags, super.key});
-
-  final List<String> tags;
-
-  @override
-  Widget build(BuildContext context) {
-    final brightness = Theme.of(context).brightness;
-    final dark = brightness == Brightness.dark;
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      children: [
-        for (final tag in tags)
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: tagColor(tag).withValues(alpha: dark ? 0.25 : 0.15),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(color: tagColor(tag).withValues(alpha: 0.5)),
-            ),
-            child: Text(
-              tag,
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: tagInk(tag, brightness),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _Dot extends StatelessWidget {
-  const _Dot({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    width: 10,
-    height: 10,
-    decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-  );
 }

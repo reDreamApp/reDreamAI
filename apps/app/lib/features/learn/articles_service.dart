@@ -35,7 +35,6 @@ class ArticlesService {
       slug: post['slug']?.toString() ?? title,
       title: title,
       excerpt: _localized(post['excerpt'], lang),
-      tags: _tags(post['tags'], lang),
       urls: urls,
     );
   }
@@ -47,20 +46,6 @@ class ArticlesService {
       return v?.toString().trim() ?? '';
     }
     return '';
-  }
-
-  static List<String> _tags(Object? value, String lang) {
-    final raw = value is Map
-        ? (value[lang] ?? value['en'] ?? value['de'])
-        : value;
-    if (raw is! List) return const [];
-    final seen = <String>{};
-    return [
-      for (final t in raw)
-        if (t.toString().trim() case final tag
-            when tag.isNotEmpty && seen.add(tag.toLowerCase()))
-          tag,
-    ];
   }
 
   static Map<String, String> _urls(Object? value, String lang) {

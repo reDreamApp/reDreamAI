@@ -13,6 +13,7 @@ from ....core.dependencies import get_current_user, get_db
 from ....db.models.user import User
 from ....db.repositories.consent_repo import ConsentRepo
 from ....db.repositories.user_repo import UserRepo
+from ....services.auth_service import delete_login
 from ....services.langfuse_service import delete_user_traces
 from ....services.storage_service import delete_rehearsal_audio_for_user
 
@@ -81,15 +82,21 @@ async def delete_me(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    """Delete the user's account row. Cascades remove dreams, chats, etc.
+    """Delete the account: app data, rehearsal audio, traces, then the login.
 
-    Rehearsal audio and Langfuse traces are purged too, exactly like
-    `DELETE /me/data`. The Supabase `auth.users` row is NOT deleted here —
-    it's separate infrastructure. Recommend pairing with a Supabase admin call.
+    Deleting the `users` row cascades to dreams, chats and the rest. The
+    Supabase login goes last: if that fails the answer is 503 and the user is
+    left with an empty account they can sign in to and delete again.
     """
-    await UserRepo(db).delete(user.id)
-    await delete_rehearsal_audio_for_user(user.id)
-    await delete_user_traces(user.id)
+    user_id = user.id
+    await UserRepo(db).delete(user_id)
+    await delete_rehearsal_audio_for_user(user_id)
+    await delete_user_traces(user_id)
+    if not await delete_login(user_id):
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "the login could not be deleted — try again",
+        )
 
 
 @router.delete("/me/data", status_code=status.HTTP_204_NO_CONTENT)
@@ -98,6 +105,8 @@ async def delete_my_data(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """GDPR purge: delete this user's data across Postgres + Storage + Langfuse.
+
+    The login stays, so the user can keep using the app with an empty account.
 
     All three are best-effort and logged independently — a Storage or Langfuse
     failure does not prevent the Postgres deletion.
