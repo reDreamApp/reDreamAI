@@ -444,6 +444,35 @@ void main() {
     expect(find.text(_en.consentTitle), findsOneWidget);
   });
 
+  testWidgets('the nightmare frequency row opens its editor and saves', (
+    tester,
+  ) async {
+    final (app, api, _) = await _app(auth: FakeAuth(userId: 'user-1'));
+    api.on(
+      'PATCH /api/v1/profile/nightmare-frequency',
+      (_, body) => {
+        'gender': null,
+        'age_range': null,
+        'nightmare_frequency': body['nightmare_frequency'],
+      },
+    );
+    _tallPhone(tester);
+    await tester.pumpWidget(app);
+    await _settle(tester);
+    await tester.tap(find.byIcon(Icons.settings_outlined));
+    await _settle(tester);
+    expect(find.text('Rarely'), findsOneWidget);
+
+    await tester.tap(find.text(_en.settingsNightmareFrequency));
+    await _settle(tester);
+    await tester.tap(find.text('A few times a week'));
+    await tester.tap(find.text(_en.save));
+    await _settle(tester);
+
+    expect(api.calls, contains('PATCH /api/v1/profile/nightmare-frequency'));
+    expect(find.text('A few times a week'), findsOneWidget);
+  });
+
   testWidgets('dream details open from the journal', (tester) async {
     final (app, _, _) = await _app(auth: FakeAuth(userId: 'user-1'));
     _tallPhone(tester);

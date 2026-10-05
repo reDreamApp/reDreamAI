@@ -362,7 +362,7 @@
     }
   },
   "reminderTitle": "Daily reminder",
-  "reminderActiveAt": "A daily reminder is active at {time}.",
+  "reminderActiveAt": "Daily at {time}",
   "@reminderActiveAt": {
     "placeholders": {
       "time": {
@@ -370,7 +370,7 @@
       }
     }
   },
-  "reminderOff": "Enable to set a daily reminder at your preferred time. Disable to cancel.",
+  "reminderOff": "Off",
   "reminderSet": "Reminder set for {time}",
   "@reminderSet": {
     "placeholders": {
@@ -383,7 +383,6 @@
   "reminderNotificationTitle": "reDreamAI reminder",
   "reminderNotificationBody": "It's time to rehearse your dream.",
   "settingsTitle": "Profile & Settings",
-  "settingsIntro": "Manage your account preferences, notifications, and privacy settings",
   "settingsProfileSection": "Profile Information",
   "settingsEmail": "Email address",
   "settingsEmailError": "Error loading email",
@@ -398,14 +397,10 @@
   "settingsTheme": "Theme",
   "settingsThemeSubtitle": "Dark / light mode",
   "settingsPrivacySection": "Privacy & Security",
-  "settingsPrivacyTitle": "We protect your data",
-  "settingsPrivacyBody": "Manage your privacy preferences and data controls",
   "settingsExport": "Export my data",
   "settingsDeleteData": "Delete my data",
   "settingsDeleteAccount": "Delete account",
   "settingsSupportSection": "Support & Help",
-  "settingsSupportTitle": "Need help or want to talk to a human?",
-  "settingsSupportBody": "Find answers, contact support, or explore our resources",
   "settingsHelpCenter": "Help center",
   "settingsContact": "Contact support",
   "settingsPrivacyPolicy": "View privacy policy",
@@ -419,7 +414,6 @@
   },
   "settingsTagline": "A self-help companion for working with difficult dreams. reDreamAI does not diagnose or treat any condition — if nightmares are seriously distressing you, please talk to a doctor or psychotherapist.",
   "settingsSignOut": "Sign out",
-  "settingsSignOutSubtitle": "Sign out of your account",
   "changeEmailTitle": "Change email",
   "changeEmailHeading": "Update email address",
   "changeEmailBody": "Enter your new email address below. You will need to verify the new email address.",

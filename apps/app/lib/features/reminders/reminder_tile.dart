@@ -4,11 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:redream_app/core/utils/errors.dart';
 import 'package:redream_app/core/widgets/feedback.dart';
+import 'package:redream_app/core/widgets/icon_row.dart';
 import 'package:redream_app/features/reminders/reminder_state.dart';
 import 'package:redream_app/l10n/generated/app_localizations.dart';
 
 class ReminderTile extends StatefulWidget {
-  const ReminderTile({super.key});
+  const ReminderTile({super.key, this.color});
+
+  /// Tint of the icon tile, set by the settings section it sits in.
+  final Color? color;
 
   @override
   State<ReminderTile> createState() => _ReminderTileState();
@@ -56,21 +60,16 @@ class _ReminderTileState extends State<ReminderTile> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final state = context.watch<ReminderState>();
-    final scheme = Theme.of(context).colorScheme;
     final time = state.time;
-    return ListTile(
-      leading: Icon(
-        state.enabled
-            ? Icons.notifications_active_outlined
-            : Icons.notifications_off_outlined,
-        color: state.enabled ? scheme.primary : scheme.onSurfaceVariant,
-      ),
-      title: Text(l10n.reminderTitle),
-      subtitle: Text(
-        state.enabled && time != null
-            ? l10n.reminderActiveAt(time.format(context))
-            : l10n.reminderOff,
-      ),
+    return IconRow(
+      icon: state.enabled
+          ? Icons.notifications_active_outlined
+          : Icons.notifications_off_outlined,
+      color: widget.color,
+      title: l10n.reminderTitle,
+      subtitle: state.enabled && time != null
+          ? l10n.reminderActiveAt(time.format(context))
+          : l10n.reminderOff,
       trailing: Switch(value: state.enabled, onChanged: _toggle),
     );
   }

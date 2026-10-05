@@ -5,9 +5,11 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:redream_app/core/auth/auth_service.dart';
 import 'package:redream_app/core/settings/app_settings.dart';
+import 'package:redream_app/core/theme/app_theme.dart';
 import 'package:redream_app/core/utils/errors.dart';
 import 'package:redream_app/core/widgets/app_card.dart';
 import 'package:redream_app/core/widgets/feedback.dart';
+import 'package:redream_app/core/widgets/icon_row.dart';
 import 'package:redream_app/core/widgets/theme_mode_toggle.dart';
 import 'package:redream_app/features/consent/consent_state.dart';
 import 'package:redream_app/features/reminders/reminder_tile.dart';
@@ -111,6 +113,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ? l10n.settingsNotProvided
         : profileLabel(frequency, l10n);
 
+    const violet = BrandColors.violet;
+    const green = BrandColors.deepTeal;
+    final teal = scheme.primary;
+    final red = scheme.error;
+
     return Scaffold(
       appBar: AppBar(
         title: Row(
@@ -126,43 +133,43 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: RefreshIndicator(
         onRefresh: profile.refresh,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
           children: [
-            Text(l10n.settingsIntro, style: theme.textTheme.bodyMedium),
-            const SizedBox(height: 16),
             _Section(
               icon: Icons.person_outline,
               title: l10n.settingsProfileSection,
+              color: teal,
               children: [
-                ListTile(
-                  leading: const Icon(Icons.mail_outline),
-                  title: Text(l10n.settingsEmail),
-                  subtitle: Text(auth.email ?? l10n.settingsEmailError),
-                  trailing: const Icon(Icons.edit_outlined),
+                IconRow(
+                  icon: Icons.mail_outline,
+                  color: teal,
+                  title: l10n.settingsEmail,
+                  subtitle: auth.email ?? l10n.settingsEmailError,
+                  trailing: Icon(Icons.edit_outlined, color: teal),
                   onTap: () => _push(const ChangeEmailScreen()),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.lock_outline),
-                  title: Text(l10n.settingsPassword),
-                  subtitle: const Text('**********'),
-                  trailing: const Icon(Icons.edit_outlined),
+                IconRow(
+                  icon: Icons.lock_outline,
+                  color: teal,
+                  title: l10n.settingsPassword,
+                  subtitle: '**********',
+                  trailing: Icon(Icons.edit_outlined, color: teal),
                   onTap: () => _push(const ChangePasswordScreen()),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.nightlight_outlined),
-                  title: Text(l10n.settingsNightmareFrequency),
-                  subtitle: Text(frequencyText),
-                  trailing: TextButton(
-                    onPressed: _editFrequency,
-                    child: Text(l10n.edit),
-                  ),
+                IconRow(
+                  icon: Icons.nightlight_outlined,
+                  color: teal,
+                  title: l10n.settingsNightmareFrequency,
+                  subtitle: frequencyText,
+                  trailing: Icon(Icons.edit_outlined, color: teal),
+                  onTap: _editFrequency,
                 ),
                 if (profile.error case final err?)
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                    padding: const EdgeInsets.all(16),
                     child: Text(
                       describeError(err, l10n),
-                      style: TextStyle(color: scheme.error),
+                      style: TextStyle(color: red),
                     ),
                   ),
               ],
@@ -171,10 +178,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _Section(
               icon: Icons.settings_outlined,
               title: l10n.settingsAppSection,
+              color: violet,
               children: [
-                ListTile(
-                  leading: const Icon(Icons.language_outlined),
-                  title: Text(l10n.settingsLanguage),
+                IconRow(
+                  icon: Icons.language_outlined,
+                  color: violet,
+                  title: l10n.settingsLanguage,
                   trailing: DropdownButton<String>(
                     value: settings.language,
                     underline: const SizedBox.shrink(),
@@ -193,50 +202,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     },
                   ),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.brightness_6_outlined),
-                  title: Text(l10n.settingsTheme),
-                  subtitle: Text(l10n.settingsThemeSubtitle),
+                IconRow(
+                  icon: Icons.brightness_6_outlined,
+                  color: violet,
+                  title: l10n.settingsTheme,
                   trailing: const ThemeModeToggle(),
                 ),
-                const ReminderTile(),
+                const ReminderTile(color: violet),
               ],
             ),
             const SizedBox(height: 16),
             _Section(
               icon: Icons.privacy_tip_outlined,
               title: l10n.settingsPrivacySection,
-              color: scheme.error,
+              color: red,
               children: [
-                ListTile(
-                  leading: const Icon(Icons.shield_outlined),
-                  title: Text(l10n.settingsPrivacyTitle),
-                  subtitle: Text(l10n.settingsPrivacyBody),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.download_outlined),
-                  title: Text(l10n.settingsExport),
-                  trailing: const Icon(Icons.chevron_right),
+                IconRow(
+                  icon: Icons.download_outlined,
+                  color: red,
+                  title: l10n.settingsExport,
+                  trailing: const RowChevron(),
                   onTap: () => _push(const ExportDataScreen()),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.delete_sweep_outlined),
-                  title: Text(l10n.settingsDeleteData),
-                  trailing: const Icon(Icons.chevron_right),
+                IconRow(
+                  icon: Icons.delete_sweep_outlined,
+                  color: red,
+                  title: l10n.settingsDeleteData,
+                  trailing: const RowChevron(),
                   onTap: () => _push(const DeleteDataScreen()),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.gpp_maybe_outlined),
-                  title: Text(l10n.settingsWithdrawConsent),
-                  subtitle: Text(l10n.settingsWithdrawConsentSubtitle),
+                IconRow(
+                  icon: Icons.gpp_maybe_outlined,
+                  color: red,
+                  title: l10n.settingsWithdrawConsent,
+                  subtitle: l10n.settingsWithdrawConsentSubtitle,
                   onTap: _withdrawConsent,
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                  padding: const EdgeInsets.all(16),
                   child: OutlinedButton.icon(
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: scheme.error,
-                      side: BorderSide(color: scheme.error),
+                      foregroundColor: red,
+                      side: BorderSide(color: red),
                     ),
                     onPressed: () => _push(const DeleteAccountScreen()),
                     icon: const Icon(Icons.no_accounts_outlined),
@@ -249,26 +256,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _Section(
               icon: Icons.help_center_outlined,
               title: l10n.settingsSupportSection,
+              color: green,
               children: [
-                ListTile(
-                  leading: const Icon(Icons.support_agent_outlined),
-                  title: Text(l10n.settingsSupportTitle),
-                  subtitle: Text(l10n.settingsSupportBody),
-                ),
-                ListTile(
-                  leading: const Icon(Icons.menu_book_outlined),
-                  title: Text(l10n.settingsHelpCenter),
-                  trailing: const Icon(Icons.chevron_right),
+                IconRow(
+                  icon: Icons.menu_book_outlined,
+                  color: green,
+                  title: l10n.settingsHelpCenter,
+                  trailing: const RowChevron(),
                   onTap: () => _push(const HelpCenterScreen()),
                 ),
-                ListTile(
-                  leading: const Icon(Icons.mail_outline),
-                  title: Text(l10n.settingsContact),
-                  trailing: const Icon(Icons.chevron_right),
+                IconRow(
+                  icon: Icons.support_agent_outlined,
+                  color: green,
+                  title: l10n.settingsContact,
+                  trailing: const RowChevron(),
                   onTap: () => _push(const ContactSupportScreen()),
                 ),
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                  padding: const EdgeInsets.all(16),
                   child: OutlinedButton.icon(
                     onPressed: () => _push(const PrivacyPolicyScreen()),
                     icon: const Icon(Icons.policy_outlined),
@@ -295,14 +300,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 8),
             AppCard(
               padding: EdgeInsets.zero,
-              child: ListTile(
-                leading: Icon(Icons.logout, color: scheme.error),
-                title: Text(
-                  l10n.settingsSignOut,
-                  style: TextStyle(color: scheme.error),
-                ),
-                subtitle: Text(l10n.settingsSignOutSubtitle),
-                trailing: const Icon(Icons.chevron_right),
+              child: IconRow(
+                icon: Icons.logout,
+                color: red,
+                title: l10n.settingsSignOut,
+                titleColor: red,
+                trailing: const RowChevron(),
                 onTap: _signOut,
               ),
             ),
@@ -313,45 +316,53 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 }
 
+/// A card of rows under a header band tinted in the section's colour.
 class _Section extends StatelessWidget {
   const _Section({
     required this.icon,
     required this.title,
+    required this.color,
     required this.children,
-    this.color,
   });
 
   final IconData icon;
   final String title;
+  final Color color;
   final List<Widget> children;
-  final Color? color;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
     return AppCard(
       padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-            child: Row(
-              children: [
-                Icon(icon, color: color ?? theme.colorScheme.primary),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
+          ColoredBox(
+            color: Color.alphaBlend(
+              color.withValues(alpha: dark ? 0.22 : 0.13),
+              theme.colorScheme.surface,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              child: Row(
+                children: [
+                  Icon(icon, color: color),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-          ...children,
+          for (final child in children) ...[const Divider(height: 1), child],
         ],
       ),
     );

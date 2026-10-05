@@ -7,6 +7,7 @@ import 'package:redream_app/core/utils/errors.dart';
 import 'package:redream_app/core/widgets/app_button.dart';
 import 'package:redream_app/core/widgets/app_card.dart';
 import 'package:redream_app/core/widgets/feedback.dart';
+import 'package:redream_app/core/widgets/icon_row.dart';
 import 'package:redream_app/features/chat/chat_state.dart';
 import 'package:redream_app/features/home/irt_guide_screen.dart';
 import 'package:redream_app/features/home/progress_models.dart';
@@ -426,29 +427,10 @@ class _Shortcut extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final brand = BrandTheme.of(context);
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            IconTile(icon: icon, size: 40),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                label,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-            Icon(Icons.chevron_right_rounded, color: brand.muted),
-          ],
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => IconRow(
+    icon: icon,
+    title: label,
+    trailing: const RowChevron(),
+    onTap: onTap,
+  );
 }
