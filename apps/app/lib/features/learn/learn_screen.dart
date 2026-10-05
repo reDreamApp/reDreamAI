@@ -8,14 +8,17 @@ import 'package:redream_app/features/learn/articles_service.dart';
 import 'package:redream_app/l10n/generated/app_localizations.dart';
 
 class LearnScreen extends StatefulWidget {
-  const LearnScreen({super.key});
+  const LearnScreen({super.key, this.service});
+
+  /// Replaces the website client in tests.
+  final ArticlesService? service;
 
   @override
   State<LearnScreen> createState() => _LearnScreenState();
 }
 
 class _LearnScreenState extends State<LearnScreen> {
-  final _service = ArticlesService();
+  late final ArticlesService _service = widget.service ?? ArticlesService();
   late Future<List<Article>> _future;
   String? _language;
 
@@ -58,17 +61,12 @@ class _LearnScreenState extends State<LearnScreen> {
               ),
             );
           }
-          final articles = snap.data ?? const <Article>[];
+          final articles = [Article.ownStudy(l10n), ...?snap.data];
           return RefreshIndicator(
             onRefresh: _reload,
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                if (articles.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(l10n.learnEmpty, textAlign: TextAlign.center),
-                  ),
                 for (final article in articles)
                   AppCard(
                     margin: const EdgeInsets.only(bottom: 12),
