@@ -109,17 +109,16 @@ class _ShellScaffoldState extends State<_ShellScaffold> {
                     onPressed: Scaffold.of(ctx).openDrawer,
                   ),
                 )
-              : null,
-          title: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const BrandLogo(height: 34),
-              const SizedBox(width: 10),
-              Flexible(
-                child: Text(l10n.appTitle, overflow: TextOverflow.ellipsis),
-              ),
-            ],
-          ),
+              // The session tab has the chat menu in this corner instead.
+              : const Padding(
+                  padding: EdgeInsets.only(left: 16),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: BrandMark(),
+                  ),
+                ),
+          centerTitle: true,
+          title: const BrandWordmark(),
           actions: [
             const ThemeModeToggle(),
             IconButton(

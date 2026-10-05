@@ -53,9 +53,13 @@ class _UserScopeState extends State<UserScope> {
           ),
         ),
         ChangeNotifierProvider(
-          create: (_) => ChatState(
+          create: (ctx) => ChatState(
             services.chat,
             voiceRecorder: services.voiceRecorder?.call(),
+            onSessionDone: () {
+              unawaited(ctx.read<JournalState>().refresh());
+              unawaited(ctx.read<ProgressState>().refresh());
+            },
           ),
         ),
         ChangeNotifierProvider(create: (_) => ProfileState(services.profile)),

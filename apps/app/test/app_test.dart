@@ -125,7 +125,7 @@ void main() {
     await tester.pumpWidget(app);
     await _settle(tester);
 
-    expect(find.text('Transform Your Nightmares'), findsOneWidget);
+    expect(find.text('Transform your Dreams'), findsOneWidget);
     await tester.enterText(find.byType(TextFormField).at(0), 'me@example.com');
     await tester.enterText(find.byType(TextFormField).at(1), 'secret1');
     await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
@@ -183,6 +183,26 @@ void main() {
     await _settle(tester);
     expect(find.text('Flying'), findsNothing);
     expect(find.text('Lost in Dark Forest'), findsOneWidget);
+  });
+
+  testWidgets('the top bar shows the cloud except where the chat menu sits', (
+    tester,
+  ) async {
+    final (app, _, settings) = await _app(auth: FakeAuth(userId: 'user-1'));
+    await settings.setLanguage('de');
+    _tallPhone(tester);
+    await tester.pumpWidget(app);
+    await _settle(tester);
+
+    expect(find.byType(BrandMark), findsOneWidget);
+    expect(find.text('reDreamAI', findRichText: true), findsOneWidget);
+    // The slogan stays English in the German app.
+    expect(find.text('Transform your Dreams'), findsOneWidget);
+
+    await tester.tap(find.text('Sitzung'));
+    await _settle(tester);
+    expect(find.byType(BrandMark), findsNothing);
+    expect(find.byIcon(Icons.menu), findsOneWidget);
   });
 
   testWidgets('session tab sends a message and renders the reply', (
@@ -497,12 +517,23 @@ void main() {
 
     await tester.tap(find.text('Session'));
     await _settle(tester);
+    int loads(String path) => api.calls.where((c) => c == 'GET $path').length;
+    const reloaded = [
+      '/api/v1/chats',
+      '/api/v1/dreams',
+      '/api/v1/progress/stats',
+    ];
+    final before = [for (final path in reloaded) loads(path)];
     await tester.enterText(find.byType(TextField).last, 'yes, done');
     await _settle(tester);
     await tester.tap(find.byIcon(Icons.send_rounded));
     await _settle(tester);
 
     expect(find.text('Thank you for this session.'), findsOneWidget);
+    // The session created a dream: sessions, journal and progress reload.
+    expect([for (final path in reloaded) loads(path)], [
+      for (final n in before) n + 1,
+    ]);
     expect(find.text(_en.chatIntensityPrompt), findsOneWidget);
     await tester.tap(find.widgetWithText(FilledButton, _en.submit));
     await _settle(tester);

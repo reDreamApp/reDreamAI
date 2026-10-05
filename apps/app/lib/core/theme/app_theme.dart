@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 /// Brand palette shared with the website.
 class BrandColors {
   static const turquoise = Color(0xFF18D9EA);
+
+  /// The turquoise of the logo's cloud and wordmark.
+  static const logo = Color(0xFF42D5F0);
   static const teal = Color(0xFF0E9BB6);
   static const deepTeal = Color(0xFF2A9D8F);
   static const violet = Color(0xFF6366F1);
@@ -225,13 +228,16 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: surfaceVariant,
-        border: OutlineInputBorder(
+        // Not an outline border: that one floats the label onto the top
+        // edge, which without a visible outline reads as "above the field".
+        // This one keeps the floating label inside the filled shape.
+        border: UnderlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: BorderSide.none,
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
-          vertical: 14,
+          vertical: 10,
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(

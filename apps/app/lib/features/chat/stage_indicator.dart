@@ -48,21 +48,27 @@ class StageIndicator extends StatelessWidget {
           children: [
             for (var i = 0; i < path.length; i++)
               Expanded(
-                child: Text(
-                  path[i].label(l10n),
-                  textAlign: i == 0
-                      ? TextAlign.left
+                // A long label ("Zusammenfassung") shrinks instead of being
+                // cut off.
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: i == 0
+                      ? Alignment.centerLeft
                       : (i == path.length - 1
-                            ? TextAlign.right
-                            : TextAlign.center),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: i == index ? FontWeight.w600 : FontWeight.w400,
-                    color: i <= index
-                        ? scheme.onSurface
-                        : scheme.onSurfaceVariant,
+                            ? Alignment.centerRight
+                            : Alignment.center),
+                  child: Text(
+                    path[i].label(l10n),
+                    maxLines: 1,
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: i == index
+                          ? FontWeight.w600
+                          : FontWeight.w400,
+                      color: i <= index
+                          ? scheme.onSurface
+                          : scheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
               ),

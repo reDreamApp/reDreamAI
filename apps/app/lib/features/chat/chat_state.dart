@@ -8,8 +8,15 @@ import 'package:redream_app/features/chat/chat_service.dart';
 import 'package:redream_app/features/chat/voice_recorder.dart';
 
 class ChatState extends ChangeNotifier {
-  ChatState(this._service, {IVoiceRecorder? voiceRecorder})
-    : _recorder = voiceRecorder;
+  ChatState(
+    this._service, {
+    IVoiceRecorder? voiceRecorder,
+    this.onSessionDone,
+  }) : _recorder = voiceRecorder;
+
+  /// Called when a session finishes live: the backend has just created its
+  /// dream, so journal and progress need a reload.
+  final VoidCallback? onSessionDone;
 
   /// [errorMessage] values the UI localizes instead of showing verbatim.
   static const offline = 'offline';
@@ -527,6 +534,12 @@ class ChatState extends ChangeNotifier {
             _stage = stage;
             _isDone = isDone;
             terminal = true;
+            if (isDone) {
+              // The list still holds this chat as unfinished; the home
+              // screen counts finished sessions from it.
+              unawaited(loadChats());
+              onSessionDone?.call();
+            }
           case SafetyEventEvent(:final safetyEvent):
             // Mandatory helpline handling (ADR 0005): surface the event; no
             // AI turn happened and the stage does NOT advance.
