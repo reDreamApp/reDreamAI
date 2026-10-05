@@ -144,10 +144,9 @@ void main() {
 
     expect(find.text('Begin Session'), findsOneWidget);
     expect(find.text('2 days'), findsOneWidget);
-    expect(
-      find.textContaining('Focus dream: Lost in Dark Forest'),
-      findsOneWidget,
-    );
+    for (final shortcut in ['Daily rehearsal', 'Rewriting Guide', 'Learn']) {
+      expect(find.text(shortcut), findsOneWidget);
+    }
     expect(
       api.calls,
       containsAll(['GET /api/v1/dreams', 'GET /api/v1/progress/stats']),
@@ -165,7 +164,7 @@ void main() {
     await tester.tap(find.text('Nightmares'));
     await _settle(tester);
     expect(find.text('Flying'), findsNothing);
-    expect(find.text('Showing 1 of 2 entries'), findsOneWidget);
+    expect(find.text('Lost in Dark Forest'), findsOneWidget);
   });
 
   testWidgets('session tab sends a message and renders the reply', (

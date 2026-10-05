@@ -81,10 +81,27 @@ class DreamCard extends StatelessWidget {
     final practicable = dream.isNightmare && dream.hasRewrite;
     final focus = dream.isCurrentDream && dream.hasRewrite;
 
+    // Soft backdrop by kind, from the two ends of the brand gradient: violet
+    // for nightmares, turquoise for other dreams.
+    final (tintFrom, tintTo) = dream.isNightmare
+        ? (BrandColors.deepViolet, BrandColors.violet)
+        : (BrandColors.turquoise, BrandColors.deepTeal);
+    final dark = theme.brightness == Brightness.dark;
+    Color tint(Color color, double amount) =>
+        Color.alphaBlend(color.withValues(alpha: amount), scheme.surface);
+
     return AppCard(
       margin: const EdgeInsets.only(bottom: 16),
       padding: EdgeInsets.zero,
-      borderColor: focus ? scheme.primary : null,
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          tint(tintFrom, dark ? 0.22 : 0.13),
+          tint(tintTo, dark ? 0.22 : 0.13),
+        ],
+      ),
+      borderColor: focus ? scheme.primary : tint(tintFrom, dark ? 0.5 : 0.35),
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute<void>(
@@ -179,7 +196,9 @@ class DreamCard extends StatelessWidget {
                             minHeight: 8,
                             value: (dream.practiceCount / Dream.practiceTarget)
                                 .clamp(0, 1),
-                            backgroundColor: scheme.surfaceContainerHighest,
+                            backgroundColor: scheme.surface.withValues(
+                              alpha: 0.7,
+                            ),
                             color: brand.inverseSurface,
                           ),
                         ),
@@ -280,7 +299,10 @@ class _PracticeDots extends StatelessWidget {
             height: 10,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: i < count ? BrandColors.turquoise : scheme.outline,
+              // Translucent, so open dots stay visible on either card tint.
+              color: i < count
+                  ? BrandColors.turquoise
+                  : scheme.onSurface.withValues(alpha: 0.16),
             ),
           ),
       ],

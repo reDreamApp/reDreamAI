@@ -26,6 +26,7 @@ class BrandTheme extends ThemeExtension<BrandTheme> {
     required this.onUserBubble,
     required this.accentGradient,
     required this.headlineGradient,
+    required this.heroGradient,
   });
 
   final Color cardBorder;
@@ -40,6 +41,9 @@ class BrandTheme extends ThemeExtension<BrandTheme> {
   final LinearGradient accentGradient;
   final LinearGradient headlineGradient;
 
+  /// Backdrop of illustrations, as on the cards of the first app version.
+  final LinearGradient heroGradient;
+
   static const light = BrandTheme(
     cardBorder: Color(0xFFE5E7EB),
     muted: Color(0xFF6B7280),
@@ -53,6 +57,11 @@ class BrandTheme extends ThemeExtension<BrandTheme> {
     accentGradient: _accent,
     headlineGradient: LinearGradient(
       colors: [BrandColors.teal, BrandColors.deepTeal],
+    ),
+    heroGradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFFA7AFF3), Color(0xFF84E4F0)],
     ),
   );
 
@@ -69,6 +78,11 @@ class BrandTheme extends ThemeExtension<BrandTheme> {
     accentGradient: _accent,
     headlineGradient: LinearGradient(
       colors: [BrandColors.turquoise, Color(0xFF3FC1B0)],
+    ),
+    heroGradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [Color(0xFF3B4387), Color(0xFF187884)],
     ),
   );
 
@@ -113,6 +127,7 @@ class BrandTheme extends ThemeExtension<BrandTheme> {
         other.headlineGradient,
         t,
       )!,
+      heroGradient: LinearGradient.lerp(heroGradient, other.heroGradient, t)!,
     );
   }
 }

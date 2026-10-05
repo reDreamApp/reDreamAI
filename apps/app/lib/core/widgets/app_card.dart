@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 import 'package:redream_app/core/theme/app_theme.dart';
 
-/// Bordered surface card. [highlight] uses the tinted "call to action" look.
+/// Bordered surface card. [highlight] uses the tinted "call to action" look;
+/// [gradient] replaces the flat surface colour.
 class AppCard extends StatelessWidget {
   const AppCard({
     required this.child,
@@ -11,6 +12,7 @@ class AppCard extends StatelessWidget {
     this.margin,
     this.highlight = false,
     this.borderColor,
+    this.gradient,
     this.onTap,
   });
 
@@ -19,6 +21,7 @@ class AppCard extends StatelessWidget {
   final EdgeInsetsGeometry? margin;
   final bool highlight;
   final Color? borderColor;
+  final Gradient? gradient;
   final VoidCallback? onTap;
 
   @override
@@ -29,9 +32,12 @@ class AppCard extends StatelessWidget {
     return Container(
       margin: margin,
       decoration: BoxDecoration(
-        color: highlight
+        color: gradient != null
+            ? null
+            : highlight
             ? brand.highlightSurface
             : Theme.of(context).colorScheme.surface,
+        gradient: gradient,
         borderRadius: radius,
         border: Border.all(
           color:

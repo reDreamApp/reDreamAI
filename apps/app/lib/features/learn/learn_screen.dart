@@ -40,6 +40,7 @@ class _LearnScreenState extends State<LearnScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
     return Scaffold(
       appBar: AppBar(title: Text(l10n.learnTitle)),
       body: FutureBuilder<List<Article>>(
@@ -96,6 +97,21 @@ class _LearnScreenState extends State<LearnScreen> {
                         FilterChip(
                           avatar: _Dot(color: tagColor(tag)),
                           label: Text(tag),
+                          labelStyle: TextStyle(
+                            color: tagInk(tag, theme.brightness),
+                            fontWeight: FontWeight.w600,
+                          ),
+                          backgroundColor: tagColor(
+                            tag,
+                          ).withValues(alpha: dark ? 0.16 : 0.12),
+                          selectedColor: tagColor(
+                            tag,
+                          ).withValues(alpha: dark ? 0.45 : 0.35),
+                          side: BorderSide(
+                            color: tagColor(tag).withValues(
+                              alpha: tag.toLowerCase() == selected ? 1 : 0.5,
+                            ),
+                          ),
                           showCheckmark: false,
                           selected: tag.toLowerCase() == selected,
                           onSelected: (on) =>
@@ -176,7 +192,8 @@ class TagRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dark = Theme.of(context).brightness == Brightness.dark;
+    final brightness = Theme.of(context).brightness;
+    final dark = brightness == Brightness.dark;
     return Wrap(
       spacing: 6,
       runSpacing: 6,
@@ -192,6 +209,7 @@ class TagRow extends StatelessWidget {
             child: Text(
               tag,
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: tagInk(tag, brightness),
                 fontWeight: FontWeight.w600,
               ),
             ),

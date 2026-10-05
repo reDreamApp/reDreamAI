@@ -103,61 +103,18 @@
   "freqRarely": "Rarely",
   "freqNever": "Never",
   "homeHeadline": "Transform Your Nightmares",
-  "homeMission": "Rewrite difficult dreams into new stories and practice them for calmer nights",
-  "homeStartTitle": "Start a session",
   "homeStartBody": "Our AI can transform your dreams and help you sleep well!",
   "homeBeginSession": "Begin Session",
   "homeProgressTitle": "Your Progress",
-  "homeProgressSubtitle": "Your dream journal at a glance",
-  "homeViewJournal": "View Journal",
   "statStreak": "Streak",
   "statDreams": "Dreams",
   "statSessions": "Sessions",
+  "statIntensity": "Avg. intensity",
   "statDays": "{count, plural, =1{1 day} other{{count} days}}",
   "@statDays": {
     "placeholders": {
       "count": {
         "type": "int"
-      }
-    }
-  },
-  "homeWeeklyProgress": "Weekly Progress",
-  "homeSessionsThisWeek": "{count}/{total} sessions this week",
-  "@homeSessionsThisWeek": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      },
-      "total": {
-        "type": "int"
-      }
-    }
-  },
-  "homeJournalStatus": "Dream Journal Status",
-  "homeJournalStatusBody": "{nightmares, plural, =0{No nightmares logged yet.} =1{1 nightmare logged, {transformed} transformed.} other{{nightmares} nightmares logged, {transformed} transformed.}}",
-  "@homeJournalStatusBody": {
-    "placeholders": {
-      "nightmares": {
-        "type": "int"
-      },
-      "transformed": {
-        "type": "int"
-      }
-    }
-  },
-  "homeFocusDream": "Focus dream: {title}",
-  "@homeFocusDream": {
-    "placeholders": {
-      "title": {
-        "type": "String"
-      }
-    }
-  },
-  "homeAvgIntensity": "Avg. nightmare intensity: {value}",
-  "@homeAvgIntensity": {
-    "placeholders": {
-      "value": {
-        "type": "String"
       }
     }
   },
@@ -178,14 +135,8 @@
   "moodSatisfied": "Satisfied",
   "moodVerySatisfied": "Very satisfied",
   "homePracticeTitle": "Daily rehearsal",
-  "homePracticeBody": "Jump back into your current dream rehearsal. Practice daily for best results.",
-  "homePracticeButton": "Practice",
   "homeGuideTitle": "Rewriting Guide",
-  "homeGuideBody": "A quick guide to recording, rewriting, and rehearsing your dreams",
-  "homeGuideButton": "Open guide",
   "homeLearnTitle": "Learn",
-  "homeLearnBody": "Articles about sleep, dreams and the ideas behind rewriting them.",
-  "homeLearnButton": "Browse articles",
   "guideWelcomeTitle": "Welcome to the Rewriting Guide",
   "guideWelcomeBody": "This guide walks you through the three steps: identify, rewrite, rehearse.",
   "guideStep1Title": "Step 1: Identify Your Nightmare",
@@ -253,23 +204,11 @@
   "budgetExceededTitle": "Daily limit reached",
   "budgetExceededBody": "You've reached today's chat limit. It resets at midnight UTC.",
   "journalTitle": "Dream Journal",
-  "journalSubtitle": "Practice your transformed dreams and track your progress",
   "journalAddDream": "Add Dream manually",
   "journalNotifications": "Notifications",
   "filterAll": "All",
   "filterDreams": "Dreams",
   "filterNightmares": "Nightmares",
-  "journalShowing": "Showing {count} of {total} entries",
-  "@journalShowing": {
-    "placeholders": {
-      "count": {
-        "type": "int"
-      },
-      "total": {
-        "type": "int"
-      }
-    }
-  },
   "journalEmpty": "No dreams yet. Add one manually or start a session.",
   "journalIntensity": "Intensity: {value}/10",
   "@journalIntensity": {

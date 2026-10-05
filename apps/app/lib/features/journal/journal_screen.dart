@@ -87,13 +87,7 @@ class _JournalScreenState extends State<JournalScreen> {
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            l10n.journalSubtitle,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodyLarge?.copyWith(color: brand.muted),
-          ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           // Both buttons keep their full labels: on a narrow screen or with
           // long translations the row shrinks as a whole instead of cutting
           // the text off.
@@ -139,11 +133,6 @@ class _JournalScreenState extends State<JournalScreen> {
                   onSelected: (_) => setState(() => _filter = f),
                 ),
             ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            l10n.journalShowing(shown.length, all.length),
-            style: theme.textTheme.bodySmall?.copyWith(color: brand.muted),
           ),
           const SizedBox(height: 16),
           if (journal.loading && all.isEmpty)
