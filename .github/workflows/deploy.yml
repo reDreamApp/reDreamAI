@@ -57,7 +57,10 @@ jobs:
 
       - name: Apply pending migrations (before the new code starts)
         run: |
-          ssh -i ~/.ssh/id_ed25519 -p "${{ secrets.SCALEWAY_PORT }}" "${{ secrets.SCALEWAY_USER }}@${{ secrets.SCALEWAY_HOST }}" <<'EOF'
+          # "bash -ls" as the command: a login without a command makes the
+          # server print its login message (OS version, pending updates)
+          # into this log. The script still runs in a login shell.
+          ssh -i ~/.ssh/id_ed25519 -p "${{ secrets.SCALEWAY_PORT }}" "${{ secrets.SCALEWAY_USER }}@${{ secrets.SCALEWAY_HOST }}" bash -ls <<'EOF'
             set -euo pipefail
             cd /srv/redreamai
             # SUPABASE_DB_URL lives only on the host (infra/env/ is never rsynced).
@@ -70,7 +73,7 @@ jobs:
 
       - name: docker compose up
         run: |
-          ssh -i ~/.ssh/id_ed25519 -p "${{ secrets.SCALEWAY_PORT }}" "${{ secrets.SCALEWAY_USER }}@${{ secrets.SCALEWAY_HOST }}" <<'EOF'
+          ssh -i ~/.ssh/id_ed25519 -p "${{ secrets.SCALEWAY_PORT }}" "${{ secrets.SCALEWAY_USER }}@${{ secrets.SCALEWAY_HOST }}" bash -ls <<'EOF'
             set -euo pipefail
             cd /srv/redreamai/infra
             docker compose up -d --build
