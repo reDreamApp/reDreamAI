@@ -19,7 +19,7 @@ extension IrtStageLabel on IrtStage {
 const List<Color> stageColors = [
   Color(0xFF8B5CF6),
   BrandColors.turquoise,
-  Color(0xFF22B573),
+  BrandColors.green,
   Color(0xFFF6C51B),
 ];
 

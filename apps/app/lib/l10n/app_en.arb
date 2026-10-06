@@ -218,17 +218,29 @@
       }
     }
   },
-  "journalPracticed": "{count} practiced | {remaining} remaining",
+  "journalPracticed": "{count} / {target} practiced",
   "@journalPracticed": {
     "placeholders": {
       "count": {
         "type": "int"
       },
-      "remaining": {
+      "target": {
         "type": "int"
       }
     }
   },
+  "journalPracticedAll": "{count} / {target} practiced!",
+  "@journalPracticedAll": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "target": {
+        "type": "int"
+      }
+    }
+  },
+  "journalDailyDone": "Daily rehearsal",
   "journalPracticeDream": "Practice Dream",
   "journalSetFocus": "Set as focus dream",
   "journalFocusLabel": "Focus dream",
@@ -266,22 +278,15 @@
   "detailDream": "Dream",
   "detailSwipeHint": "Swipe to switch between rewritten and original",
   "detailChatHistory": "Chat History",
-  "detailStartPractice": "Start Practice",
+  "detailListen": "Listen",
+  "detailRehearsalHint": "Read your new dream slowly and picture it.",
+  "detailRehearsalDone": "You did your daily rehearsal!",
+  "detailMeditation": "Close your eyes and stay in this scene for a moment.",
+  "detailMeditation2": "Close your eyes and picture the new ending.",
+  "detailMeditation3": "Take a slow breath and let this scene play out in your mind.",
+  "detailMeditation4": "Close your eyes and notice how this version feels.",
   "detailNoChatHistory": "No chat history available for this dream.",
-  "detailChoosePractice": "Choose your practice",
-  "detailChoosePracticeBody": "Pick a style that feels right today",
-  "practiceReadingTitle": "Reading rehearsal",
-  "practiceReadingBody": "Guided text practice with your rewritten dream",
   "practiceAudioTitle": "Audio rehearsal",
-  "practiceAudioBody": "Listen and rehearse with audio guidance",
-  "practiceWelcomeTitle": "Welcome to the Guided Rehearsal",
-  "practiceWelcomeBody": "This guide walks you through rehearsing your rewritten dream, step by step.",
-  "practiceStep1Title": "Step 1: Read through your rewritten dream",
-  "practiceStep1Body": "Read the transformed dream carefully and imagine how relieved you would feel if this was the version you dreamed. Swipe to the next page to see your rewritten dream.",
-  "practiceStep2Title": "Step 2: Close your eyes and visualise",
-  "practiceStep2Body": "With your eyes closed, imagine and visualise the dream with the good ending in mind. Make it as vivid as you can.",
-  "practiceStep3Title": "Step 3: Pat yourself on the shoulder",
-  "practiceStep3Body": "After 5 minutes or so feel free to stop and notice how good and in control of your dreams you feel. Tap Done to record this practice.",
   "practiceSavedOffline": "You're offline. This practice is saved on your device and will sync automatically when you're back online.",
   "practiceAlreadyToday": "Today's practice is already recorded.",
   "practiceSaveFailed": "Failed to save practice: {error}",

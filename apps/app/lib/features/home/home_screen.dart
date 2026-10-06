@@ -12,8 +12,8 @@ import 'package:redream_app/features/chat/chat_state.dart';
 import 'package:redream_app/features/home/irt_guide_screen.dart';
 import 'package:redream_app/features/home/progress_models.dart';
 import 'package:redream_app/features/home/progress_state.dart';
+import 'package:redream_app/features/journal/dream_detail_screen.dart';
 import 'package:redream_app/features/journal/journal_state.dart';
-import 'package:redream_app/features/journal/practice_chooser.dart';
 import 'package:redream_app/features/learn/learn_screen.dart';
 import 'package:redream_app/features/shell/shell_tabs.dart';
 import 'package:redream_app/l10n/generated/app_localizations.dart';
@@ -67,7 +67,13 @@ class HomeScreen extends StatelessWidget {
                   onTap: () {
                     final focus = context.read<JournalState>().focusDream;
                     if (focus != null && focus.canPractice) {
-                      unawaited(showPracticeChooser(context, focus));
+                      unawaited(
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => DreamDetailScreen(dream: focus),
+                          ),
+                        ),
+                      );
                     } else {
                       tabs.select(ShellTab.journal);
                     }

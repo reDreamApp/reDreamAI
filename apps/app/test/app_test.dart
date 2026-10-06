@@ -13,6 +13,7 @@ import 'package:redream_app/core/theme/app_theme.dart';
 import 'package:redream_app/core/widgets/brand_logo.dart';
 import 'package:redream_app/core/widgets/theme_mode_toggle.dart';
 import 'package:redream_app/features/chat/voice_recorder.dart';
+import 'package:redream_app/features/journal/dream_detail_screen.dart';
 import 'package:redream_app/features/reminders/notification_service.dart';
 import 'package:redream_app/features/settings/profile.dart';
 import 'package:redream_app/l10n/generated/app_localizations_de.dart';
@@ -59,7 +60,12 @@ Future<(Widget, FakeApi, AppSettings)> _app({
     ..on(
       'GET /api/v1/dreams',
       (_, _) => [
-        dreamJson(1, current: true, practices: ['2025-11-03T10:00:00Z']),
+        dreamJson(
+          1,
+          current: true,
+          practices: ['2025-11-03T10:00:00Z'],
+          sessionId: '3',
+        ),
         dreamJson(
           2,
           title: 'Flying',
@@ -203,7 +209,10 @@ void main() {
     expect(find.text('Dream Journal'), findsOneWidget);
     expect(find.text('Lost in Dark Forest'), findsOneWidget);
     expect(find.text('Intensity: 8/10'), findsOneWidget);
-    expect(find.text('1 practiced | 13 remaining'), findsOneWidget);
+    expect(find.text('1 / 14 practiced'), findsOneWidget);
+    // Not practiced today: no daily mark, and a single progress display.
+    expect(find.text(_en.journalDailyDone), findsNothing);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
     expect(find.text('Practice Dream'), findsOneWidget);
     expect(find.text('Flying'), findsOneWidget);
 
@@ -645,6 +654,127 @@ void main() {
     await _settle(tester);
     expect(tester.takeException(), isNull);
     expect(find.text('Flying'), findsWidgets);
+  });
+
+  testWidgets("the journal card shows the practices and today's rehearsal", (
+    tester,
+  ) async {
+    final (app, api, _) = await _app(auth: FakeAuth(userId: 'user-1'));
+    final today = DateTime.now().toUtc().toIso8601String();
+    api.on(
+      'GET /api/v1/dreams',
+      (_, _) => [
+        dreamJson(1, practices: ['2025-11-03T10:00:00Z', today]),
+        dreamJson(
+          2,
+          title: 'All done',
+          practices: [
+            for (var day = 1; day <= 13; day++)
+              '2025-10-${day.toString().padLeft(2, '0')}T10:00:00Z',
+            today,
+          ],
+        ),
+      ],
+    );
+    _tallPhone(tester);
+    await tester.pumpWidget(app);
+    await _settle(tester);
+    await tester.tap(find.text('Journal'));
+    await _settle(tester);
+
+    Color? colorOf(String text) =>
+        tester.widget<Text>(find.text(text)).style?.color;
+    expect(colorOf('2 / 14 practiced'), isNot(BrandColors.green));
+    expect(colorOf('14 / 14 practiced!'), BrandColors.green);
+    expect(find.text(_en.journalDailyDone), findsNWidgets(2));
+    expect(find.byIcon(Icons.check_circle_rounded), findsNWidgets(2));
+
+    // The dots run from edge to edge; today's is the green one.
+    final card = find
+        .ancestor(
+          of: find.text('2 / 14 practiced'),
+          matching: find.byType(Column),
+        )
+        .first;
+    final dots = tester
+        .widgetList<Container>(
+          find.descendant(of: card, matching: find.byType(Container)),
+        )
+        .where(
+          (c) => (c.decoration as BoxDecoration?)?.shape == BoxShape.circle,
+        )
+        .toList();
+    expect(dots, hasLength(14));
+    Color? dot(int i) => (dots[i].decoration! as BoxDecoration).color;
+    expect(dot(0), BrandColors.turquoise);
+    expect(dot(1), BrandColors.green);
+    expect(dot(2), isNot(BrandColors.turquoise));
+    final row = find
+        .ancestor(
+          of: find.byWidget(dots.first),
+          matching: find.byType(Row),
+        )
+        .first;
+    final text = find.text('2 / 14 practiced');
+    expect(
+      tester.getTopLeft(find.byWidget(dots.first)).dx,
+      closeTo(tester.getTopLeft(text).dx, 0.01),
+    );
+    expect(
+      tester.getTopRight(find.byWidget(dots.last)).dx,
+      closeTo(tester.getTopRight(row).dx, 0.01),
+    );
+  });
+
+  testWidgets('staying on the rewritten dream records a practice', (
+    tester,
+  ) async {
+    final (app, api, _) = await _app(auth: FakeAuth(userId: 'user-1'));
+    const practice = 'POST /api/v1/dreams/1/practice';
+    api.on(
+      practice,
+      (_, _) => dreamJson(
+        1,
+        current: true,
+        practices: [
+          '2025-11-03T10:00:00Z',
+          DateTime.now().toUtc().toIso8601String(),
+        ],
+      ),
+    );
+    _tallPhone(tester);
+    await tester.pumpWidget(app);
+    await _settle(tester);
+    await tester.tap(find.text('Journal'));
+    await _settle(tester);
+
+    // The practice button opens the dream itself, with audio one tap away.
+    await tester.tap(find.text('Practice Dream'));
+    await _settle(tester);
+    expect(find.text('I found the way home.'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, _en.detailListen), findsOneWidget);
+    expect(find.text(_en.detailRehearsalHint), findsOneWidget);
+    expect(find.text(_en.detailMeditation2), findsOneWidget);
+    // Chat history sits left of the audio button.
+    expect(
+      tester.getCenter(find.text(_en.detailChatHistory)).dx,
+      lessThan(tester.getCenter(find.text(_en.detailListen)).dx),
+    );
+
+    // Looking at the original does not count as rehearsing.
+    await tester.drag(find.byType(PageView), const Offset(-600, 0));
+    await tester.pump(const Duration(seconds: 40));
+    expect(api.calls, isNot(contains(practice)));
+
+    await tester.drag(find.byType(PageView), const Offset(600, 0));
+    await tester.pumpAndSettle();
+    for (var i = 0; i < rehearsalSeconds('I found the way home.'); i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    await _settle(tester);
+
+    expect(api.calls.where((c) => c == practice), hasLength(1));
+    expect(find.text(_en.detailRehearsalDone), findsOneWidget);
   });
 
   testWidgets('a finished session asks for the intensity rating', (

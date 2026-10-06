@@ -8,6 +8,7 @@ class BrandColors {
   static const logo = Color(0xFF42D5F0);
   static const teal = Color(0xFF0E9BB6);
   static const deepTeal = Color(0xFF2A9D8F);
+  static const green = Color(0xFF22B573);
   static const violet = Color(0xFF6366F1);
   static const deepViolet = Color(0xFF7C3AED);
   static const flame = Color(0xFFFF6F00);

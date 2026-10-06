@@ -59,7 +59,7 @@ log = logging.getLogger(__name__)
 
 # The ported prompts carry no version constant; stamp the wire contract's required
 # `prompt_version` with the ported prompt lineage so callers can pin behaviour.
-PROMPT_VERSION = "irt-recording-pace-2026-10-06"
+PROMPT_VERSION = "irt-complete-summary-2026-10-06"
 
 
 async def get_llm_client() -> NoReturn:

@@ -10,10 +10,34 @@ import 'package:redream_app/features/journal/dream.dart';
 import 'package:redream_app/features/journal/dream_detail_screen.dart';
 import 'package:redream_app/features/journal/dream_editor_screen.dart';
 import 'package:redream_app/features/journal/journal_state.dart';
-import 'package:redream_app/features/journal/practice_chooser.dart';
 import 'package:redream_app/l10n/generated/app_localizations.dart';
 
 enum _Action { focus, edit, delete }
+
+/// The soft backdrop a dream gets by kind, from the two ends of the brand
+/// gradient: violet for nightmares, turquoise for other dreams.
+({LinearGradient gradient, Color border}) dreamTint(
+  BuildContext context, {
+  required bool nightmare,
+}) {
+  final theme = Theme.of(context);
+  final dark = theme.brightness == Brightness.dark;
+  final (from, to) = nightmare
+      ? (BrandColors.deepViolet, BrandColors.violet)
+      : (BrandColors.turquoise, BrandColors.deepTeal);
+  Color tint(Color color, double amount) => Color.alphaBlend(
+    color.withValues(alpha: amount),
+    theme.colorScheme.surface,
+  );
+  return (
+    gradient: LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [tint(from, dark ? 0.22 : 0.13), tint(to, dark ? 0.22 : 0.13)],
+    ),
+    border: tint(from, dark ? 0.5 : 0.35),
+  );
+}
 
 class DreamCard extends StatelessWidget {
   const DreamCard({required this.dream, super.key});
@@ -80,28 +104,17 @@ class DreamCard extends StatelessWidget {
     final brand = BrandTheme.of(context);
     final practicable = dream.isNightmare && dream.hasRewrite;
     final focus = dream.isCurrentDream && dream.hasRewrite;
+    final practiced = dream.practiceCount.clamp(0, Dream.practiceTarget);
+    final complete = practiced == Dream.practiceTarget;
+    final today = dream.practicedOn(DateTime.now());
 
-    // Soft backdrop by kind, from the two ends of the brand gradient: violet
-    // for nightmares, turquoise for other dreams.
-    final (tintFrom, tintTo) = dream.isNightmare
-        ? (BrandColors.deepViolet, BrandColors.violet)
-        : (BrandColors.turquoise, BrandColors.deepTeal);
-    final dark = theme.brightness == Brightness.dark;
-    Color tint(Color color, double amount) =>
-        Color.alphaBlend(color.withValues(alpha: amount), scheme.surface);
+    final tint = dreamTint(context, nightmare: dream.isNightmare);
 
     return AppCard(
       margin: const EdgeInsets.only(bottom: 16),
       padding: EdgeInsets.zero,
-      gradient: LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          tint(tintFrom, dark ? 0.22 : 0.13),
-          tint(tintTo, dark ? 0.22 : 0.13),
-        ],
-      ),
-      borderColor: focus ? scheme.primary : tint(tintFrom, dark ? 0.5 : 0.35),
+      gradient: tint.gradient,
+      borderColor: focus ? scheme.primary : tint.border,
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute<void>(
@@ -172,44 +185,55 @@ class DreamCard extends StatelessWidget {
                 ),
                 if (practicable) ...[
                   const SizedBox(height: 18),
-                  _PracticeDots(count: dream.practiceCount),
+                  _PracticeDots(count: practiced, today: today),
                   const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
                         child: Text(
-                          l10n.journalPracticed(
-                            dream.practiceCount,
-                            dream.practiceRemaining,
-                          ),
+                          complete
+                              ? l10n.journalPracticedAll(
+                                  practiced,
+                                  Dream.practiceTarget,
+                                )
+                              : l10n.journalPracticed(
+                                  practiced,
+                                  Dream.practiceTarget,
+                                ),
                           style: theme.textTheme.titleSmall?.copyWith(
-                            color: scheme.primary,
+                            color: complete
+                                ? BrandColors.green
+                                : scheme.primary,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                       ),
-                      SizedBox(
-                        width: 100,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            minHeight: 8,
-                            value: (dream.practiceCount / Dream.practiceTarget)
-                                .clamp(0, 1),
-                            backgroundColor: scheme.surface.withValues(
-                              alpha: 0.7,
-                            ),
-                            color: brand.inverseSurface,
+                      if (today) ...[
+                        Text(
+                          l10n.journalDailyDone,
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
-                      ),
+                        const SizedBox(width: 6),
+                        const Icon(
+                          Icons.check_circle_rounded,
+                          size: 18,
+                          color: BrandColors.green,
+                        ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 16),
                   AppButton(
                     label: l10n.journalPracticeDream,
                     icon: Icons.adjust_rounded,
-                    onPressed: () => showPracticeChooser(context, dream),
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute<void>(
+                        builder: (_) => DreamDetailScreen(dream: dream),
+                      ),
+                    ),
                   ),
                 ],
               ],
@@ -281,17 +305,20 @@ class _Pill extends StatelessWidget {
   }
 }
 
+/// One dot per practice towards the target, from edge to edge of the card.
 class _PracticeDots extends StatelessWidget {
-  const _PracticeDots({required this.count});
+  const _PracticeDots({required this.count, required this.today});
 
   final int count;
+
+  /// Whether the latest practice was today; its dot is green then.
+  final bool today;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         for (var i = 0; i < Dream.practiceTarget; i++)
           Container(
@@ -299,10 +326,12 @@ class _PracticeDots extends StatelessWidget {
             height: 10,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              // Translucent, so open dots stay visible on either card tint.
-              color: i < count
-                  ? BrandColors.turquoise
-                  : scheme.onSurface.withValues(alpha: 0.16),
+              color: i >= count
+                  // Translucent, so open dots stay visible on either tint.
+                  ? scheme.onSurface.withValues(alpha: 0.16)
+                  : today && i == count - 1
+                  ? BrandColors.green
+                  : BrandColors.turquoise,
             ),
           ),
       ],
