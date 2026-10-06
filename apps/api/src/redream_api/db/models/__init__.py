@@ -9,6 +9,7 @@ from .dream import Dream
 from .help_center_concern import HelpCenterConcern
 from .report_action import ReportAction
 from .safety_event import SafetyEvent
+from .service_daily_usage import ServiceDailyUsage
 from .user import User
 from .user_consent import UserConsent
 from .user_daily_usage import UserDailyUsage
@@ -22,6 +23,7 @@ __all__ = [
     "HelpCenterConcern",
     "ReportAction",
     "SafetyEvent",
+    "ServiceDailyUsage",
     "User",
     "UserConsent",
     "UserDailyUsage",

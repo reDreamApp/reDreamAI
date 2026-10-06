@@ -49,7 +49,7 @@ Tests run against in-memory SQLite (aiosqlite) with a `FakeAiClient` — no live
 - `redream_api.db.models` — SQLAlchemy ORM models, one file per table (mirrors the Supabase migration).
 - `redream_api.db.repositories` — async data-access wrappers. **Routes go through repos, never raw model queries.**
 - `redream_api.services.ai_client` — outbound calls to the AI service. Handles structured-output for the summary stage (no `_parse_summary` string matching — ADR 0003).
-- `redream_api.services.token_budget` — checks + increments `user_daily_usage` against the 100k/day cap (ADR 0008).
+- `redream_api.services.token_budget` — checks + increments `user_daily_usage` against the 100k/day cap per user and `service_daily_usage` against the 500k/day cap for all users (ADR 0008).
 - `redream_api.services.email_notification` — moderation alerts via aiosmtplib + HMAC-signed action links (ADR 0006).
 - `redream_api.services.storage_service` — Supabase Storage delete (used by GDPR purge).
 - `redream_api.services.langfuse_service` — actual Langfuse trace deletion on user purge (replaces legacy no-op stub — ADR 0007).

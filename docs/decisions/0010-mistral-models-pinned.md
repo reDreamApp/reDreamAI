@@ -98,7 +98,7 @@ provider question — and the answer follows the data, not the model. Raw voice 
 are the app's most sensitive payload (Art. 9 content in an identifiable voice). Scaleway
 Generative APIs are zero-retention Paris inference outside the US CLOUD Act; Mistral
 La Plateforme retains inputs up to 30 days for abuse monitoring until ZDR is granted, with
-some non-EU subprocessors under SCCs (COMPLIANCE.md §3). So the microphone path stays in
+some non-EU subprocessors under SCCs. So the microphone path stays in
 the Scaleway-only chain, and Mistral serves only as availability fallback — the same
 topology as the chat agents:
 
@@ -132,7 +132,7 @@ the user's voice.
   hit, and the per-user prefix is what the GDPR purge deletes. The app receives a signed
   URL on `SUPABASE_PUBLIC_URL` (default lifetime one year, `REHEARSAL_URL_TTL_SECONDS`).
 - Privacy: there is still no Scaleway TTS, so rewritten dream text reaches Mistral
-  directly (30-day abuse-monitoring retention until ZDR, COMPLIANCE.md §3). The consent
+  directly (30-day abuse-monitoring retention until ZDR). The consent
   text names Mistral for AI responses and rehearsal audio since consent version
   `2026-10-03`.
 

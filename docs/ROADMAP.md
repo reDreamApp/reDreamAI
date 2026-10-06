@@ -27,7 +27,7 @@ decisions in `docs/decisions/`.
    remove every record that still points at an earlier server before the new
    box goes live.
 5. **Old Supabase Cloud project: confirm it is deleted.** Its one-click restore
-   window closed around 2026-10-01 (COMPLIANCE.md §4). Nothing in this repo
+   window closed around 2026-10-01. Nothing in this repo
    uses it any more.
 
 ## Next — needs an ADR before the work
@@ -61,8 +61,7 @@ decisions in `docs/decisions/`.
   real-life risk ported from the app_mono eval): v0.3.1 31/34, v0.4.0 34/34
   in three runs on ministral-8b-2512.
 
-Tracked here so they don't live only in session memory. Regulatory details and
-sources: `docs/COMPLIANCE.md` (researched 2026-07-06).
+Tracked here so they don't live only in session memory.
 
 - **Wording check** — BEFORE store listing, website, or clinic flyers go
   public: check the exact DE+EN copy against the self-help framing (ADR
@@ -101,7 +100,7 @@ sources: `docs/COMPLIANCE.md` (researched 2026-07-06).
   rate-limit module — a deliberate image build change, ~half a day.
 - **Crisis feature UX**: user-visible behavior must be signposting only
   (locale-correct hotline numbers, e.g. Telefonseelsorge 0800 111 0 111) —
-  never a risk score or "crisis detected" label (COMPLIANCE.md §1).
+  never a risk score or "crisis detected" label.
 - **At launch: DB → Scaleway Managed PostgreSQL** (Art. 32 upgrade; Supabase
   components keep running self-hosted against it). Test pgcrypto/pgjwt/role
   availability on Managed PG first.

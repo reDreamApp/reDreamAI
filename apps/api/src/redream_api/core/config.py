@@ -47,8 +47,9 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_use_tls: bool = True
 
-    # Token budget (ADR 0008)
+    # Token budgets (ADR 0008): per user, and for all users together.
     daily_llm_token_budget: int = 100_000
+    daily_llm_token_budget_total: int = 500_000
 
     # Art. 9 consent — the consent-text version users must have granted.
     # Bump ONLY on material changes to the consent copy (new processor, new

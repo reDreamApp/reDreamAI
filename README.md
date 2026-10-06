@@ -64,10 +64,12 @@ Key invariants:
 - Structured outputs (JSON mode) for the summary. No string-matching parsers.
 - Self-help framing, never therapy. Disclaimer copy required on user-facing surfaces.
 - Crisis detection runs before every IRT turn; high-risk input bypasses the LLM.
-- 100k LLM tokens / user / day (UTC reset).
+- 100k LLM tokens / user / day, 500k / day for all users together (UTC reset).
 - Streaming chat end-to-end via SSE.
 - Pinned model IDs — no floating aliases (one recorded exception, ADR 0010).
 
 ## License
 
-[Apache License 2.0](LICENSE).
+Copyright 2026 Daniel Menzel, Katharina Lüth and Ramon Zacharias.
+
+Licensed under the [Apache License 2.0](LICENSE); see [NOTICE](NOTICE).

@@ -22,7 +22,7 @@ decision (ROADMAP).
 
 Privacy: Scaleway has no TTS, so the rewritten dream (Art. 9 content) goes to
 Mistral La Plateforme (30-day abuse-monitoring retention until ZDR is
-granted, docs/COMPLIANCE.md §3). Not traced to Langfuse.
+granted). Not traced to Langfuse.
 """
 
 from __future__ import annotations

@@ -5,7 +5,7 @@ Voxtral Transcribe on direct Mistral fallback.** The choice is a privacy one,
 not a quality one: raw voice recordings are the app's most sensitive payload
 (Art. 9 content in an identifiable voice), and Scaleway Generative APIs are
 zero-retention Paris inference, while Mistral La Plateforme retains inputs up
-to 30 days for abuse monitoring until ZDR is granted (COMPLIANCE.md §3).
+to 30 days for abuse monitoring until ZDR is granted.
 Voxtral on Scaleway is not an option — EOL there 2026-08-01.
 
 Both providers speak the OpenAI-compatible ``POST /v1/audio/transcriptions``

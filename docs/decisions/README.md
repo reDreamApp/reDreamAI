@@ -11,7 +11,7 @@ This folder holds the binding architectural decisions for the reDreamAI rebuild.
 - [0005 — Crisis detection before IRT routing](0005-crisis-detection.md)
 - [0006 — Moderation alerts via email + HMAC-signed links](0006-no-telegram-moderation.md)
 - [0007 — Self-hosted Langfuse v2 (not cloud, not v3)](0007-langfuse-v2-self-hosted.md)
-- [0008 — 100k LLM tokens / user / day](0008-token-budget.md)
+- [0008 — 100k LLM tokens / user / day, 500k for all users](0008-token-budget.md)
 - [0009 — Streaming chat via SSE end-to-end](0009-streaming-chat.md)
 - [0010 — Pinned Mistral / Voxtral model IDs](0010-mistral-models-pinned.md)
 - [0011 — Postgres connection mode: Supavisor pooler everywhere](0011-postgres-connection-mode.md)
