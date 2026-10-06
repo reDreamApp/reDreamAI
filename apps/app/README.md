@@ -38,7 +38,7 @@ lib/
     widgets/           AppCard, AppButton, BrandLogo, ThemeModeToggle, IntensitySlider, snackbars/dialogs
     utils/             error → message mapping, date formatting
   features/            one folder per feature: models, service (HTTP), state (ChangeNotifier), screens
-    shell/             MainShell (app bar, 3 tabs, chat drawer), UserScope (per-user providers + nested navigator)
+    shell/             MainShell (app bar, 4 tabs, chat drawer), UserScope (per-user providers + nested navigator)
     home/              home tab, progress stats + mood, IRT guide
     chat/              Session tab: streamed replies (SSE), voice input, rating card after a session, history drawer, reports
     consent/           Art. 9 consent gate + screen; withdrawal lives in settings
@@ -47,7 +47,7 @@ lib/
     settings/          profile, account (email/password/export/delete), help center, privacy policy
     auth/              sign in / sign up / forgot password
     onboarding/        post-sign-up intro + profile questions
-    learn/             blog articles from the website's meta.json
+    learn/             the Learning tab: the team's study and the website's blog articles (meta.json), each with a page in the app and a link to the browser
   l10n/                app_en.arb / app_de.arb (every user-facing string)
 ```
 

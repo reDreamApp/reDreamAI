@@ -7,14 +7,12 @@ import 'package:redream_app/core/utils/errors.dart';
 import 'package:redream_app/core/widgets/app_button.dart';
 import 'package:redream_app/core/widgets/app_card.dart';
 import 'package:redream_app/core/widgets/feedback.dart';
-import 'package:redream_app/core/widgets/icon_row.dart';
 import 'package:redream_app/features/chat/chat_state.dart';
 import 'package:redream_app/features/home/irt_guide_screen.dart';
 import 'package:redream_app/features/home/progress_models.dart';
 import 'package:redream_app/features/home/progress_state.dart';
 import 'package:redream_app/features/journal/dream_detail_screen.dart';
 import 'package:redream_app/features/journal/journal_state.dart';
-import 'package:redream_app/features/learn/learn_screen.dart';
 import 'package:redream_app/features/shell/shell_tabs.dart';
 import 'package:redream_app/l10n/generated/app_localizations.dart';
 
@@ -57,12 +55,13 @@ class HomeScreen extends StatelessWidget {
           const SizedBox(height: 16),
           const _ProgressCard(),
           const SizedBox(height: 16),
-          AppCard(
-            padding: EdgeInsets.zero,
-            child: Column(
-              children: [
-                _Shortcut(
-                  icon: Icons.track_changes,
+          // The shortcuts, with their pictures from the first app version.
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _PictureShortcut(
+                  image: 'assets/images/home_rehearsal.webp',
                   label: l10n.homePracticeTitle,
                   onTap: () {
                     final focus = context.read<JournalState>().focusDream;
@@ -79,9 +78,11 @@ class HomeScreen extends StatelessWidget {
                     }
                   },
                 ),
-                Divider(height: 1, color: brand.cardBorder),
-                _Shortcut(
-                  icon: Icons.auto_stories_outlined,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _PictureShortcut(
+                  image: 'assets/images/home_guide.webp',
                   label: l10n.homeGuideTitle,
                   onTap: () => Navigator.of(context).push(
                     MaterialPageRoute<void>(
@@ -89,18 +90,15 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
                 ),
-                Divider(height: 1, color: brand.cardBorder),
-                _Shortcut(
-                  icon: Icons.school_outlined,
-                  label: l10n.homeLearnTitle,
-                  onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (_) => const LearnScreen(),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _PictureShortcut(
+            image: 'assets/images/home_learn.webp',
+            height: 132,
+            label: l10n.homeLearnTitle,
+            onTap: () => tabs.select(ShellTab.learn),
           ),
         ],
       ),
@@ -420,23 +418,61 @@ class _MoodPickerState extends State<_MoodPicker> {
   }
 }
 
-/// One row of the shortcuts card: icon, title, chevron.
-class _Shortcut extends StatelessWidget {
-  const _Shortcut({
-    required this.icon,
+/// A shortcut as a small card: a picture on the brand gradient, as on the
+/// cards of the first app version, and the title under it.
+class _PictureShortcut extends StatelessWidget {
+  const _PictureShortcut({
+    required this.image,
     required this.label,
     required this.onTap,
+    this.height = 116,
   });
 
-  final IconData icon;
+  final String image;
   final String label;
   final VoidCallback onTap;
 
+  /// Height of the picture.
+  final double height;
+
   @override
-  Widget build(BuildContext context) => IconRow(
-    icon: icon,
-    title: label,
-    trailing: const RowChevron(),
-    onTap: onTap,
-  );
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AppCard(
+      padding: EdgeInsets.zero,
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: BrandTheme.of(context).heroGradient,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Image.asset(
+                image,
+                height: height,
+                // The figures stand on the lower edge of the picture.
+                alignment: Alignment.bottomCenter,
+                excludeFromSemantics: true,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

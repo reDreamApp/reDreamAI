@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:redream_app/app.dart';
@@ -196,9 +197,29 @@ void main() {
 
     expect(find.text('Begin Session'), findsOneWidget);
     expect(find.text('2 days'), findsOneWidget);
-    for (final shortcut in ['Daily rehearsal', 'Rewriting Guide', 'Learn']) {
+    for (final shortcut in [
+      'Daily rehearsal',
+      'Rewriting Guide',
+      'Learn more about sleep and dreams',
+    ]) {
       expect(find.text(shortcut), findsOneWidget);
     }
+    // Each shortcut carries its picture; rehearsal and guide side by side,
+    // Learn across the page below them.
+    for (final picture in ['rehearsal', 'guide', 'learn']) {
+      expect(
+        find.image(AssetImage('assets/images/home_$picture.webp')),
+        findsOneWidget,
+      );
+    }
+    expect(
+      tester.getCenter(find.text(_en.homeLearnTitle)).dy,
+      greaterThan(tester.getCenter(find.text('Rewriting Guide')).dy),
+    );
+    expect(
+      tester.getCenter(find.text('Daily rehearsal')).dy,
+      tester.getCenter(find.text('Rewriting Guide')).dy,
+    );
     expect(
       api.calls,
       containsAll(['GET /api/v1/dreams', 'GET /api/v1/progress/stats']),
@@ -640,6 +661,54 @@ void main() {
 
     expect(api.calls, contains('PATCH /api/v1/profile/nightmare-frequency'));
     expect(find.text('A few times a week'), findsOneWidget);
+  });
+
+  testWidgets('Learning is the last tab and its back arrow returns', (
+    tester,
+  ) async {
+    // Learn reads the website's address from the app's env file.
+    dotenv.loadFromString(isOptional: true);
+    final (app, _, _) = await _app(auth: FakeAuth(userId: 'user-1'));
+    _tallPhone(tester);
+    await tester.pumpWidget(app);
+    await _settle(tester);
+
+    // The tab sits right of Journal.
+    final bar = find.byType(NavigationBar);
+    Finder tab(String label) =>
+        find.descendant(of: bar, matching: find.text(label));
+    expect(
+      tester.getCenter(tab('Learning')).dx,
+      greaterThan(tester.getCenter(tab('Journal')).dx),
+    );
+
+    await tester.tap(tab('Journal'));
+    await _settle(tester);
+    await tester.tap(tab('Learning'));
+    await _settle(tester);
+
+    // Learn keeps its own bar with the back arrow, above the bottom menu.
+    expect(find.byType(BackButton), findsOneWidget);
+    expect(find.byType(BrandWordmark), findsNothing);
+    expect(bar, findsOneWidget);
+
+    // Back leads to the tab the user came from.
+    await tester.tap(find.byType(BackButton));
+    await _settle(tester);
+    expect(find.text('Dream Journal'), findsOneWidget);
+    expect(find.byType(BackButton), findsNothing);
+    expect(find.byType(BrandWordmark), findsOneWidget);
+
+    // Home's Learn card opens the same tab.
+    await tester.tap(tab('Home'));
+    await _settle(tester);
+    await tester.tap(find.text(_en.homeLearnTitle));
+    await _settle(tester);
+    expect(find.byType(BackButton), findsOneWidget);
+    expect(tester.widget<NavigationBar>(bar).selectedIndex, 3);
+    await tester.tap(find.byType(BackButton));
+    await _settle(tester);
+    expect(tester.widget<NavigationBar>(bar).selectedIndex, 0);
   });
 
   testWidgets('dream details open from the journal', (tester) async {

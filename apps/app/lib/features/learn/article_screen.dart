@@ -1,31 +1,20 @@
 import 'package:flutter/material.dart';
+import 'package:redream_app/core/theme/app_theme.dart';
 import 'package:redream_app/core/widgets/app_button.dart';
 import 'package:redream_app/core/widgets/app_card.dart';
-import 'package:redream_app/core/widgets/feedback.dart';
 import 'package:redream_app/features/learn/article.dart';
 import 'package:redream_app/features/learn/learn_screen.dart';
 import 'package:redream_app/l10n/generated/app_localizations.dart';
-import 'package:url_launcher/url_launcher.dart';
 
+/// One article: its picture, what it is about, and the way to the article
+/// itself in the browser.
 class ArticleScreen extends StatelessWidget {
-  const ArticleScreen({required this.article, super.key});
+  const ArticleScreen({required this.article, super.key, this.openUrl});
 
   final Article article;
 
-  Future<void> _open(BuildContext context) async {
-    final l10n = AppLocalizations.of(context)!;
-    final url = article.urlFor(Theme.of(context).brightness);
-    final uri = url == null ? null : Uri.tryParse(url);
-    var ok = false;
-    if (uri != null) {
-      try {
-        ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } on Exception catch (_) {}
-    }
-    if (!ok && context.mounted) {
-      showAppSnackBar(context, l10n.learnOpenFailed, error: true);
-    }
-  }
+  /// Replaces the browser in tests.
+  final Future<bool> Function(Uri url)? openUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -42,25 +31,54 @@ class ArticleScreen extends StatelessWidget {
         children: [
           AppCard(
             highlight: true,
+            padding: EdgeInsets.zero,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  article.title,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
+                if (article.image case final image?)
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: BrandTheme.of(context).heroGradient,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: Image.asset(
+                        image,
+                        height: 190,
+                        // The figures stand on the lower edge of the picture.
+                        alignment: Alignment.bottomCenter,
+                        excludeFromSemantics: true,
+                      ),
+                    ),
                   ),
-                ),
-                if (article.excerpt.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Text(article.excerpt, style: const TextStyle(height: 1.5)),
-                ],
-                const SizedBox(height: 20),
-                AppButton(
-                  label: l10n.learnOpenArticle,
-                  icon: Icons.open_in_new,
-                  style: AppButtonStyle.gradient,
-                  onPressed: () => _open(context),
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        article.title,
+                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (article.excerpt.isNotEmpty) ...[
+                        const SizedBox(height: 12),
+                        Text(
+                          article.excerpt,
+                          style: const TextStyle(height: 1.5),
+                        ),
+                      ],
+                      const SizedBox(height: 20),
+                      AppButton(
+                        label: l10n.learnOpenArticle,
+                        icon: Icons.open_in_new,
+                        style: AppButtonStyle.gradient,
+                        onPressed: () =>
+                            openArticle(context, article, openUrl: openUrl),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),

@@ -20,9 +20,20 @@ class Article {
     },
   );
 
+  /// Pictures for the articles the app knows, by slug; any other post of
+  /// the website shows none.
+  static const _images = {
+    'study-somnologie-2026': 'assets/images/learn_study.webp',
+    'blog_creativity': 'assets/images/home_dreaming.webp',
+    'blog_sleep_better': 'assets/images/learn_sleep.webp',
+  };
+
   final String slug;
   final String title;
   final String excerpt;
+
+  /// The picture on the article's page, if it has one.
+  String? get image => _images[slug];
 
   /// `light` / `dark` → article URL.
   final Map<String, String> urls;

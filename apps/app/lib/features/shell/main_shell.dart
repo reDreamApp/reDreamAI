@@ -12,12 +12,13 @@ import 'package:redream_app/features/home/home_screen.dart';
 import 'package:redream_app/features/home/progress_state.dart';
 import 'package:redream_app/features/journal/journal_screen.dart';
 import 'package:redream_app/features/journal/journal_state.dart';
+import 'package:redream_app/features/learn/learn_screen.dart';
 import 'package:redream_app/features/settings/profile_state.dart';
 import 'package:redream_app/features/settings/settings_screen.dart';
 import 'package:redream_app/features/shell/shell_tabs.dart';
 import 'package:redream_app/l10n/generated/app_localizations.dart';
 
-/// Signed-in root: app bar, three tabs, chat-history drawer on the session
+/// Signed-in root: app bar, four tabs, chat-history drawer on the session
 /// tab. Preloads user data and re-syncs offline work when the app resumes.
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -84,57 +85,82 @@ class _ShellScaffoldState extends State<_ShellScaffold> {
   final _scaffold = GlobalKey<ScaffoldState>();
   bool _drawerOpen = false;
 
+  /// Learn loads its articles from the website, so it is only built once
+  /// the tab has been opened.
+  bool _learnOpened = false;
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final tabs = context.watch<ShellTabs>();
     final onSession = tabs.current == ShellTab.session;
+    final onLearn = tabs.current == ShellTab.learn;
+    if (onLearn) _learnOpened = true;
 
     // An open drawer does not register with the system back gesture on its
-    // own, so Android's Back would leave the app instead of closing it.
+    // own, so Android's Back would leave the app instead of closing it. On
+    // Learn it does what the page's back arrow does.
     return PopScope<Object?>(
-      canPop: !_drawerOpen,
+      canPop: !_drawerOpen && !onLearn,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) _scaffold.currentState?.closeDrawer();
+        if (didPop) return;
+        if (_drawerOpen) {
+          _scaffold.currentState?.closeDrawer();
+        } else {
+          tabs.back();
+        }
       },
       child: Scaffold(
         key: _scaffold,
         onDrawerChanged: (open) => setState(() => _drawerOpen = open),
-        appBar: AppBar(
-          leading: onSession
-              ? Builder(
-                  builder: (ctx) => IconButton(
-                    icon: const Icon(Icons.menu),
-                    tooltip: l10n.chatHistoryTooltip,
-                    onPressed: Scaffold.of(ctx).openDrawer,
+        // Learn brings its own bar, with the back arrow.
+        appBar: onLearn
+            ? null
+            : AppBar(
+                leading: onSession
+                    ? Builder(
+                        builder: (ctx) => IconButton(
+                          icon: const Icon(Icons.menu),
+                          tooltip: l10n.chatHistoryTooltip,
+                          onPressed: Scaffold.of(ctx).openDrawer,
+                        ),
+                      )
+                    // The session tab has the chat menu in this corner instead.
+                    : const Padding(
+                        padding: EdgeInsets.only(left: 16),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: BrandMark(),
+                        ),
+                      ),
+                centerTitle: true,
+                title: const BrandWordmark(),
+                actions: [
+                  const ThemeModeToggle(),
+                  IconButton(
+                    icon: const Icon(Icons.settings_outlined),
+                    tooltip: l10n.settingsTooltip,
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const SettingsScreen(),
+                      ),
+                    ),
                   ),
-                )
-              // The session tab has the chat menu in this corner instead.
-              : const Padding(
-                  padding: EdgeInsets.only(left: 16),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: BrandMark(),
-                  ),
-                ),
-          centerTitle: true,
-          title: const BrandWordmark(),
-          actions: [
-            const ThemeModeToggle(),
-            IconButton(
-              icon: const Icon(Icons.settings_outlined),
-              tooltip: l10n.settingsTooltip,
-              onPressed: () => Navigator.of(context).push(
-                MaterialPageRoute<void>(builder: (_) => const SettingsScreen()),
+                  const SizedBox(width: 4),
+                ],
               ),
-            ),
-            const SizedBox(width: 4),
-          ],
-        ),
         drawer: onSession ? const ChatHistoryDrawer() : null,
         body: IndexedStack(
           index: tabs.current.index,
-          children: const [HomeScreen(), ChatScreen(), JournalScreen()],
+          children: [
+            const HomeScreen(),
+            const ChatScreen(),
+            const JournalScreen(),
+            if (_learnOpened)
+              LearnScreen(onBack: tabs.back)
+            else
+              const SizedBox.shrink(),
+          ],
         ),
         bottomNavigationBar: NavigationBar(
           selectedIndex: tabs.current.index,
@@ -154,6 +180,11 @@ class _ShellScaffoldState extends State<_ShellScaffold> {
               icon: const Icon(Icons.menu_book_outlined),
               selectedIcon: const Icon(Icons.menu_book),
               label: l10n.navJournal,
+            ),
+            NavigationDestination(
+              icon: const Icon(Icons.school_outlined),
+              selectedIcon: const Icon(Icons.school),
+              label: l10n.learnTitle,
             ),
           ],
         ),
