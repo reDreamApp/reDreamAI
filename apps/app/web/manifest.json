@@ -1,6 +1,6 @@
 {
-    "name": "redream_app",
-    "short_name": "redream_app",
+    "name": "reDreamAI",
+    "short_name": "reDreamAI",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

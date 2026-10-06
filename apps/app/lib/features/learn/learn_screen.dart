@@ -1,11 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:redream_app/core/settings/app_settings.dart';
+import 'package:redream_app/core/theme/app_theme.dart';
 import 'package:redream_app/core/widgets/app_card.dart';
 import 'package:redream_app/features/learn/article.dart';
 import 'package:redream_app/features/learn/article_screen.dart';
 import 'package:redream_app/features/learn/articles_service.dart';
 import 'package:redream_app/l10n/generated/app_localizations.dart';
+
+/// The Learn section's page colour: the usual background with a wash of
+/// the brand turquoise.
+Color learnBackground(BuildContext context) {
+  final theme = Theme.of(context);
+  final dark = theme.brightness == Brightness.dark;
+  return Color.alphaBlend(
+    BrandColors.turquoise.withValues(alpha: dark ? 0.16 : 0.22),
+    theme.scaffoldBackgroundColor,
+  );
+}
 
 class LearnScreen extends StatefulWidget {
   const LearnScreen({super.key, this.service});
@@ -41,8 +53,13 @@ class _LearnScreenState extends State<LearnScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
+    final background = learnBackground(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.learnTitle)),
+      backgroundColor: background,
+      appBar: AppBar(
+        backgroundColor: background,
+        title: Text(l10n.learnTitle),
+      ),
       body: FutureBuilder<List<Article>>(
         future: _future,
         builder: (context, snap) {

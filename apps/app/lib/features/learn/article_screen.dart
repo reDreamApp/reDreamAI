@@ -3,6 +3,7 @@ import 'package:redream_app/core/widgets/app_button.dart';
 import 'package:redream_app/core/widgets/app_card.dart';
 import 'package:redream_app/core/widgets/feedback.dart';
 import 'package:redream_app/features/learn/article.dart';
+import 'package:redream_app/features/learn/learn_screen.dart';
 import 'package:redream_app/l10n/generated/app_localizations.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -29,8 +30,13 @@ class ArticleScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
+    final background = learnBackground(context);
     return Scaffold(
-      appBar: AppBar(title: Text(article.title)),
+      backgroundColor: background,
+      appBar: AppBar(
+        backgroundColor: background,
+        title: Text(article.title),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

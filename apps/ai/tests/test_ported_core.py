@@ -123,3 +123,50 @@ async def test_final_requires_summary_first(monkeypatch):
     conv = Conversation(session_id="s", language="en", stages=["recording", "rewriting"])
     # no summary yet → guard redirects to summary
     assert await irt_app.determine_stage_async("done", conv) == "summary"
+
+
+def _conversation(*, user_messages: int, stages: list[str]) -> Conversation:
+    conv = Conversation(session_id="s", language="en", stages=list(stages))
+    for i in range(user_messages):
+        conv.add_message(f"message {i}", "user")
+    return conv
+
+
+async def test_rewriting_cannot_start_on_the_first_message(monkeypatch):
+    monkeypatch.setattr(irt_app, "routing_agent", _StubAgent("rewriting"))
+    conv = _conversation(user_messages=1, stages=[])
+    # a dream plus "let's rewrite it" in one message still gets one recording reply
+    assert await irt_app.determine_stage_async("dream, rewrite now", conv) == "recording"
+
+
+async def test_rewriting_starts_from_the_second_message(monkeypatch):
+    monkeypatch.setattr(irt_app, "routing_agent", _StubAgent("rewriting"))
+    conv = _conversation(user_messages=2, stages=["recording"])
+    assert await irt_app.determine_stage_async("yes", conv) == "rewriting"
+
+
+async def test_summary_requires_a_rewriting_turn(monkeypatch):
+    monkeypatch.setattr(irt_app, "routing_agent", _StubAgent("summary"))
+    conv = _conversation(user_messages=3, stages=["recording", "recording"])
+    assert await irt_app.determine_stage_async("summarize", conv) == "rewriting"
+
+
+async def test_no_stage_is_skipped_on_the_first_message(monkeypatch):
+    monkeypatch.setattr(irt_app, "routing_agent", _StubAgent("final"))
+    conv = _conversation(user_messages=1, stages=[])
+    # final -> summary -> rewriting -> recording: every guard applies in turn
+    assert await irt_app.determine_stage_async("done", conv) == "recording"
+
+
+async def test_a_session_never_goes_back_to_recording(monkeypatch):
+    monkeypatch.setattr(irt_app, "routing_agent", _StubAgent("recording"))
+    conv = _conversation(user_messages=4, stages=["recording", "recording", "rewriting"])
+    assert await irt_app.determine_stage_async("I forgot a part", conv) == "rewriting"
+    conv = _conversation(user_messages=6, stages=["recording", "rewriting", "summary"])
+    assert await irt_app.determine_stage_async("hm", conv) == "summary"
+
+
+async def test_recording_continues_while_the_router_says_so(monkeypatch):
+    monkeypatch.setattr(irt_app, "routing_agent", _StubAgent("recording"))
+    conv = _conversation(user_messages=3, stages=["recording", "recording"])
+    assert await irt_app.determine_stage_async("and then I fell", conv) == "recording"

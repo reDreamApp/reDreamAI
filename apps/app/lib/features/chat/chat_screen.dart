@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:redream_app/core/theme/app_theme.dart';
 import 'package:redream_app/core/widgets/app_button.dart';
@@ -28,6 +29,21 @@ class _ChatScreenState extends State<ChatScreen> {
   final _scroll = ScrollController();
   int _lastCount = 0;
   int _lastLength = 0;
+
+  // Voice notes work as in common messengers. A tap records hands-free
+  // until Send or Discard. Holding records until the finger lifts, which
+  // sends; sliding left while holding discards, sliding up goes hands-free.
+  static const _slideDistance = 72.0;
+
+  /// A shorter press counts as a tap, so a slip of the finger sends nothing.
+  static const _holdToSend = Duration(milliseconds: 800);
+
+  bool _micHeld = false;
+  Offset _micDownAt = Offset.zero;
+  Duration _micDownTime = Duration.zero;
+
+  /// Runs from the start of a recording; the counter in the composer.
+  final _recordingTime = Stopwatch();
 
   @override
   void initState() {
@@ -62,13 +78,69 @@ class _ChatScreenState extends State<ChatScreen> {
     await context.read<ChatState>().send(text);
   }
 
-  Future<void> _stopRecording(ChatState state) async {
+  void _micDown(PointerDownEvent event, ChatState state) {
+    if (_micHeld || state.recording) return;
+    setState(() {
+      _micHeld = true;
+      _micDownAt = event.position;
+      _micDownTime = event.timeStamp;
+    });
+    unawaited(HapticFeedback.selectionClick());
+    // If the finger is gone by the time recording runs (a tap, or the
+    // permission prompt took over), it simply continues hands-free.
+    _startRecording(state);
+  }
+
+  void _startRecording(ChatState state) {
+    _recordingTime
+      ..reset()
+      ..start();
+    unawaited(state.startRecording());
+  }
+
+  void _micMove(PointerMoveEvent event, ChatState state) {
+    if (!_micHeld || !state.recording) return;
+    final slid = event.position - _micDownAt;
+    if (slid.dx <= -_slideDistance) {
+      setState(() => _micHeld = false);
+      unawaited(HapticFeedback.selectionClick());
+      unawaited(state.cancelRecording());
+    } else if (slid.dy <= -_slideDistance) {
+      unawaited(HapticFeedback.selectionClick());
+      setState(() => _micHeld = false);
+    }
+  }
+
+  void _micUp(PointerUpEvent event, ChatState state) {
+    if (!_micHeld) return;
+    final held = event.timeStamp - _micDownTime;
+    setState(() => _micHeld = false);
+    if (state.recording && held >= _holdToSend) {
+      unawaited(_sendRecording(state));
+    }
+  }
+
+  void _micLost() {
+    if (_micHeld) setState(() => _micHeld = false);
+  }
+
+  /// Stops the recording and sends what was said as a message, together
+  /// with anything already typed.
+  Future<void> _sendRecording(ChatState state) async {
+    final chatId = state.chatId;
     final transcript = await state.stopRecording();
     if (transcript == null || !mounted) return;
-    // The transcript lands in the input for review; it is never auto-sent.
-    final current = _input.text.trim();
-    _input.text = current.isEmpty ? transcript : '$current $transcript';
-    _input.selection = TextSelection.collapsed(offset: _input.text.length);
+    final typed = _input.text.trim();
+    final text = typed.isEmpty ? transcript : '$typed $transcript';
+    if (state.chatId != chatId) {
+      // Another chat was opened meanwhile: leave the words for review
+      // instead of sending them into the wrong session.
+      _input.text = text;
+      _input.selection = TextSelection.collapsed(offset: text.length);
+      return;
+    }
+    _input.clear();
+    await state.send(text);
   }
 
   Future<void> _openJournal() async {
@@ -90,7 +162,6 @@ class _ChatScreenState extends State<ChatScreen> {
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final brand = BrandTheme.of(context);
     final state = context.watch<ChatState>();
 
     final count = state.messages.length + (state.awaitingReply ? 1 : 0);
@@ -110,7 +181,7 @@ class _ChatScreenState extends State<ChatScreen> {
       children: [
         Column(
           children: [
-            _Header(brand: brand),
+            const _Header(),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
               child: StageIndicator(current: state.stage),
@@ -227,55 +298,93 @@ class _ChatScreenState extends State<ChatScreen> {
     final busyMic = state.recording || state.transcribing;
     final canSend = ready && !busyMic && _input.text.trim().isNotEmpty;
 
-    if (state.recording) {
-      return Row(
-        children: [
-          Icon(Icons.fiber_manual_record, color: scheme.error, size: 18),
-          const SizedBox(width: 8),
-          Expanded(child: Text(l10n.chatMicRecording)),
-          TextButton(
-            onPressed: state.cancelRecording,
-            child: Text(l10n.chatMicCancel),
-          ),
-          const SizedBox(width: 4),
-          IconButton.filled(
-            tooltip: l10n.chatMicStop,
-            onPressed: () => _stopRecording(state),
-            icon: const Icon(Icons.stop_rounded),
-          ),
-        ],
-      );
-    }
+    final holding = state.recording && _micHeld;
+    final handsFree = state.recording && !_micHeld;
+    final muted = BrandTheme.of(context).muted;
+    final dot = Icon(Icons.fiber_manual_record, color: scheme.error, size: 18);
+    // Each chat keeps one of the hints, like its greeting.
+    final hints = [
+      l10n.chatInputHint,
+      l10n.chatInputHint2,
+      l10n.chatInputHint3,
+    ];
+    final hint = hints[(state.chatId ?? 0) % hints.length];
 
+    // One row for every state, so the buttons never change place: the mic
+    // turns into Discard, the send button sends text or the recording.
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Expanded(
-          child: TextField(
-            controller: _input,
-            minLines: 1,
-            maxLines: 6,
-            enabled: ready && !busyMic,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: InputDecoration(
-              hintText: state.transcribing
-                  ? l10n.chatTranscribing
-                  : l10n.chatInputHint,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(999),
-                borderSide: BorderSide.none,
+          // The field stays mounted so it keeps its focus while recording.
+          child: IndexedStack(
+            index: holding ? 1 : (handsFree ? 2 : 0),
+            alignment: Alignment.centerLeft,
+            children: [
+              TextField(
+                controller: _input,
+                minLines: 1,
+                maxLines: 6,
+                enabled: ready && !busyMic,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  hintText: state.transcribing ? l10n.chatTranscribing : hint,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(999),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 14,
+                  ),
+                ),
+                onSubmitted: canSend ? (_) => _send() : null,
               ),
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 14,
-              ),
-            ),
-            onSubmitted: canSend ? (_) => _send() : null,
+              if (holding)
+                Row(
+                  children: [
+                    dot,
+                    const SizedBox(width: 8),
+                    _Elapsed(_recordingTime),
+                    const SizedBox(width: 12),
+                    Icon(Icons.chevron_left_rounded, color: muted),
+                    Expanded(
+                      child: Text(
+                        l10n.chatMicSlideDiscard,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: muted),
+                      ),
+                    ),
+                    Icon(Icons.keyboard_arrow_up_rounded, color: muted),
+                    Icon(Icons.lock_outline_rounded, size: 18, color: muted),
+                  ],
+                )
+              else
+                const SizedBox.shrink(),
+              if (handsFree)
+                Row(
+                  children: [
+                    dot,
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        l10n.chatMicRecording,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _Elapsed(_recordingTime),
+                  ],
+                )
+              else
+                const SizedBox.shrink(),
+            ],
           ),
         ),
         if (state.voiceInputAvailable) ...[
           const SizedBox(width: 8),
           SizedBox(
+            key: const ValueKey('mic'),
             width: 52,
             height: 52,
             child: state.transcribing
@@ -283,10 +392,53 @@ class _ChatScreenState extends State<ChatScreen> {
                     padding: EdgeInsets.all(14),
                     child: CircularProgressIndicator(strokeWidth: 2.5),
                   )
-                : IconButton(
-                    tooltip: l10n.chatMicRecord,
-                    onPressed: ready ? state.startRecording : null,
-                    icon: const Icon(Icons.mic_none_rounded),
+                : handsFree
+                ? IconButton.filled(
+                    tooltip: l10n.chatMicCancel,
+                    onPressed: state.cancelRecording,
+                    style: IconButton.styleFrom(
+                      backgroundColor: scheme.error,
+                      foregroundColor: scheme.onError,
+                    ),
+                    // The stop square with a cross through it.
+                    icon: const Icon(Icons.disabled_by_default_rounded),
+                  )
+                : Listener(
+                    behavior: HitTestBehavior.opaque,
+                    onPointerDown: ready ? (e) => _micDown(e, state) : null,
+                    onPointerMove: (e) => _micMove(e, state),
+                    onPointerUp: (e) => _micUp(e, state),
+                    onPointerCancel: (_) => _micLost(),
+                    child: Semantics(
+                      button: true,
+                      enabled: ready,
+                      label: l10n.chatMicRecord,
+                      // Assistive taps record hands-free.
+                      onTap: ready ? () => _startRecording(state) : null,
+                      child: AnimatedScale(
+                        scale: holding ? 1.2 : 1,
+                        duration: const Duration(milliseconds: 120),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 120),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _micHeld ? scheme.error : Colors.transparent,
+                          ),
+                          child: Icon(
+                            _micHeld
+                                ? Icons.mic_rounded
+                                : Icons.mic_none_rounded,
+                            color: _micHeld
+                                ? scheme.onError
+                                : (ready
+                                      ? scheme.onSurfaceVariant
+                                      : scheme.onSurface.withValues(
+                                          alpha: 0.38,
+                                        )),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
           ),
         ],
@@ -294,19 +446,60 @@ class _ChatScreenState extends State<ChatScreen> {
         SizedBox(
           width: 52,
           height: 52,
-          child: IconButton.filled(
-            tooltip: l10n.chatSend,
-            onPressed: canSend ? _send : null,
-            style: IconButton.styleFrom(
-              backgroundColor: scheme.surfaceContainerHighest,
-              foregroundColor: scheme.onSurface,
-              disabledBackgroundColor: scheme.surfaceContainerHighest,
-              disabledForegroundColor: scheme.onSurfaceVariant,
-            ),
-            icon: const Icon(Icons.send_rounded),
-          ),
+          child: handsFree
+              ? IconButton.filled(
+                  tooltip: l10n.chatMicStop,
+                  onPressed: () => _sendRecording(state),
+                  icon: const Icon(Icons.send_rounded),
+                )
+              : IconButton.filled(
+                  tooltip: l10n.chatSend,
+                  onPressed: canSend ? _send : null,
+                  style: IconButton.styleFrom(
+                    backgroundColor: scheme.surfaceContainerHighest,
+                    foregroundColor: scheme.onSurface,
+                    disabledBackgroundColor: scheme.surfaceContainerHighest,
+                    disabledForegroundColor: scheme.onSurfaceVariant,
+                  ),
+                  icon: const Icon(Icons.send_rounded),
+                ),
         ),
       ],
+    );
+  }
+}
+
+/// Minutes and seconds of a running [Stopwatch], refreshed every second.
+class _Elapsed extends StatefulWidget {
+  const _Elapsed(this.watch);
+
+  final Stopwatch watch;
+
+  @override
+  State<_Elapsed> createState() => _ElapsedState();
+}
+
+class _ElapsedState extends State<_Elapsed> {
+  late final Timer _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _tick.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final seconds = widget.watch.elapsed.inSeconds;
+    return Text(
+      '${seconds ~/ 60}:${(seconds % 60).toString().padLeft(2, '0')}',
+      style: const TextStyle(fontFeatures: [FontFeature.tabularFigures()]),
     );
   }
 }
@@ -414,39 +607,25 @@ class _IntensityCardState extends State<_IntensityCard> {
   }
 }
 
+/// The assistant's sheep and its name above the progress bar.
 class _Header extends StatelessWidget {
-  const _Header({required this.brand});
-
-  final BrandTheme brand;
+  const _Header();
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              const AssistantSheep(),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  l10n.chatAssistantName,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Text(
-            l10n.chatSessionSubtitle,
-            style: TextStyle(fontSize: 15, color: brand.muted),
+          const AssistantSheep(),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              l10n.chatAssistantName,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),

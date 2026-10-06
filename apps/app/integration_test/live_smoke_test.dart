@@ -123,7 +123,7 @@ void main() {
     );
     expect(chat.startFailed, isFalse, reason: chat.errorMessage);
     if (chat.isDone) {
-      await chat.startChat(language: 'en', welcomeMessage: 'hi');
+      await chat.startChat(language: 'en', welcomeMessages: ['hi']);
       await tester.pump();
     }
     final before = chat.messages.length;

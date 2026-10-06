@@ -117,12 +117,13 @@ class ChatState extends ChangeNotifier {
 
   /// Starts a new chat session, resetting all local state.
   ///
-  /// [welcomeMessage] is a localized, display-only greeting shown as the
-  /// first assistant bubble. It is never sent to the backend — chat history
-  /// is owned by the backend (ADR 0002); this mirrors the legacy client.
+  /// [welcomeMessages] are the localized, display-only greetings; the chat
+  /// shows one of them as its first assistant bubble (see [_greeting]). It is
+  /// never sent to the backend — chat history is owned by the backend
+  /// (ADR 0002); this mirrors the legacy client.
   Future<void> startChat({
     required String language,
-    required String welcomeMessage,
+    required List<String> welcomeMessages,
   }) async {
     _startFailed = false;
     _errorMessage = null;
@@ -135,9 +136,10 @@ class ChatState extends ChangeNotifier {
       _hasStreamingDraft = false;
       _chatId = res.chatId;
       _stage = res.currentStage;
-      _messages
-        ..clear()
-        ..add(_localMessage(role: 'assistant', content: welcomeMessage));
+      _messages.clear();
+      if (_greeting(res.chatId, welcomeMessages) case final greeting?) {
+        _messages.add(_localMessage(role: 'assistant', content: greeting));
+      }
       _isDone = false;
       _resumedDone = false;
       _intensitySubmitted = false;
@@ -162,7 +164,7 @@ class ChatState extends ChangeNotifier {
   /// anything locally.
   Future<void> resumeOrStart({
     required String language,
-    required String welcomeMessage,
+    required List<String> welcomeMessages,
   }) async {
     try {
       _chats = _sortedNewestFirst(await _service.listChats());
@@ -174,10 +176,13 @@ class ChatState extends ChangeNotifier {
     }
     final latest = _chats.isEmpty ? null : _chats.first;
     if (latest != null && !latest.isDone) {
-      final loaded = await loadChat(latest.id, welcomeMessage: welcomeMessage);
+      final loaded = await loadChat(
+        latest.id,
+        welcomeMessages: welcomeMessages,
+      );
       if (loaded) return;
     }
-    await startChat(language: language, welcomeMessage: welcomeMessage);
+    await startChat(language: language, welcomeMessages: welcomeMessages);
   }
 
   /// Refreshes the chat list shown in the history drawer.
@@ -199,11 +204,11 @@ class ChatState extends ChangeNotifier {
 
   /// Loads an existing chat from the backend (drawer tap / resume / refresh).
   ///
-  /// [welcomeMessage] is the display-only greeting. It is never stored, so
-  /// every load puts it back as the first bubble, dated like the chat's
-  /// first message.
+  /// [welcomeMessages] are the display-only greetings. The chat's one is
+  /// never stored, so every load puts it back as the first bubble, dated
+  /// like the chat's first message.
   /// Returns false (and sets [errorMessage]) when loading failed.
-  Future<bool> loadChat(int id, {String? welcomeMessage}) async {
+  Future<bool> loadChat(int id, {List<String>? welcomeMessages}) async {
     _loadingChat = true;
     _errorMessage = null;
     _startFailed = false;
@@ -228,11 +233,11 @@ class ChatState extends ChangeNotifier {
       }
       _chatId = id;
       _messages.clear();
-      if (welcomeMessage != null) {
+      if (_greeting(id, welcomeMessages) case final greeting?) {
         _messages.add(
           _localMessage(
             role: 'assistant',
-            content: welcomeMessage,
+            content: greeting,
             createdAt: fetched.firstOrNull?.createdAt,
           ),
         );
@@ -265,7 +270,7 @@ class ChatState extends ChangeNotifier {
 
   /// Pull-to-refresh: reloads the current chat's messages (and the chat
   /// list, so done/title state stays accurate) from the backend.
-  Future<void> refreshCurrentChat({String? welcomeMessage}) async {
+  Future<void> refreshCurrentChat({List<String>? welcomeMessages}) async {
     final id = _chatId;
     if (id == null) return;
     try {
@@ -273,7 +278,7 @@ class ChatState extends ChangeNotifier {
     } on Exception {
       // Keep the stale list; loadChat below reports the real error.
     }
-    await loadChat(id, welcomeMessage: welcomeMessage);
+    await loadChat(id, welcomeMessages: welcomeMessages);
   }
 
   /// Deletes a chat on the backend and locally. When the active chat is
@@ -339,8 +344,8 @@ class ChatState extends ChangeNotifier {
   }
 
   /// Starts capturing a voice note for the composer. Recording is
-  /// composer-scoped, not chat-scoped: the transcript lands in the input
-  /// field, so no session-epoch guard is needed.
+  /// composer-scoped, not chat-scoped: [stopRecording] hands the transcript
+  /// to the chat screen, which sends it into the chat that is still open.
   Future<void> startRecording() async {
     final recorder = _recorder;
     if (recorder == null || _recording || _transcribing || _sending) return;
@@ -724,6 +729,13 @@ class ChatState extends ChangeNotifier {
 
   static String _describe(Exception e) =>
       e is NetworkException ? offline : e.toString();
+
+  /// The greeting of one chat. It follows the chat's id, so a reload shows
+  /// the same one and new chats cycle through the variants.
+  static String? _greeting(int chatId, List<String>? greetings) =>
+      greetings == null || greetings.isEmpty
+      ? null
+      : greetings[chatId % greetings.length];
 
   ChatMessage _localMessage({
     required String role,

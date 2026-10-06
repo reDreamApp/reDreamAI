@@ -213,7 +213,7 @@ void main() {
   });
 
   Future<void> start() =>
-      state.startChat(language: 'en', welcomeMessage: 'Welcome!');
+      state.startChat(language: 'en', welcomeMessages: ['Welcome!']);
 
   group('startChat', () {
     test('inserts local welcome message on success', () async {
@@ -255,7 +255,7 @@ void main() {
 
   group('resumeOrStart', () {
     Future<void> resume() =>
-        state.resumeOrStart(language: 'en', welcomeMessage: 'Welcome!');
+        state.resumeOrStart(language: 'en', welcomeMessages: ['Welcome!']);
 
     test('resumes the most recent chat when it is not done', () async {
       service.chatList = [
@@ -339,7 +339,7 @@ void main() {
     test('inserts the welcome bubble when the chat has no messages', () async {
       service.chatList = [_chat(5)];
       await state.loadChats();
-      await state.loadChat(5, welcomeMessage: 'Welcome!');
+      await state.loadChat(5, welcomeMessages: ['Welcome!']);
       expect(state.messages.single.content, 'Welcome!');
     });
 
@@ -350,7 +350,7 @@ void main() {
         service.serverMessage('user', 'dream', stage: 'recording'),
         service.serverMessage('assistant', 'go on', stage: 'recording'),
       ];
-      await state.loadChat(5, welcomeMessage: 'Welcome!');
+      await state.loadChat(5, welcomeMessages: ['Welcome!']);
       final welcome = state.messages.first;
       expect(welcome.content, 'Welcome!');
       expect(welcome.isLocal, isTrue);
@@ -358,8 +358,23 @@ void main() {
       expect(welcome.createdAt, state.messages[1].createdAt);
       expect(state.messages, hasLength(3));
       // Reloading again must not stack a second greeting.
-      await state.loadChat(5, welcomeMessage: 'Welcome!');
+      await state.loadChat(5, welcomeMessages: ['Welcome!']);
       expect(state.messages, hasLength(3));
+    });
+
+    test('each chat keeps one greeting and new chats cycle through', () async {
+      const greetings = ['one', 'two', 'three'];
+      service.chatList = [_chat(3), _chat(4), _chat(5)];
+      await state.loadChats();
+      final shown = <String>[];
+      for (final id in [3, 4, 5]) {
+        await state.loadChat(id, welcomeMessages: greetings);
+        shown.add(state.messages.first.content);
+      }
+      expect(shown, ['one', 'two', 'three']);
+      // Opening a chat again shows the greeting it had before.
+      await state.loadChat(4, welcomeMessages: greetings);
+      expect(state.messages.first.content, 'two');
     });
 
     test('maps the legacy intensity stage to rewriting', () async {
@@ -1254,7 +1269,7 @@ void main() {
         ..add(const ContentDeltaEvent('old reply'));
       await pumpEventQueue();
 
-      await state.startChat(language: 'en', welcomeMessage: 'fresh start');
+      await state.startChat(language: 'en', welcomeMessages: ['fresh start']);
       controller.add(
         DoneEvent(
           aiMessage: service.serverMessage('assistant', 'old reply'),
@@ -1392,7 +1407,7 @@ void main() {
     test('report sends persisted messages and refuses local ones', () async {
       final service = _FakeChatService();
       final state = ChatState(service);
-      await state.startChat(language: 'en', welcomeMessage: 'hi');
+      await state.startChat(language: 'en', welcomeMessages: ['hi']);
       await state.send('my dream');
       final reply = state.messages.last;
       await state.report(reply, reason: ReportReason.violence);
@@ -1410,7 +1425,7 @@ void main() {
       final service = _FakeChatService()..chatList = [_chat(1)];
       final state = ChatState(service);
       await state.loadChats();
-      await state.startChat(language: 'en', welcomeMessage: 'hi');
+      await state.startChat(language: 'en', welcomeMessages: ['hi']);
       state.clear();
       expect(state.chatId, isNull);
       expect(state.messages, isEmpty);
@@ -1422,7 +1437,7 @@ void main() {
       final service = _FakeChatService()
         ..scriptedStream = Stream.error(NetworkException('no route'));
       final state = ChatState(service);
-      await state.startChat(language: 'en', welcomeMessage: 'hi');
+      await state.startChat(language: 'en', welcomeMessages: ['hi']);
       await state.send('hello');
       expect(state.errorMessage, ChatState.offline);
       expect(state.failedMessageId, isNotNull);

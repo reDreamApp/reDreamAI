@@ -41,7 +41,9 @@ class FakeApi {
     if (handler == null) {
       return http.Response(jsonEncode({'detail': 'not found'}), 404);
     }
-    final body = request.body.isEmpty
+    // Uploads (audio) are multipart, not JSON: handlers get an empty body.
+    final isJson = request.headers['content-type']?.contains('json') ?? false;
+    final body = request.body.isEmpty || !isJson
         ? <String, dynamic>{}
         : jsonDecode(request.body) as Map<String, dynamic>;
     try {

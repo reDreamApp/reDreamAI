@@ -267,14 +267,8 @@ async def determine_stage_async(user_input: str, conversation: Conversation) -> 
         logger.info("Rehearsal is not routed in the app build; treating as final")
         stage = Stage.FINAL
 
-    # Guard rail: must have a summary before finishing. (The website build's
-    # rehearsal-before-final guard is dropped here since rehearsal isn't routed.)
-    if stage == Stage.FINAL:
-        previous_stages = set(conversation.stages)
-        if Stage.SUMMARY.value not in previous_stages:
-            logger.info("Redirecting to summary stage as no summary has been generated yet")
-            stage = Stage.SUMMARY
-    
+    stage = _keep_stage_order(stage, conversation)
+
     conversation.stages.append(stage.value)
     
     langfuse_context.update_current_observation(
@@ -284,6 +278,48 @@ async def determine_stage_async(user_input: str, conversation: Conversation) -> 
     )
     
     return stage.value
+
+# A session cannot leave recording on the user's first message: the guide
+# answers at least once in recording before any rewriting starts.
+MIN_USER_MESSAGES_BEFORE_REWRITING = 2
+
+_ROUTED_AFTER_RECORDING = (Stage.REWRITING.value, Stage.SUMMARY.value, Stage.FINAL.value)
+
+
+def _keep_stage_order(stage: Stage, conversation: Conversation) -> Stage:
+    """Hold the router's verdict to the order a session moves through.
+
+    The router is a model and can guess wrong; the order is not negotiable:
+    no step is skipped (final needs a summary, a summary needs a rewriting
+    turn), rewriting cannot start on the user's first message, and once
+    rewriting has begun a turn never falls back to recording.
+    """
+    previous = conversation.stages
+
+    # (The website build's rehearsal-before-final guard is dropped here since
+    # rehearsal isn't routed.)
+    if stage == Stage.FINAL and Stage.SUMMARY.value not in previous:
+        logger.info("Redirecting to summary stage as no summary has been generated yet")
+        stage = Stage.SUMMARY
+
+    if stage == Stage.SUMMARY and Stage.REWRITING.value not in previous:
+        logger.info("Redirecting to rewriting stage as nothing has been rewritten yet")
+        stage = Stage.REWRITING
+
+    if stage == Stage.REWRITING and Stage.REWRITING.value not in previous:
+        user_messages = sum(1 for m in conversation.messages if m.role == "user")
+        if user_messages < MIN_USER_MESSAGES_BEFORE_REWRITING:
+            logger.info("Staying in recording: rewriting cannot start on the first message")
+            stage = Stage.RECORDING
+
+    if stage == Stage.RECORDING and Stage.REWRITING.value in previous:
+        # Fall back to the newest stage this build routes to.
+        routed = [s for s in previous if s in _ROUTED_AFTER_RECORDING]
+        logger.info("Staying in %s: a session does not go back to recording", routed[-1])
+        stage = Stage(routed[-1])
+
+    return stage
+
 
 @observe(name="generate_nightmare_summary", as_type="generation")
 async def generate_nightmare_summary(conversation: Conversation) -> Optional[str]:

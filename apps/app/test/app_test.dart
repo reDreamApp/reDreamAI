@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,8 +12,10 @@ import 'package:redream_app/core/storage/local_store.dart';
 import 'package:redream_app/core/theme/app_theme.dart';
 import 'package:redream_app/core/widgets/brand_logo.dart';
 import 'package:redream_app/core/widgets/theme_mode_toggle.dart';
+import 'package:redream_app/features/chat/voice_recorder.dart';
 import 'package:redream_app/features/reminders/notification_service.dart';
 import 'package:redream_app/features/settings/profile.dart';
+import 'package:redream_app/l10n/generated/app_localizations_de.dart';
 import 'package:redream_app/l10n/generated/app_localizations_en.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -20,9 +24,32 @@ import 'fake_auth.dart';
 
 final _en = AppLocalizationsEn();
 
+class _FakeRecorder implements IVoiceRecorder {
+  bool cancelled = false;
+
+  @override
+  Future<bool> hasPermission() async => true;
+
+  @override
+  Future<void> start() async {}
+
+  @override
+  Future<VoiceRecording?> stop() async => VoiceRecording(
+    bytes: Uint8List.fromList([1, 2, 3]),
+    fileName: 'dream_recording.wav',
+  );
+
+  @override
+  Future<void> cancel() async => cancelled = true;
+
+  @override
+  Future<void> dispose() async {}
+}
+
 Future<(Widget, FakeApi, AppSettings)> _app({
   FakeAuth? auth,
   bool consentRequired = false,
+  IVoiceRecorder? recorder,
 }) async {
   var needsConsent = consentRequired;
   SharedPreferences.setMockInitialValues({});
@@ -90,6 +117,7 @@ Future<(Widget, FakeApi, AppSettings)> _app({
     api: api.client(token: 'test'),
     store: store,
     notifications: NotificationService(),
+    voiceRecorder: recorder == null ? null : () => recorder,
   );
   final app = MultiProvider(
     providers: [
@@ -217,8 +245,11 @@ void main() {
 
     await tester.tap(find.text('Session'));
     await _settle(tester);
-    expect(find.text('reDreamAI Assistant'), findsOneWidget);
-    expect(find.text(_en.chatWelcome), findsOneWidget);
+    expect(find.text('Dream Companion'), findsOneWidget);
+    // Chat 7 gets the second of the three greetings and input hints.
+    expect(find.text(_en.chatWelcome2), findsOneWidget);
+    expect(find.text('Start redreaming…'), findsOneWidget);
+    expect(AppLocalizationsDe().chatInputHint2, 'Start redreaming…');
 
     await tester.enterText(
       find.byType(TextField).last,
@@ -237,6 +268,115 @@ void main() {
     await _settle(tester);
     expect(find.text('Chat History'), findsOneWidget);
     expect(find.text('Old chat'), findsOneWidget);
+  });
+
+  group('voice note', () {
+    const transcribe = 'POST /api/v1/audio/transcribe';
+    const post = 'POST /api/v1/chats/7/message/stream';
+    final mic = find.byKey(const ValueKey('mic'));
+
+    Future<(FakeApi, _FakeRecorder)> openSession(WidgetTester tester) async {
+      final recorder = _FakeRecorder();
+      final (app, api, _) = await _app(
+        auth: FakeAuth(userId: 'user-1'),
+        recorder: recorder,
+      );
+      api.on(transcribe, (_, _) => {'text': 'I was lost in a forest'});
+      _tallPhone(tester);
+      await tester.pumpWidget(app);
+      await _settle(tester);
+      await tester.tap(find.text('Session'));
+      await _settle(tester);
+      return (api, recorder);
+    }
+
+    testWidgets('a tap records hands-free and Send posts the words', (
+      tester,
+    ) async {
+      final (api, _) = await openSession(tester);
+      final micAt = tester.getCenter(mic);
+      final sendAt = tester.getCenter(find.byTooltip(_en.chatSend));
+
+      await tester.tap(mic);
+      await _settle(tester);
+      expect(find.text(_en.chatMicRecording), findsOneWidget);
+      expect(api.calls, isNot(contains(transcribe)));
+      // Discard takes the mic's place and Send stays where sending is.
+      expect(tester.getCenter(find.byTooltip(_en.chatMicCancel)), micAt);
+      expect(tester.getCenter(find.byTooltip(_en.chatMicStop)), sendAt);
+
+      await tester.tap(find.byTooltip(_en.chatMicStop));
+      await _settle(tester);
+      expect(api.calls, containsAll([transcribe, post]));
+      expect(find.text('I was lost in a forest'), findsOneWidget);
+      expect(mic, findsOneWidget);
+    });
+
+    testWidgets('Discard drops a hands-free recording', (tester) async {
+      final (api, recorder) = await openSession(tester);
+
+      await tester.tap(mic);
+      await _settle(tester);
+      await tester.tap(find.byTooltip(_en.chatMicCancel));
+      await _settle(tester);
+
+      expect(recorder.cancelled, isTrue);
+      expect(api.calls, isNot(contains(transcribe)));
+      expect(find.text(_en.chatMicRecording), findsNothing);
+    });
+
+    testWidgets('holding records and letting go sends', (tester) async {
+      final (api, _) = await openSession(tester);
+
+      final finger = await tester.createGesture();
+      await finger.down(tester.getCenter(mic));
+      await _settle(tester);
+      expect(find.text(_en.chatMicSlideDiscard), findsOneWidget);
+      expect(api.calls, isNot(contains(transcribe)));
+
+      await finger.up(timeStamp: const Duration(seconds: 3));
+      await _settle(tester);
+      expect(api.calls, containsAll([transcribe, post]));
+      expect(find.text('I was lost in a forest'), findsOneWidget);
+    });
+
+    testWidgets('sliding left while holding discards', (tester) async {
+      final (api, recorder) = await openSession(tester);
+
+      final finger = await tester.createGesture();
+      await finger.down(tester.getCenter(mic));
+      await _settle(tester);
+      await finger.moveBy(const Offset(-100, 0));
+      await _settle(tester);
+      await finger.up(timeStamp: const Duration(seconds: 3));
+      await _settle(tester);
+
+      expect(recorder.cancelled, isTrue);
+      expect(api.calls, isNot(contains(transcribe)));
+      expect(find.text(_en.chatMicRecording), findsNothing);
+    });
+
+    testWidgets('sliding up while holding keeps recording hands-free', (
+      tester,
+    ) async {
+      final (api, recorder) = await openSession(tester);
+
+      final finger = await tester.createGesture();
+      await finger.down(tester.getCenter(mic));
+      await _settle(tester);
+      await finger.moveBy(const Offset(0, -100));
+      await finger.up(timeStamp: const Duration(seconds: 3));
+      await _settle(tester);
+
+      // Letting go after the lock sends nothing; the buttons decide.
+      expect(find.byTooltip(_en.chatMicStop), findsOneWidget);
+      expect(api.calls, isNot(contains(transcribe)));
+      expect(recorder.cancelled, isFalse);
+
+      await tester.tap(find.byTooltip(_en.chatMicCancel));
+      await _settle(tester);
+      expect(recorder.cancelled, isTrue);
+    });
   });
 
   testWidgets('back closes the chat history instead of leaving the app', (
@@ -259,7 +399,7 @@ void main() {
     await tester.binding.handlePopRoute();
     await _settle(tester);
     expect(find.text('Chat History'), findsNothing);
-    expect(find.text('reDreamAI Assistant'), findsOneWidget);
+    expect(find.text('Dream Companion'), findsOneWidget);
   });
 
   testWidgets('journal buttons show their full labels', (tester) async {
@@ -335,7 +475,7 @@ void main() {
 
     await tester.tap(find.widgetWithText(FilledButton, 'Begin Session').last);
     await _settle(tester);
-    expect(find.text('reDreamAI Assistant'), findsOneWidget);
+    expect(find.text('Dream Companion'), findsOneWidget);
   });
 
   testWidgets('onboarding ends without any profile answer', (tester) async {
@@ -531,9 +671,12 @@ void main() {
 
     expect(find.text('Thank you for this session.'), findsOneWidget);
     // The session created a dream: sessions, journal and progress reload.
-    expect([for (final path in reloaded) loads(path)], [
-      for (final n in before) n + 1,
-    ]);
+    expect(
+      [for (final path in reloaded) loads(path)],
+      [
+        for (final n in before) n + 1,
+      ],
+    );
     expect(find.text(_en.chatIntensityPrompt), findsOneWidget);
     await tester.tap(find.widgetWithText(FilledButton, _en.submit));
     await _settle(tester);
