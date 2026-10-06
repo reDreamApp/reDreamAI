@@ -24,7 +24,7 @@ class Article {
   /// the website shows none.
   static const _images = {
     'study-somnologie-2026': 'assets/images/learn_study.webp',
-    'blog_creativity': 'assets/images/home_dreaming.webp',
+    'blog_creativity': 'assets/images/learn_creativity.webp',
     'blog_sleep_better': 'assets/images/learn_sleep.webp',
   };
 

@@ -113,7 +113,7 @@ void main() {
 
     expect(find.byType(ArticleScreen), findsOneWidget);
     expect(
-      find.image(const AssetImage('assets/images/home_dreaming.webp')),
+      find.image(const AssetImage('assets/images/learn_creativity.webp')),
       findsOneWidget,
     );
     expect(opened, isEmpty);
@@ -130,7 +130,10 @@ void main() {
       Article.ownStudy(AppLocalizationsEn()).image,
       'assets/images/learn_study.webp',
     );
-    expect(post('blog_creativity').image, 'assets/images/home_dreaming.webp');
+    expect(
+      post('blog_creativity').image,
+      'assets/images/learn_creativity.webp',
+    );
     expect(post('blog_sleep_better').image, 'assets/images/learn_sleep.webp');
     expect(post('blog_something_new').image, isNull);
   });
