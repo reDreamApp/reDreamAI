@@ -17,10 +17,10 @@ extension IrtStageLabel on IrtStage {
 /// The colour of each stage's moon; the line blends from one to the next:
 /// lilac, the app's light blue, green, and yellow for the last one.
 const List<Color> stageColors = [
-  Color(0xFF8B5CF6),
+  BrandColors.lilac,
   BrandColors.turquoise,
   BrandColors.green,
-  Color(0xFFF6C51B),
+  BrandColors.yellow,
 ];
 
 /// How far the shadow sits from each moon's centre, in radii: a slim

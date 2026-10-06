@@ -13,6 +13,7 @@ import 'package:redream_app/core/storage/local_store.dart';
 import 'package:redream_app/core/theme/app_theme.dart';
 import 'package:redream_app/core/widgets/brand_logo.dart';
 import 'package:redream_app/core/widgets/theme_mode_toggle.dart';
+import 'package:redream_app/features/chat/stage_indicator.dart';
 import 'package:redream_app/features/chat/voice_recorder.dart';
 import 'package:redream_app/features/journal/dream_detail_screen.dart';
 import 'package:redream_app/features/reminders/notification_service.dart';
@@ -432,6 +433,108 @@ void main() {
     expect(find.text('Dream Companion'), findsOneWidget);
   });
 
+  testWidgets('each mood has its colour, and the chosen one is framed', (
+    tester,
+  ) async {
+    final (app, api, _) = await _app(auth: FakeAuth(userId: 'user-1'));
+    String? saved;
+    api
+      ..on('POST /api/v1/progress/emotion', (_, body) {
+        saved = body['emotion'] as String;
+        return null;
+      })
+      ..on('GET /api/v1/progress/stats', (_, _) => statsJson(mood: saved));
+    _tallPhone(tester);
+    await tester.pumpWidget(app);
+    await _settle(tester);
+
+    BoxDecoration tile(String mood) =>
+        tester
+                .widget<AnimatedContainer>(
+                  find.descendant(
+                    of: find.byTooltip(mood),
+                    matching: find.byType(AnimatedContainer),
+                  ),
+                )
+                .decoration!
+            as BoxDecoration;
+
+    // Lilac, blue, turquoise, green, yellow, like the session progress.
+    const moods = {
+      'Very dissatisfied': BrandColors.lilac,
+      'Dissatisfied': BrandColors.periwinkle,
+      'Neutral': BrandColors.turquoise,
+      'Satisfied': BrandColors.green,
+      'Very satisfied': BrandColors.yellow,
+    };
+    expect(stageColors, [
+      BrandColors.lilac,
+      BrandColors.turquoise,
+      BrandColors.green,
+      BrandColors.yellow,
+    ]);
+    final washes = {for (final mood in moods.keys) tile(mood).color};
+    expect(washes, hasLength(5));
+    for (final mood in moods.keys) {
+      expect(tile(mood).border!.top.color, Colors.transparent);
+    }
+
+    await tester.tap(find.byTooltip('Satisfied'));
+    await _settle(tester);
+    for (final MapEntry(key: mood, value: color) in moods.entries) {
+      expect(
+        tile(mood).border!.top.color,
+        mood == 'Satisfied' ? color : Colors.transparent,
+      );
+    }
+  });
+
+  testWidgets('back leads from every other tab to Home', (tester) async {
+    dotenv.loadFromString(isOptional: true);
+    final (app, _, _) = await _app(
+      auth: FakeAuth(userId: 'user-1', email: 'me@example.com'),
+    );
+    _tallPhone(tester);
+    await tester.pumpWidget(app);
+    await _settle(tester);
+    final bar = find.byType(NavigationBar);
+    int selected() => tester.widget<NavigationBar>(bar).selectedIndex;
+
+    for (final (label, index) in [
+      ('Session', 1),
+      ('Journal', 2),
+      ('Learning', 3),
+    ]) {
+      await tester.tap(find.descendant(of: bar, matching: find.text(label)));
+      await _settle(tester);
+      expect(selected(), index);
+
+      // What Android's back button or gesture sends.
+      expect(await tester.binding.handlePopRoute(), isTrue);
+      await _settle(tester);
+      expect(selected(), 0, reason: 'back from $label');
+    }
+
+    // With the chat history open, the first Back only closes it.
+    await tester.tap(find.descendant(of: bar, matching: find.text('Session')));
+    await _settle(tester);
+    await tester.tap(find.byIcon(Icons.menu));
+    await _settle(tester);
+    await tester.binding.handlePopRoute();
+    await _settle(tester);
+    expect(find.text('Chat History'), findsNothing);
+    expect(selected(), 1);
+    await tester.binding.handlePopRoute();
+    await _settle(tester);
+    expect(selected(), 0);
+
+    // On Home there is nothing left to go back to: Back leaves the app.
+    final shell = tester.widget<PopScope<Object?>>(
+      find.byWidgetPredicate((w) => w is PopScope<Object?>).first,
+    );
+    expect(shell.canPop, isTrue);
+  });
+
   testWidgets('journal buttons show their full labels', (tester) async {
     final (app, _, _) = await _app(
       auth: FakeAuth(userId: 'user-1', email: 'me@example.com'),
@@ -692,16 +795,14 @@ void main() {
     expect(find.byType(BrandWordmark), findsNothing);
     expect(bar, findsOneWidget);
 
-    // Back leads to the tab the user came from.
+    // The back arrow leads to Home, also when the user came from Journal.
     await tester.tap(find.byType(BackButton));
     await _settle(tester);
-    expect(find.text('Dream Journal'), findsOneWidget);
+    expect(tester.widget<NavigationBar>(bar).selectedIndex, 0);
     expect(find.byType(BackButton), findsNothing);
     expect(find.byType(BrandWordmark), findsOneWidget);
 
     // Home's Learn card opens the same tab.
-    await tester.tap(tab('Home'));
-    await _settle(tester);
     await tester.tap(find.text(_en.homeLearnTitle));
     await _settle(tester);
     expect(find.byType(BackButton), findsOneWidget);

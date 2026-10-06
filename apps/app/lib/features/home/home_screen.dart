@@ -322,6 +322,16 @@ class _MoodPickerState extends State<_MoodPicker> {
     Mood.verySatisfied: Icons.sentiment_very_satisfied_rounded,
   };
 
+  /// From low to high in the colours of the session progress, with the
+  /// blue of the picture gradient between lilac and turquoise.
+  static const Map<Mood, Color> colors = {
+    Mood.veryDissatisfied: BrandColors.lilac,
+    Mood.dissatisfied: BrandColors.periwinkle,
+    Mood.neutral: BrandColors.turquoise,
+    Mood.satisfied: BrandColors.green,
+    Mood.verySatisfied: BrandColors.yellow,
+  };
+
   String _label(Mood mood, AppLocalizations l10n) => switch (mood) {
     Mood.veryDissatisfied => l10n.moodVeryDissatisfied,
     Mood.dissatisfied => l10n.moodDissatisfied,
@@ -354,6 +364,8 @@ class _MoodPickerState extends State<_MoodPicker> {
     final brand = BrandTheme.of(context);
     final selected = _pending ?? widget.stats?.todayMood;
     final average = widget.stats?.averageMood;
+    final dark = theme.brightness == Brightness.dark;
+    final tile = theme.colorScheme.surfaceContainerHighest;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -378,21 +390,31 @@ class _MoodPickerState extends State<_MoodPicker> {
                       duration: const Duration(milliseconds: 150),
                       height: 48,
                       decoration: BoxDecoration(
-                        color: mood == selected
-                            ? theme.colorScheme.primaryContainer
-                            : theme.colorScheme.surfaceContainerHighest,
+                        // A wash of the mood's colour; the chosen one is
+                        // stronger and framed.
+                        color: Color.alphaBlend(
+                          colors[mood]!.withValues(
+                            alpha: mood == selected ? 0.42 : 0.2,
+                          ),
+                          tile,
+                        ),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: mood == selected
-                              ? theme.colorScheme.primary
+                              ? colors[mood]!
                               : Colors.transparent,
+                          width: 2,
                         ),
                       ),
                       child: Icon(
                         _icons[mood],
-                        color: mood == selected
-                            ? theme.colorScheme.primary
-                            : brand.muted,
+                        // The colour itself, pulled towards the text
+                        // colour so a pale one stays readable.
+                        color: Color.lerp(
+                          colors[mood],
+                          theme.colorScheme.onSurface,
+                          mood == selected ? 0.6 : (dark ? 0.15 : 0.35),
+                        ),
                       ),
                     ),
                   ),

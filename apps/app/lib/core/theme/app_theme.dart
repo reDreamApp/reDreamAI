@@ -9,6 +9,11 @@ class BrandColors {
   static const teal = Color(0xFF0E9BB6);
   static const deepTeal = Color(0xFF2A9D8F);
   static const green = Color(0xFF22B573);
+  static const lilac = Color(0xFF8B5CF6);
+
+  /// The blue the picture gradient starts with, strong enough to stand alone.
+  static const periwinkle = Color(0xFF6E7AED);
+  static const yellow = Color(0xFFF6C51B);
   static const violet = Color(0xFF6366F1);
   static const deepViolet = Color(0xFF7C3AED);
   static const flame = Color(0xFFFF6F00);

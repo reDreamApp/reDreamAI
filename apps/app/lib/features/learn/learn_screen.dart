@@ -53,8 +53,8 @@ class LearnScreen extends StatefulWidget {
   /// Replaces the website client in tests.
   final ArticlesService? service;
 
-  /// Puts a back arrow into the bar. As a tab, Learn returns to the tab the
-  /// user came from with it.
+  /// Puts a back arrow into the bar. As a tab, Learn returns to Home with
+  /// it.
   final VoidCallback? onBack;
 
   /// Replaces the browser in tests.

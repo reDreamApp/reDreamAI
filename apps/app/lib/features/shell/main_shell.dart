@@ -97,17 +97,17 @@ class _ShellScaffoldState extends State<_ShellScaffold> {
     final onLearn = tabs.current == ShellTab.learn;
     if (onLearn) _learnOpened = true;
 
-    // An open drawer does not register with the system back gesture on its
-    // own, so Android's Back would leave the app instead of closing it. On
-    // Learn it does what the page's back arrow does.
+    // Android's Back first closes the chat history if it is open (a drawer
+    // does not register with the back gesture on its own), then leads from
+    // any other tab to Home, and only from Home out of the app.
     return PopScope<Object?>(
-      canPop: !_drawerOpen && !onLearn,
+      canPop: !_drawerOpen && tabs.current == ShellTab.home,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
         if (_drawerOpen) {
           _scaffold.currentState?.closeDrawer();
         } else {
-          tabs.back();
+          tabs.select(ShellTab.home);
         }
       },
       child: Scaffold(
@@ -157,7 +157,7 @@ class _ShellScaffoldState extends State<_ShellScaffold> {
             const ChatScreen(),
             const JournalScreen(),
             if (_learnOpened)
-              LearnScreen(onBack: tabs.back)
+              LearnScreen(onBack: () => tabs.select(ShellTab.home))
             else
               const SizedBox.shrink(),
           ],
