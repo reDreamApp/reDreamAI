@@ -202,7 +202,7 @@ when changing the consent copy.
 
 Apply database migrations before starting updated containers. The deployment
 workflow handles this ordering and runs
-`docker compose exec -T api python -m redream_api.revoke_legacy_audio`
+`docker compose exec -T api /app/.venv/bin/python -m redream_api.revoke_legacy_audio`
 after startup to rotate legacy audio paths and refresh stored URLs. Run that
 command from `infra/` when deploying manually.
 

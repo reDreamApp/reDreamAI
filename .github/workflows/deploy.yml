@@ -81,6 +81,6 @@ jobs:
             # One-off: replaces the year-long links of rehearsal audio stored
             # before 2026-10-07. Later runs find nothing to do. A failure
             # leaves the new version running and shows up as a warning.
-            docker compose exec -T api python -m redream_api.revoke_legacy_audio \
+            docker compose exec -T api /app/.venv/bin/python -m redream_api.revoke_legacy_audio \
               || echo "::warning::rehearsal audio clean-up failed; old audio links stay valid until it succeeds"
           EOF

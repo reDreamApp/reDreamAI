@@ -81,3 +81,52 @@ def test_safety_trace_tagged_with_session_and_user(client, monkeypatch):
     )
     assert r.status_code == 200
     assert captured == {"session_id": "42", "user_id": "user-abc"}
+
+
+@pytest.mark.parametrize("text", ["ja", "Yes.", "yes, exactly", "Nein!", "ja genau"])
+def test_bare_answer_skips_the_model(client, text):
+    """A plain yes / no is never a risk signal: "Hat er dich gewürgt?" → "ja"
+    came back high and showed the helpline instead of a reply (2026-10-14)."""
+    tc, fake = client
+    r = tc.post(
+        "/safety/classify",
+        json={
+            "text": text,
+            "language": "de",
+            "stage": "recording",
+            "context": "Hat er dich gewürgt?",
+        },
+    )
+    assert r.status_code == 200
+    assert r.json()["risk"] == "none"
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("text", ["8", "yes he did", "yes yes yes yes", "ja, ich will sterben"])
+def test_other_short_replies_reach_the_model(client, text):
+    tc, fake = client
+    fake.enqueue(json.dumps({"risk": "none", "categories": [], "confidence": 0.9}))
+    r = tc.post("/safety/classify", json={"text": text, "language": "en"})
+    assert r.status_code == 200
+    assert len(fake.calls) == 1
+
+
+@pytest.mark.parametrize(
+    ("stage", "labelled"),
+    [("recording", True), ("rewriting", True), ("summary", True), ("final", False)],
+)
+def test_context_marked_as_about_the_dream(client, stage, labelled):
+    tc, fake = client
+    fake.enqueue(json.dumps({"risk": "none", "categories": [], "confidence": 0.9}))
+    tc.post(
+        "/safety/classify",
+        json={
+            "text": "he did it again",
+            "language": "en",
+            "stage": stage,
+            "context": "What happens next?",
+        },
+    )
+    user_turn = fake.calls[0]["messages"][1]["content"]
+    assert ("(about the user's dream)" in user_turn) is labelled
+    assert "What happens next?" in user_turn

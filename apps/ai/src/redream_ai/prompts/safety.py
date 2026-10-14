@@ -1,5 +1,11 @@
 """Crisis-detection classifier prompts (ADR 0005).
 
+v0.4.1: a bare "yes" / "ja" answering the guide's question about the dream
+was classified high when that question named a danger without the word
+"dream" ("Were you afraid he would kill you?", "Did you want to jump?"):
+18 of 64 short answers in a live probe (2026-10-14), the helpline replaced
+the chat. Short answers to such questions are now "none".
+
 v0.4.0: adds app_mono's dream-vs-waking-life rule (safety-v0.2.0). Dream
 imagery about the user's own death, self-harm or being a child again was
 classified high under v0.3.1 (3/34 eval failures); a dream about one's own
@@ -14,7 +20,7 @@ ambiguous. The classifier is NOT a diagnostic tool — it's a signpost to
 public helplines.
 """
 
-PROMPT_VERSION = "safety-v0.4.0"
+PROMPT_VERSION = "safety-v0.4.1"
 
 SAFETY_PROMPT_EN = """\
 You are a safety classifier for a nightmare self-help app (imagery rehearsal
@@ -43,6 +49,13 @@ The input may include bracketed context: the IRT stage and the assistant
 message the user is replying to. Use it to interpret terse replies. Context
 never turns a harmless message into a risk signal. These kinds of ordinary
 chat turns must NOT be flagged:
+- Short answers to the assistant's questions about the dream. The assistant
+  asks about the dream the user is telling, even when its question does not
+  repeat the word "dream" ("Were you afraid he would kill you?", "Did you
+  want to jump?", "What happens when you can't breathe?"). A reply that only
+  agrees, disagrees or confirms ("yes", "no", "yeah", "exactly", "yes,
+  exactly") adds nothing of its own and is "none". The words in the
+  assistant's question are never the user's risk signal.
 - The app asks the user to rate their nightmare's intensity on a 0-10 scale —
   a message that is just a number or a rating ("8", "It is an 8 out of 10.")
   answers that scale question and is NOT a self-harm or suicide signal.
@@ -60,6 +73,8 @@ Examples (expected risk):
 - "This app is useless, you keep repeating yourself." → none
 - "8 out of 10, I guess." → none
 - "Thanks, that's all for today. Bye!" → none
+- "yes", replying to "Were you afraid he would kill you?" → none (answers a
+  question about the dream)
 - "In the dream he stabbed my whole family and I woke up screaming." → none
   (dream imagery, not a threat)
 - "I dreamt I jumped off a bridge." → low (suicidal_ideation, dream only)
@@ -120,6 +135,14 @@ Assistenten-Nachricht, auf die geantwortet wird. Nutze ihn, um knappe
 Antworten einzuordnen. Kontext macht aus einer harmlosen Nachricht niemals
 ein Risikosignal. Diese Arten gewöhnlicher Chat-Nachrichten dürfen NICHT
 markiert werden:
+- Kurze Antworten auf Fragen des Assistenten zum Traum. Der Assistent fragt
+  nach dem Traum, den die Person erzählt, auch wenn seine Frage das Wort
+  "Traum" nicht wiederholt ("Hattest du Angst, dass er dich umbringt?",
+  "Wolltest du springen?", "Was passiert, wenn du keine Luft mehr
+  bekommst?"). Eine Antwort, die nur zustimmt, verneint oder bestätigt ("ja",
+  "nein", "genau", "ja, genau"), fügt nichts Eigenes hinzu und ist "none".
+  Die Worte in der Frage des Assistenten sind nie das Risikosignal der
+  Person.
 - Die App selbst bittet darum, die Intensität des Albtraums auf einer Skala
   von 0-10 zu bewerten — eine Nachricht, die nur eine Zahl oder Bewertung ist
   ("8", "Es ist eine 8 von 10."), beantwortet diese Skalenfrage und ist KEIN
@@ -139,6 +162,8 @@ Beispiele (erwartetes Risiko):
 - "Die App ist nutzlos, du wiederholst dich ständig." → none
 - "8 von 10, schätze ich." → none
 - "Danke, das war's für heute. Tschüss!" → none
+- "ja", als Antwort auf "Hattest du Angst, dass er dich umbringt?" → none
+  (beantwortet eine Frage zum Traum)
 - "Im Traum hat er meine ganze Familie erstochen und ich bin schreiend
   aufgewacht." → none (Trauminhalt, keine Drohung)
 - "Ich habe geträumt, dass ich von einer Brücke springe." → low

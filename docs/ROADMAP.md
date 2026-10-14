@@ -60,6 +60,15 @@ decisions in `docs/decisions/`.
   really happens or happened). The eval grew to 34 cases (dream imagery and
   real-life risk ported from the app_mono eval): v0.3.1 31/34, v0.4.0 34/34
   in three runs on ministral-8b-2512.
+  2026-10-14: `safety-v0.4.1`. A bare "yes" / "ja" answering the guide's
+  question about the dream came back high when the question named a danger
+  without the word "dream" ("Were you afraid he would kill you?"): 18 of 64
+  in a live probe, the helpline replaced the chat. A reply made only of
+  yes/no words now skips the model (`_is_bare_answer`), the guide's message
+  is marked as being about the dream in the recording, rewriting and summary
+  stages, and the prompt says such answers are "none". Eval 52 cases (short
+  answers, short sentences, answers with a real risk of their own): 52/52 in
+  three runs.
 
 Tracked here so they don't live only in session memory.
 

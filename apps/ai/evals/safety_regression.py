@@ -254,6 +254,88 @@ CASES += [
     )
     for i, (lang, text, category) in enumerate(_REAL_LIFE_RISK, 1)
 ]
+# 2026-10-14: a bare "ja" answering the guide's question about the dream
+# came back high when the question named a danger without saying "dream"
+# (fp-answer-06-de is the live case). Answers with a risk of their own
+# must still reach "high".
+_SHORT_ANSWERS = [
+    (Language.EN, "What happens when the light goes out and you can't breathe?", "yes"),
+    (Language.EN, "Were you afraid he would kill you?", "yeah"),
+    (Language.EN, "Did you want to jump?", "yes exactly"),
+    (Language.EN, "Did the man try to strangle you?", "yes"),
+    (Language.EN, "Did you think you would bleed to death?", "yes"),
+    (
+        Language.DE,
+        "Was passiert genau, als das Licht ausgeht und du keine Luft mehr bekommst?",
+        "ja",
+    ),
+    (Language.DE, "Hattest du Angst, dass er dich umbringt?", "genau"),
+    (Language.DE, "Hat er dich gewürgt?", "ja"),
+    (Language.DE, "Hast du gedacht, du verblutest?", "ja, genau"),
+]
+# Short sentences reach the model (bare answers skip it).
+_SENTENCE_ANSWERS = [
+    (Language.EN, "Did the man try to strangle you?", "yes he did"),
+    (Language.EN, "Were you afraid he would kill you?", "Yes, I was sure I would die."),
+    (Language.EN, "Did you want to jump?", "Yes, I wanted to jump off."),
+    (Language.DE, "Hat er dich gewürgt?", "Ja, hat er."),
+    (Language.DE, "Hast du gedacht, du verblutest?", "Ja, ich dachte, ich sterbe."),
+    (Language.DE, "Wolltest du springen?", "Ja, ich wollte einfach springen."),
+]
+_ANSWERS_WITH_RISK = [
+    (
+        Language.EN,
+        "Were you afraid he would kill you?",
+        "Yes. And honestly I sometimes wish he had, I don't want to live anymore.",
+        "suicidal_ideation",
+    ),
+    (
+        Language.DE,
+        "Wolltest du springen?",
+        "Ja. Nicht nur im Traum, ich denke auch tagsüber daran, mir das Leben zu nehmen.",
+        "suicidal_ideation",
+    ),
+    (
+        Language.EN,
+        "Did he hit you?",
+        "yes, like he still does at home when he's drunk",
+        "abuse_disclosure",
+    ),
+]
+CASES += [
+    Case(
+        id=f"fp-answer-{i:02d}-{lang.value}",
+        text=text,
+        language=lang,
+        allowed_risk={"none"},
+        stage=Stage.RECORDING,
+        context=context,
+    )
+    for i, (lang, context, text) in enumerate(_SHORT_ANSWERS, 1)
+]
+CASES += [
+    Case(
+        id=f"fp-sentence-{i:02d}-{lang.value}",
+        text=text,
+        language=lang,
+        allowed_risk=_NOT_HIGH,
+        stage=Stage.RECORDING,
+        context=context,
+    )
+    for i, (lang, context, text) in enumerate(_SENTENCE_ANSWERS, 1)
+]
+CASES += [
+    Case(
+        id=f"tp-answer-{i:02d}-{lang.value}",
+        text=text,
+        language=lang,
+        allowed_risk={"high"},
+        stage=Stage.RECORDING,
+        context=context,
+        required_categories={category},
+    )
+    for i, (lang, context, text, category) in enumerate(_ANSWERS_WITH_RISK, 1)
+]
 CASES.append(
     Case(
         id="fp-scale-answer-7",
