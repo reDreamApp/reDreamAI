@@ -19,14 +19,38 @@ CREATE TABLE user_daily_usage (
 );
 ```
 
-Backend increments `llm_tokens` after every AI response (sum of input + output tokens from the Mistral `usage` block). Before forwarding a chat or transcription request, check:
+Before inference, ensure daily counter rows with `ON CONFLICT DO NOTHING`,
+then conditionally increment the shared and per-user counters in one
+transaction only if both have room. All counter updates use SQL arithmetic.
+Chat reserves 8192 tokens plus four times the UTF-8 bytes of message/history;
+transcription reserves at least 8192, scaled by upload size. Responses settle
+to reported usage against the original UTC date. A request that fails in the
+AI service gets its reservation back, so a provider outage does not use up the
+day. A request the client cancels, and one whose usage is not reported, retain
+their reservation: cancelling must not be a way around the limits. A message
+stopped by the safety check reserves nothing. A request without room
+for its reservation receives HTTP 429 with `Retry-After` until UTC midnight.
 
-```sql
-SELECT COALESCE(llm_tokens, 0) FROM user_daily_usage
-  WHERE user_id = $1 AND usage_date = CURRENT_DATE;
-```
+New rehearsal audio shares these counters. TTS input is billed per character,
+so each stripped Unicode character counts as **8 budget tokens** by default
+(`TTS_BUDGET_TOKENS_PER_CHARACTER`). This maps Voxtral's
+[$16 per million characters](https://docs.mistral.ai/inference/pricing) to a
+rough $2 per million chat-token reference. The reference is an approximation
+for mixed chat input/output, not a fixed price for every model or provider.
+Adjust the multiplier when pricing changes.
 
-If `>= 100000`: return HTTP 429 with `{ retry_after: <seconds_until_utc_midnight> }`.
+Before asking the AI service for TTS, reserve twice the weighted character
+count, with the existing 8192-token reservation minimum. The request explicitly
+limits synthesis to two provider attempts. The AI response reports how many
+attempts ran; the backend refunds unused capacity, including the whole reserve
+for an explicit storage cache hit with zero attempts. Cached audio already on
+the dream is refreshed without a reservation and remains available at the cap.
+A failed synthesis gives the reserve back; absent or invalid usage retains it.
+
+These are conservative admission estimates. Actual provider usage may exceed
+an estimate; auxiliary classifier/routing/critic calls are not fully reflected
+by response usage, and TTS price weighting is approximate. These counters are
+not an exact ceiling on the provider's invoice.
 
 Audio transcription tokens count against the same budget.
 
@@ -35,21 +59,22 @@ Frontend renders a friendly "you've reached today's limit, comes back tomorrow a
 ## Consequences
 
 ### Positive
-- Hard cost ceiling per user per day.
-- Cheap to implement (one table, two queries).
+- Admission limits per user per day; provider billing is not an exact hard ceiling.
+- Uses the same daily counters for admission and usage accounting.
 - Visible to support: query `user_daily_usage` to diagnose user-reported "AI not responding".
 
 ### Negative
 - UTC reset is jarring for users in non-UTC zones (resets mid-evening for some). Mitigation: surface "resets at 00:00 UTC" in the limit message; user-tz reset adds complexity not worth it for v1.
-- Counter is post-hoc (incremented after response), so a single very large turn can push past 100k. Mitigation: also enforce a per-message `max_tokens` ceiling in the Mistral call.
+- Reservations may reject a request before the counter reaches the configured limit; failed calls keep their reservation until the UTC reset.
 
 ## Amendment 2026-10-06 — a limit for all users together
 
 The per-user cap bounds one account, not the service: sign-up is open, so the
 bill can still grow with the number of accounts. A second limit covers all
 users together: **500k tokens per UTC day** (`DAILY_LLM_TOKEN_BUDGET_TOTAL`).
-Once the day's total reaches it, chat and transcription answer 429 for
-everyone until midnight UTC, with the same `Retry-After` as the per-user cap.
+Chat, transcription and new TTS synthesis answer 429 when there is insufficient
+room for a reservation, until midnight UTC, with the same `Retry-After` as the
+per-user cap.
 
 The total is its own counter:
 
@@ -66,10 +91,9 @@ a sum would forget what deleted accounts used, and the limit could be reset by
 signing up, using the budget and deleting the account again. The table holds
 no user data.
 
-Not counted, by either limit: the safety check before each turn and the
-rehearsal audio (TTS is billed per character, not per token).
+Not fully counted by either limit: auxiliary safety, routing and critic calls.
 
 ## Alternatives considered
 - **Per-message rate limit (e.g. 10 req/min)**: doesn't bound cost. Rejected.
 - **User-tz reset window**: complexity not justified.
-- **Cost-based instead of token-based budget**: requires pricing data baked in; cleaner to count tokens.
+- **Exact cost-based budget**: requires complete usage and pricing for every provider and model. Keep token counters with approximate TTS price weighting for now.

@@ -149,6 +149,8 @@ class _ConsentScreenState extends State<ConsentScreen> {
                       child: Text(l10n.settingsPrivacyPolicy),
                     ),
                   ),
+                  if (!consent.hasCurrentText)
+                    Text(l10n.consentUpdateRequired, style: TextStyle(color: scheme.error)),
                   if (consent.errorMessage != null)
                     Text(
                       consent.errorMessage!,
@@ -164,7 +166,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
                 children: [
                   CheckboxListTile(
                     value: _agreed,
-                    onChanged: consent.saving
+                    onChanged: consent.saving || !consent.hasCurrentText
                         ? null
                         : (v) => setState(() => _agreed = v ?? false),
                     title: Text(l10n.consentCheckbox),
@@ -175,7 +177,7 @@ class _ConsentScreenState extends State<ConsentScreen> {
                   AppButton(
                     label: l10n.consentContinue,
                     busy: consent.saving,
-                    onPressed: _agreed ? consent.grant : null,
+                    onPressed: _agreed && consent.hasCurrentText ? consent.grant : null,
                   ),
                   const SizedBox(height: 8),
                   Text(

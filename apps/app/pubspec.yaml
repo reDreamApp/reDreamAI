@@ -7,6 +7,7 @@ environment:
   sdk: ^3.11.5
 
 dependencies:
+  cryptography: ^2.9.0
   cupertino_icons: ^1.0.8
   flutter:
     sdk: flutter
@@ -14,6 +15,7 @@ dependencies:
   flutter_local_notifications: ^19.4.2
   flutter_localizations:
     sdk: flutter
+  flutter_secure_storage: ^10.3.4
   flutter_timezone: ^5.0.1
   http: ^1.4.0
   intl: any

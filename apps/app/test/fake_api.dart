@@ -115,8 +115,8 @@ SseBody streamTurn({
 ]);
 
 Map<String, Object?> consentJson({bool required = false}) => {
-  'required_version': '2026-07-10',
-  'granted_version': required ? null : '2026-07-10',
+  'required_version': '2026-10-07',
+  'granted_version': required ? null : '2026-10-07',
   'consent_required': required,
 };
 

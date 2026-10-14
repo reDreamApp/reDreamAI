@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:redream_app/app.dart';
@@ -55,6 +56,7 @@ Future<(Widget, FakeApi, AppSettings)> _app({
   IVoiceRecorder? recorder,
 }) async {
   var needsConsent = consentRequired;
+  FlutterSecureStorage.setMockInitialValues({});
   SharedPreferences.setMockInitialValues({});
   final store = await LocalStore.open();
   final settings = AppSettings(store, platformLanguage: 'en');

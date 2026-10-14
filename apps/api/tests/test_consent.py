@@ -42,7 +42,10 @@ async def test_consent_lifecycle(client, no_consent_user):
     assert body["required_version"] == settings.consent_version
 
     # Grant.
-    r = await client.post("/api/v1/users/me/consent", json={"version": settings.consent_version})
+    r = await client.post(
+        "/api/v1/users/me/consent",
+        json={"version": settings.consent_version, "text_version": settings.consent_version},
+    )
     assert r.status_code == 204
     body = (await client.get("/api/v1/users/me/consent")).json()
     assert body["consent_required"] is False
@@ -56,7 +59,10 @@ async def test_consent_lifecycle(client, no_consent_user):
     assert body["granted_version"] is None
 
     # Re-grant works (append-only log, latest row wins).
-    r = await client.post("/api/v1/users/me/consent", json={"version": settings.consent_version})
+    r = await client.post(
+        "/api/v1/users/me/consent",
+        json={"version": settings.consent_version, "text_version": settings.consent_version},
+    )
     assert r.status_code == 204
     assert (await client.get("/api/v1/users/me/consent")).json()["consent_required"] is False
 
@@ -105,3 +111,10 @@ async def test_reads_and_deletion_stay_open_without_consent(client, no_consent_u
     # GDPR purge works regardless of consent state.
     r = await client.delete("/api/v1/users/me/data")
     assert r.status_code == 204
+
+
+async def test_old_clients_cannot_echo_new_server_version_without_new_copy(client, no_consent_user):
+    r = await client.post("/api/v1/users/me/consent", json={"version": settings.consent_version})
+    assert r.status_code == 409
+    status = await client.get("/api/v1/users/me/consent")
+    assert status.json()["consent_required"] is True

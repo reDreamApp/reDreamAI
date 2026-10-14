@@ -31,6 +31,8 @@ class ConsentStatusOut(BaseModel):
 
 
 class ConsentGrantRequest(BaseModel):
+    text_version: str | None = None
+    """Version bundled in the client, rather than echoed from server status."""
     version: str
     """The consent-text version the user actually saw — must match the
     current required version (a stale screen must not record a grant)."""
@@ -57,10 +59,10 @@ async def grant_consent(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Records explicit consent (Art. 9(2)(a)) as an append-only proof row."""
-    if body.version != settings.consent_version:
+    if body.version != settings.consent_version or body.text_version != settings.consent_version:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
-            "consent text changed — reload the consent screen",
+            "consent text changed — update the app and reload the consent screen",
         )
     await ConsentRepo(db).record(user.id, version=body.version, granted=True)
 

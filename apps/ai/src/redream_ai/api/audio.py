@@ -6,6 +6,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from ..audio import stt, tts
 from ..models import RehearsalRequest, RehearsalResponse, TranscribeResponse
+from ..request_limits import MAX_AUDIO_BYTES
 
 router = APIRouter()
 
@@ -14,7 +15,9 @@ router = APIRouter()
 async def audio_transcribe(file: UploadFile = File(...)) -> TranscribeResponse:
     if file.filename is None:
         raise HTTPException(400, "filename required")
-    audio_bytes = await file.read()
+    audio_bytes = await file.read(MAX_AUDIO_BYTES + 1)
+    if len(audio_bytes) > MAX_AUDIO_BYTES:
+        raise HTTPException(413, "audio exceeds 25 MB")
     return await stt.transcribe(audio_bytes=audio_bytes, file_name=file.filename)
 
 

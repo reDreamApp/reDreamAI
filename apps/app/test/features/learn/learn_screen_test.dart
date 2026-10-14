@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -33,6 +34,7 @@ const Map<String, Object> _post = {
 Future<void> _pumpLearn(WidgetTester tester, {List<Uri>? opened}) async {
   // The service reads the website's address from the app's env file.
   dotenv.loadFromString(isOptional: true);
+  FlutterSecureStorage.setMockInitialValues({});
   SharedPreferences.setMockInitialValues({});
   final settings = AppSettings(await LocalStore.open(), platformLanguage: 'en');
   final website = MockClient(

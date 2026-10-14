@@ -16,7 +16,14 @@ Replace Telegram with **email + HMAC-signed action links**. Notifications contai
 
 Content stays in Postgres. The admin view (gated by `REPORT_INTERNAL_ACTION_KEY` + IP allowlist) shows the snapshot when the moderator clicks through.
 
-The legacy internal action endpoints (`/internal/reports/{id}/resolve|reject`, `/internal/messages/{id}/hide`) are kept — the email links point at these directly.
+Email links point to `/internal/reports/{id}/resolve|reject` and
+`/internal/messages/{id}/hide`. They carry an expiry and random nonce bound to
+the HMAC signature. GET displays a confirmation form; POST consumes the nonce,
+applies the action and records the audit in one transaction. A backend-only
+`moderation_tokens` table prevents reuse across API processes and restarts.
+Links default to a 24-hour lifetime. Empty signing secrets fail closed.
+URL capabilities and referrers are omitted from proxy access logs; the
+production API disables Uvicorn's raw request access logging.
 
 If volume becomes painful, the next step is self-hosted Mattermost in the same compose stack, not back to Telegram.
 
@@ -25,7 +32,7 @@ If volume becomes painful, the next step is self-hosted Mattermost in the same c
 ### Positive
 - No PII leaves EU jurisdiction in notifications.
 - Less infrastructure than Telegram bot + webhook callbacks (one less inbound `/internal/telegram/webhook`).
-- Action endpoints (resolve / reject / hide) are already designed in the legacy backend with key-gated HTTP GET; the email links reuse them.
+- Resolve, reject and hide actions use signed confirmation links without a separate moderator login.
 
 ### Negative
 - No realtime feel (email vs Telegram push). Acceptable for moderation volume.

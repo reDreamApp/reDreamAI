@@ -10,6 +10,9 @@
          not requested; the app falls back to inexact scheduling. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <application
+        android:allowBackup="false"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:label="reDreamAI"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

@@ -53,12 +53,18 @@ async def test_transcribe_blocked_when_budget_exhausted(
     assert fake_ai.calls == []  # never forwarded to the AI service
 
 
-async def test_transcribe_ai_failure_is_502(client, fake_ai: FakeAiClient):
+async def test_transcribe_ai_failure_is_502(
+    client, fake_ai: FakeAiClient, fake_user, db_session_maker
+):
     fake_ai.queue_transcribe_error(AIServiceError("both providers down"))
 
     r = await client.post("/api/v1/audio/transcribe", files=_upload())
 
     assert r.status_code == 502
+    # A failed transcription gives its reservation back.
+    async with db_session_maker() as session:
+        assert await UsageRepo(session).get_today_tokens(fake_user.id) == 0
+        assert await UsageRepo(session).get_today_total() == 0
 
 
 async def test_transcribe_oversized_audio_is_413(client, fake_ai: FakeAiClient, monkeypatch):
@@ -73,7 +79,7 @@ async def test_transcribe_oversized_audio_is_413(client, fake_ai: FakeAiClient, 
 
 
 @pytest.mark.parametrize("tokens", [(0, 0)])
-async def test_zero_usage_from_ai_records_nothing(
+async def test_zero_usage_retains_the_reservation(
     client, fake_ai: FakeAiClient, fake_user, db_session_maker, tokens
 ):
     fake_ai.queue_transcribe({"text": "hi", "input_tokens": tokens[0], "output_tokens": tokens[1]})
@@ -82,4 +88,4 @@ async def test_zero_usage_from_ai_records_nothing(
 
     assert r.status_code == 200
     async with db_session_maker() as session:
-        assert await UsageRepo(session).get_today_tokens(fake_user.id) == 0
+        assert await UsageRepo(session).get_today_tokens(fake_user.id) == 8192

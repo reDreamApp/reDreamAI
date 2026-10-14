@@ -100,11 +100,12 @@ async def test_generates_uploads_and_signs(monkeypatch):
     resp = await tts.generate_rehearsal(_req())
 
     assert resp.cache_hit is False
+    assert resp.synthesis_attempts == 1
     assert resp.voice_id == "gb_jane_neutral"
     assert resp.script == "You walk home with a warm lantern."
     assert resp.duration_estimate == "0:03"
     (path,) = fake.objects
-    assert path.startswith("users/u-1/7/en-") and path.endswith(".mp3")
+    assert path.startswith("users/u-1/7/v2-en-") and path.endswith(".mp3")
     assert fake.objects[path] == _AUDIO
     assert fake.speech_calls == [
         {
@@ -139,6 +140,7 @@ async def test_unchanged_dream_reuses_the_stored_file(monkeypatch):
     second = await tts.generate_rehearsal(_req())
 
     assert second.cache_hit is True
+    assert second.synthesis_attempts == 0
     assert second.audio_url == first.audio_url
     assert len(fake.speech_calls) == 1
 
@@ -166,6 +168,43 @@ async def test_transient_tts_error_is_retried(monkeypatch):
     with pytest.raises(LlmUnavailableError):
         await tts.generate_rehearsal(_req())
     assert len(fake.speech_calls) == tts._ATTEMPTS
+
+
+async def test_recovered_retry_reports_both_provider_attempts(monkeypatch):
+    fake = _Fake(speech_status=503)
+
+    def recover(request):
+        if len(fake.speech_calls) == 1:
+            fake.speech_status = 200
+        return fake(request)
+
+    monkeypatch.setattr(tts, "_transport", httpx.MockTransport(recover))
+    response = await tts.generate_rehearsal(_req())
+    assert response.synthesis_attempts == 2
+    assert len(fake.speech_calls) == 2
+
+
+async def test_backend_retry_ceiling_is_enforced(monkeypatch):
+    fake = _install(monkeypatch, _Fake(speech_status=503))
+    req = _req().model_copy(update={"max_synthesis_attempts": 1})
+    with pytest.raises(LlmUnavailableError):
+        await tts.generate_rehearsal(req)
+    assert len(fake.speech_calls) == 1
+
+
+@pytest.mark.parametrize("attempts", [0, 3])
+def test_route_rejects_retry_ceiling_outside_supported_range(attempts):
+    res = TestClient(app).post(
+        "/rehearsal/generate",
+        json={
+            "dream_id": "7",
+            "user_id": "u-1",
+            "rewritten_dream": "You find the path home.",
+            "language": "en",
+            "max_synthesis_attempts": attempts,
+        },
+    )
+    assert res.status_code == 422
 
 
 async def test_missing_storage_config_is_unavailable(monkeypatch):

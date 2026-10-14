@@ -1,12 +1,22 @@
-from typing import Tuple, AsyncGenerator, Optional
+from typing import List, Tuple, AsyncGenerator, Optional
 import os
 from dotenv import load_dotenv, find_dotenv
 from .models import Conversation, Stage, ChatInput, ChatResponse
+import hashlib
 import logging
 import json
 from .prompts import (SYSTEM_PROMPT_TEMPLATES_DE, SYSTEM_PROMPT_TEMPLATES_EN,
                       NIGHTMARE_SUMMARY_PROMPT_DE, NIGHTMARE_SUMMARY_PROMPT_EN,
-                      SCOPE_BOUNDARY_DE, SCOPE_BOUNDARY_EN)
+                      SCOPE_BOUNDARY_DE, SCOPE_BOUNDARY_EN,
+                      SAFETY_NOTE_INTRO_DE, SAFETY_NOTE_INTRO_EN,
+                      SAFETY_NOTE_STYLE_DE, SAFETY_NOTE_STYLE_EN,
+                      RECORDING_ENOUGH_NOTE_DE, RECORDING_ENOUGH_NOTE_EN,
+                      RECORDING_NO_DREAM_YET_NOTE_DE, RECORDING_NO_DREAM_YET_NOTE_EN,
+                      REWRITING_ENOUGH_NOTE_DE, REWRITING_ENOUGH_NOTE_EN,
+                      REWRITING_ONE_MORE_NOTE_DE, REWRITING_ONE_MORE_NOTE_EN,
+                      REWRITING_OPENER_NOTE_DE, REWRITING_OPENER_NOTE_EN,
+                      REWRITING_NOTHING_YET_NOTE_DE, REWRITING_NOTHING_YET_NOTE_EN,
+                      REPLAY_CHECK_PROMPT, TALK_GATE_PROMPT)
 
 # Load environment variables (searches upward from CWD to find project .env)
 load_dotenv(find_dotenv())
@@ -93,6 +103,7 @@ async def process_chat_message(
         # Language is controlled by override (from UI) or previous conversation setting
         detected_language = chat_input.language_override or conversation.language or "en"
         stage = await determine_stage_async(chat_input.message, conversation)
+        stage, summary_held_back = await _hold_summary_without_rewrite(stage, conversation)
         conversation.language = detected_language
 
         # Generate nightmare summary at recording→rewriting transition
@@ -106,7 +117,9 @@ async def process_chat_message(
 
         response, usage = await get_response_async(
             stage, chat_input.message, conversation,
-            safety_constraint=safety_result.constraint if safety_result else None
+            safety_constraint=await _stage_note(
+                stage, safety_result, conversation, detected_language, summary_held_back
+            )
         )
         conversation.add_message(response, "assistant", stage, language=detected_language)
 
@@ -168,6 +181,7 @@ async def process_chat_message_stream(
         # Language is controlled by override (from UI) or previous conversation setting
         detected_language = chat_input.language_override or conversation.language or "en"
         stage = await determine_stage_async(chat_input.message, conversation)
+        stage, summary_held_back = await _hold_summary_without_rewrite(stage, conversation)
         conversation.language = detected_language
 
         # Generate nightmare summary at recording→rewriting transition
@@ -195,9 +209,12 @@ async def process_chat_message_stream(
         
         full_response = ""
         final_usage = {}
+        stage_note = await _stage_note(
+            stage, safety_result, conversation, detected_language, summary_held_back
+        )
         async for chunk, chunk_usage in get_response_stream_async(
             stage, full_prompt, conversation, detected_language,
-            safety_constraint=safety_result.constraint if safety_result else None
+            safety_constraint=stage_note
         ):
             if chunk:
                 full_response += chunk
@@ -357,6 +374,186 @@ async def generate_nightmare_summary(conversation: Conversation) -> Optional[str
         return None
 
 
+# Longer messages go to the critic unchecked: they carry dream content.
+_TALK_MAX_WORDS = 10
+# Verdicts for short replies, keyed by a hash so that no user text is kept.
+_talk_verdicts: dict[str, bool] = {}
+_TALK_VERDICTS_MAX = 512
+
+
+async def _is_plain_talk(text: str) -> bool:
+    """True when a short message says nothing about the dream ("yes", "that's all").
+
+    Such a message gives the critic nothing to judge, but its classifier still
+    answers, mostly with "replay" (10 of 13 plain replies in the 2026-10-14
+    runs). Any doubt or failure counts as dream content, so the critic runs.
+    """
+    text = text.strip()
+    if not text or len(text.split()) > _TALK_MAX_WORDS:
+        return False
+    if not any(ch.isalpha() for ch in text):
+        return True  # only symbols or emoji
+    key = hashlib.sha256(text.lower().encode()).hexdigest()
+    if key in _talk_verdicts:
+        return _talk_verdicts[key]
+    try:
+        answer, _, _ = await routing_agent.generate(f"Message: {text}", system_prompt=TALK_GATE_PROMPT)
+    except Exception as e:
+        logger.error(f"Talk check failed (the critic runs): {e}")
+        return False
+    verdict = answer.strip().upper().startswith("TALK")
+    if len(_talk_verdicts) >= _TALK_VERDICTS_MAX:
+        _talk_verdicts.clear()
+    _talk_verdicts[key] = verdict
+    return verdict
+
+
+async def _describes_a_change(user_input: str, nightmare_summary: Optional[str]) -> bool:
+    """Second opinion on a "replay" verdict: does the message differ from the original?
+
+    False on any doubt or failure, so the critic's verdict stands.
+    """
+    if not nightmare_summary:
+        return False
+    try:
+        answer, _, _ = await routing_agent.generate(
+            f"[ORIGINAL DREAM]\n{nightmare_summary}\n\n[MESSAGE]\n{user_input}",
+            system_prompt=REPLAY_CHECK_PROMPT,
+        )
+    except Exception as e:
+        logger.error(f"Replay check failed (the critic's verdict stands): {e}")
+        return False
+    return answer.strip().upper().startswith(("CHANGED", "NONE"))
+
+
+async def _is_false_alarm(result, user_input: str, nightmare_summary: Optional[str]) -> bool:
+    """True when everything the critic flagged is a closing remark or a mistaken "replay".
+
+    Two things its classifier gets wrong often enough to derail a session
+    (2026-10-14 runs): "That is the whole new version." after a good rewrite,
+    and a rewrite that keeps people or things from the original. Every other
+    verdict (violence, waking up, feeling nothing, ...) stands as it is.
+    """
+    flagged = [s for s in result.segments if s.node_type == "maladaptive"]
+    if not flagged:
+        # The message was flagged as a whole.
+        return result.node_id == "TRAUMA_REPLAY" and await _describes_a_change(user_input, nightmare_summary)
+    changed: Optional[bool] = None
+    for segment in flagged:
+        if await _is_plain_talk(segment.text):
+            continue
+        if segment.node_id != "TRAUMA_REPLAY":
+            return False
+        if changed is None:
+            changed = await _describes_a_change(user_input, nightmare_summary)
+        if not changed:
+            return False
+    return True
+
+
+def _safety_note(safety_result, is_english: bool) -> Optional[str]:
+    """The critic's note for the reply prompt, framed so that it is not quoted."""
+    if safety_result is None or not safety_result.constraint:
+        return None
+    if safety_result.is_safe:
+        return safety_result.constraint
+    intro = SAFETY_NOTE_INTRO_EN if is_english else SAFETY_NOTE_INTRO_DE
+    style = SAFETY_NOTE_STYLE_EN if is_english else SAFETY_NOTE_STYLE_DE
+    return intro + "\n\n" + safety_result.constraint + "\n\n" + style
+
+
+def _rewriting_answers(conversation: Conversation) -> List[str]:
+    """What the user has said since the guide opened the rewriting stage."""
+    opener = next(
+        (i for i, m in enumerate(conversation.messages) if m.role == "assistant" and m.stage == "rewriting"),
+        None,
+    )
+    if opener is None:
+        return []
+    return [m.content for m in conversation.messages[opener + 1:] if m.role == "user"]
+
+
+async def _has_new_version(conversation: Conversation) -> bool:
+    """True once the user has said anything about the new version of the dream."""
+    for answer in _rewriting_answers(conversation):
+        if not await _is_plain_talk(answer):
+            return True
+    return False
+
+
+async def _hold_summary_without_rewrite(stage: str, conversation: Conversation) -> Tuple[str, bool]:
+    """Keep a session in rewriting while there is nothing to summarise.
+
+    A user who only answers "yes" gets routed to the summary sooner or later,
+    and the summary then has to make up a new version (2026-10-14 runs).
+    Returns the stage for this turn and whether the summary was held back.
+    """
+    if stage != Stage.SUMMARY.value or Stage.SUMMARY.value in conversation.stages[:-1]:
+        return stage, False
+    if await _has_new_version(conversation):
+        return stage, False
+    logger.info("Staying in rewriting: no new version has been described yet")
+    conversation.stages[-1] = Stage.REWRITING.value
+    return Stage.REWRITING.value, True
+
+
+async def _rewriting_note(
+    safety_result, conversation: Conversation, is_english: bool, summary_held_back: bool
+) -> Optional[str]:
+    note = _safety_note(safety_result, is_english)
+    if note:
+        return note
+    nothing_yet = REWRITING_NOTHING_YET_NOTE_EN if is_english else REWRITING_NOTHING_YET_NOTE_DE
+    if summary_held_back:
+        return nothing_yet
+    latest = next((m.content for m in reversed(conversation.messages) if m.role == "user"), "")
+    if not await _is_plain_talk(latest):
+        return None
+    answers = _rewriting_answers(conversation)
+    if not answers:
+        # The stage opens with this reply, on a message without any change in it.
+        return REWRITING_OPENER_NOTE_EN if is_english else REWRITING_OPENER_NOTE_DE
+    # The user added nothing: one more question the first time, then no more.
+    plain = [await _is_plain_talk(answer) for answer in answers]
+    if all(plain):
+        return nothing_yet
+    if sum(plain) < 2:
+        return REWRITING_ONE_MORE_NOTE_EN if is_english else REWRITING_ONE_MORE_NOTE_DE
+    return REWRITING_ENOUGH_NOTE_EN if is_english else REWRITING_ENOUGH_NOTE_DE
+
+
+async def _recording_note(conversation: Conversation, is_english: bool) -> Optional[str]:
+    # The same for the telling of the dream: three times nothing new since it
+    # began (a "yes" to "anything else?" deserves its follow-up question), or a
+    # second message before any dream was told.
+    answers = [m.content for m in conversation.messages if m.role == "user"]
+    if len(answers) < 2 or not await _is_plain_talk(answers[-1]):
+        return None
+    plain = [await _is_plain_talk(answer) for answer in answers]
+    if all(plain):
+        return RECORDING_NO_DREAM_YET_NOTE_EN if is_english else RECORDING_NO_DREAM_YET_NOTE_DE
+    if sum(plain[plain.index(False) + 1:]) < 3:
+        return None
+    return RECORDING_ENOUGH_NOTE_EN if is_english else RECORDING_ENOUGH_NOTE_DE
+
+
+async def _stage_note(
+    stage: str, safety_result, conversation: Conversation, language: str, summary_held_back: bool = False
+) -> Optional[str]:
+    """What is added to the stage prompt for this turn, if anything.
+
+    The critic's note on a flagged rewrite, or a reminder to stop asking a
+    user who has nothing more to add. The model does not keep count by itself
+    (2026-10-14 runs: up to 13 questions in a row to "yes" and "no" answers).
+    """
+    is_english = language == "en"
+    if stage == Stage.REWRITING.value:
+        return await _rewriting_note(safety_result, conversation, is_english, summary_held_back)
+    if stage == Stage.RECORDING.value:
+        return await _recording_note(conversation, is_english)
+    return None
+
+
 @observe(name="safety_evaluation", as_type="generation")
 async def evaluate_safety(user_input: str, conversation: Conversation):
     """Run SafetyCritic on user input during the rewriting stage.
@@ -368,11 +565,17 @@ async def evaluate_safety(user_input: str, conversation: Conversation):
         return None
 
     try:
+        if await _is_plain_talk(user_input):
+            logger.info("Safety evaluation skipped: the message is plain conversation")
+            return None
         result = await safety_critic.evaluate_intervention(
             user_input,
             nightmare_context=conversation.nightmare_summary
         )
         logger.info(f"Safety evaluation: is_safe={result.is_safe}, node={result.node_id}, severity={result.severity}")
+        if not result.is_safe and await _is_false_alarm(result, user_input, conversation.nightmare_summary):
+            logger.info(f"Safety evaluation dropped as a false alarm: node={result.node_id}")
+            return None
         return result
     except Exception as e:
         logger.error(f"Safety evaluation failed (proceeding without constraint): {e}")

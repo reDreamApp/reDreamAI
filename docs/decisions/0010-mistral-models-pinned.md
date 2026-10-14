@@ -128,11 +128,25 @@ the user's voice.
 - Request shape: `POST https://api.mistral.ai/v1/audio/speech`
   `{model, input, voice_id, response_format: "mp3"}` → `{audio_data: <base64>}`.
 - Audio goes to the private `rehearsal-audio` bucket (migration `20261001000001`) under
-  `users/{user_id}/{dream_id}/{lang}-{hash}.mp3`; the hash makes unchanged dreams a cache
+  `users/{user_id}/{dream_id}/v2-{lang}-{hash}.mp3`; the hash makes unchanged dreams a cache
   hit, and the per-user prefix is what the GDPR purge deletes. The app receives a signed
-  URL on `SUPABASE_PUBLIC_URL` (default lifetime one year, `REHEARSAL_URL_TTL_SECONDS`).
+  URL on `SUPABASE_PUBLIC_URL` (default lifetime five minutes, `REHEARSAL_URL_TTL_SECONDS`).
 - Privacy: there is still no Scaleway TTS, so rewritten dream text reaches Mistral
   directly (30-day abuse-monitoring retention until ZDR). The consent
   text names Mistral for AI responses and rehearsal audio since consent version
   `2026-10-03`.
 
+
+## Audio access
+
+Signed URLs default to 300 seconds (configuration bounded to 60–3600 seconds).
+The backend's owner-authenticated `GET /api/v1/dreams/{id}/rehearsal-url`
+refreshes cached URLs; it does not call an AI provider and remains available
+for existing audio after consent withdrawal. Creating new audio requires consent.
+The deployment task moves every legacy audio object to its `v2-` filename,
+then refreshes stored URLs.
+Offline MP3s are encrypted with the device-bound local key and scoped to the
+account and rewritten content. Legacy plaintext derived audio is removed on
+upgrade; users can download it again. Playback temporarily decrypts into the
+OS temporary directory, deletes that file on close, and cleans abandoned
+playback files on next launch.

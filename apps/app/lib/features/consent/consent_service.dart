@@ -1,5 +1,8 @@
 import 'package:redream_app/core/api/api_client.dart';
 
+/// Version of the consent copy bundled in this app, kept in step with ARBs.
+const consentTextVersion = '2026-10-07';
+
 /// Backend consent status (`GET /users/me/consent`).
 class ConsentStatus {
   const ConsentStatus({
@@ -44,7 +47,7 @@ class ApiConsentService implements IConsentService {
       ConsentStatus.fromJson(await _api.get(_path));
 
   @override
-  Future<void> grant(String version) => _api.post(_path, {'version': version});
+  Future<void> grant(String version) => _api.post(_path, {'version': version, 'text_version': consentTextVersion});
 
   @override
   Future<void> withdraw() => _api.delete(_path);

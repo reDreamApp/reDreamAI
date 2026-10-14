@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     # Host the app can reach, when SUPABASE_URL is an internal compose address.
     supabase_public_url: str = ""
     # Lifetime of the signed rehearsal-audio URL stored on the dream.
-    rehearsal_url_ttl_seconds: int = 60 * 60 * 24 * 365
+    rehearsal_url_ttl_seconds: int = Field(default=300, ge=60, le=3600)
 
     langfuse_host: str = ""
     langfuse_public_key: str = ""
@@ -51,6 +51,11 @@ class Settings(BaseSettings):
 
     environment: str = "development"
     log_level: str = "INFO"
+
+    @field_validator("rehearsal_url_ttl_seconds", mode="before")
+    @classmethod
+    def _migrate_audio_ttl(cls, value: object) -> object:
+        return 300 if isinstance(value, (str, int)) and int(value) > 3600 else value
 
     @field_validator("langfuse_enabled", mode="before")
     @classmethod

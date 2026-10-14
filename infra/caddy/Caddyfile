@@ -15,6 +15,9 @@
 
 {$DOMAIN} {
     encode zstd gzip
+    request_body {
+        max_size 26MiB
+    }
     handle_path /downloads/* {
         # Tester APK distribution (files live in /srv/downloads on the host,
         # mounted read-only into the container). Clean URLs install better on
@@ -27,7 +30,13 @@
     }
     log {
         output stdout
-        format console
+        format filter {
+            wrap json
+            fields {
+                request>uri delete
+                request>headers>Referer delete
+            }
+        }
     }
 }
 
@@ -38,6 +47,9 @@ supabase.{$DOMAIN} {
     # outside: the app tables carry no user-facing RLS policies, apps/api is
     # the only door to them.
     encode zstd gzip
+    request_body {
+        max_size 1MiB
+    }
     @public path /auth/v1/* /storage/v1/object/sign/*
     handle @public {
         reverse_proxy kong:8000
@@ -47,7 +59,13 @@ supabase.{$DOMAIN} {
     }
     log {
         output stdout
-        format console
+        format filter {
+            wrap json
+            fields {
+                request>uri delete
+                request>headers>Referer delete
+            }
+        }
     }
 }
 

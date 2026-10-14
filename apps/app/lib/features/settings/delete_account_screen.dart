@@ -45,9 +45,11 @@ class _DeleteAccountScreenState extends State<DeleteAccountScreen> {
       _busy = true;
       _error = null;
     });
-    final account = context.read<AppServices>().account;
+    final services = context.read<AppServices>();
+    final account = services.account;
     try {
       await account.deleteAccount();
+      if (auth.userId case final id?) await services.store.clearUser(id);
       if (!mounted) return;
       showAppSnackBar(context, l10n.deleteAccountSuccess);
       Navigator.of(context).popUntil((r) => r.isFirst);

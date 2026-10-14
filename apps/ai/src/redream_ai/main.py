@@ -16,6 +16,7 @@ from .api import audio, chat, health, safety
 from .api.chat import get_llm_client
 from .config import settings
 from .llm.base import LlmClient, LlmUnavailableError
+from .request_limits import RequestSizeLimitMiddleware
 
 
 def _build_llm_client() -> LlmClient | None:
@@ -77,6 +78,7 @@ async def _llm_dep() -> LlmClient:
     return client
 
 
+app.add_middleware(RequestSizeLimitMiddleware)
 app.dependency_overrides[get_llm_client] = _llm_dep
 
 

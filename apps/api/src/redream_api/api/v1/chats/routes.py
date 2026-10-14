@@ -22,7 +22,7 @@ import logging
 import re
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID
 
@@ -42,7 +42,12 @@ from ....db.repositories.chat_repo import ChatRepo
 from ....db.repositories.dream_repo import DreamRepo
 from ....db.repositories.safety_event_repo import SafetyEventRepo
 from ....services.ai_client import AIServiceError, BaseAiClient, get_ai_client
-from ....services.token_budget import check_budget, record_usage
+from ....services.token_budget import (
+    TokenReservation,
+    release_usage,
+    reserve_usage,
+    settle_usage,
+)
 from .schemas import (
     ChatIntensityRequest,
     ChatIntensityResponse,
@@ -217,7 +222,7 @@ async def set_intensity(
     if dream is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "no dream for this chat yet")
     dream.intensity = body.intensity
-    dream.last_edited = datetime.now(timezone.utc)
+    dream.last_edited = datetime.now(UTC)
     await repo.save(dream)
     return ChatIntensityResponse(chat_id=chat.id, dream_id=dream.id, intensity=body.intensity)
 
@@ -237,6 +242,7 @@ class _TurnSetup:
     chat: Chat
     user_msg: ChatMessage
     history_msgs: list[ChatMessage]
+    reservation: TokenReservation
     safety_payload: SafetyEventPayload | None  # non-None ⇒ high risk, no AI turn
 
 
@@ -263,14 +269,13 @@ async def _pre_turn(
     if chat.is_done:
         raise HTTPException(status.HTTP_409_CONFLICT, "chat is already finished")
 
-    # ---- token budget (ADR 0008) -----------------------------------------
-    over, retry_after = await check_budget(db, user_id=user.id)
-    if over:
-        raise HTTPException(
-            status.HTTP_429_TOO_MANY_REQUESTS,
-            f"daily token budget exceeded — resets in {retry_after}s",
-            headers={"Retry-After": str(retry_after)},
-        )
+    existing = await msg_repo.list_for_chat(chat.id)
+    reservation = await reserve_usage(
+        db,
+        user_id=user.id,
+        tokens=8192
+        + 4 * (len(body.content.encode()) + sum(len(m.content.encode()) for m in existing)),
+    )
 
     # ---- persist user message --------------------------------------------
     user_msg = ChatMessage(
@@ -302,6 +307,7 @@ async def _pre_turn(
             chat=chat,
             user_msg=user_msg,
             history_msgs=history_msgs,
+            reservation=reservation,
             safety_payload=None,
         )
     last_assistant = next(
@@ -327,6 +333,7 @@ async def _pre_turn(
             }
         )
     except AIServiceError as exc:
+        await release_usage(db, reservation)
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"safety: {exc}") from exc
 
     safety_payload: SafetyEventPayload | None = None
@@ -351,11 +358,14 @@ async def _pre_turn(
             confidence=float(safety.get("confidence", 0.0)),
             message=_HELPLINE_MESSAGE.get(chat.language, _HELPLINE_MESSAGE["en"]),
         )
+        # No AI turn follows a high-risk message.
+        await release_usage(db, reservation)
 
     return _TurnSetup(
         chat=chat,
         user_msg=user_msg,
         history_msgs=history_msgs,
+        reservation=reservation,
         safety_payload=safety_payload,
     )
 
@@ -399,6 +409,7 @@ async def _finalize_ai_turn(
     chat: Chat,
     history_msgs: list[ChatMessage],
     ai_resp: dict[str, Any],
+    reservation: TokenReservation,
 ) -> ChatMessage:
     """Shared post-AI persistence: AI message row, chat advance (incl. the
     nightmare-summary echo), Dream upsert (ADR 0003), usage accounting (ADR 0008).
@@ -427,7 +438,7 @@ async def _finalize_ai_turn(
         chat.is_nightmare = True
     if isinstance(nightmare_summary, str) and nightmare_summary:
         chat.nightmare_summary = nightmare_summary
-    chat.updated_at = datetime.now(timezone.utc)
+    chat.updated_at = datetime.now(UTC)
     await ChatRepo(db).save(chat)
 
     # ---- structured-summary -> Dream (ADR 0003) --------------------------
@@ -442,9 +453,9 @@ async def _finalize_ai_turn(
         )
 
     # ---- token usage accounting (ADR 0008) -------------------------------
-    await record_usage(
+    await settle_usage(
         db,
-        user_id=user.id,
+        reservation,
         input_tokens=int(usage.get("input_tokens", 0)),
         output_tokens=int(usage.get("output_tokens", 0)),
     )
@@ -483,10 +494,16 @@ async def send_message(
         # reply) would replay it into the next turn's history alongside the
         # client's retry of the same text.
         await ChatMessageRepo(db).delete(setup.user_msg)
+        await release_usage(db, setup.reservation)
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"chat: {exc}") from exc
 
     ai_msg = await _finalize_ai_turn(
-        db=db, user=user, chat=chat, history_msgs=setup.history_msgs, ai_resp=ai_resp
+        db=db,
+        user=user,
+        chat=chat,
+        history_msgs=setup.history_msgs,
+        ai_resp=ai_resp,
+        reservation=setup.reservation,
     )
     return ChatMessageResponse(
         chat_id=chat.id,
@@ -581,7 +598,12 @@ async def _stream_ai_turn(
             raise AIServiceError("AI stream ended without a final frame")
         finalize_started = True
         ai_msg = await _finalize_ai_turn(
-            db=db, user=user, chat=chat, history_msgs=setup.history_msgs, ai_resp=final
+            db=db,
+            user=user,
+            chat=chat,
+            history_msgs=setup.history_msgs,
+            ai_resp=final,
+            reservation=setup.reservation,
         )
         yield _sse(
             {
@@ -622,6 +644,7 @@ async def _stream_ai_turn(
             # AI stream failed before anything beyond the user message was
             # written — same rollback as the non-streaming 502 path.
             await _rollback_user_msg()
+            await release_usage(db, setup.reservation)
         yield _sse({"error": str(exc)})
     yield _SSE_DONE
 
@@ -673,7 +696,7 @@ async def _upsert_dream_from_structured(
         existing.rewritten_dream = rewritten or existing.rewritten_dream
         if intensity is not None:
             existing.intensity = intensity
-        existing.last_edited = datetime.now(timezone.utc)
+        existing.last_edited = datetime.now(UTC)
         # Rewritten changed → invalidate any cached rehearsal audio.
         existing.rehearsal_audio_url = None
         existing.rehearsal_script = None

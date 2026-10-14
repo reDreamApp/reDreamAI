@@ -54,3 +54,17 @@ infra/terraform/override.tf.json
 # Laptop-transfer bundle with real secrets — never commit
 /transfer/
 .claude/settings.local.json
+
+# Local assistant state and review artifacts
+.codex/
+.agents/
+*.sarif
+*.secrets.baseline
+
+# Local configuration, logs and database dumps
+.env.*
+!**/.env.example
+!**/*.env.example
+*.log
+*.dump
+*.sql.gz

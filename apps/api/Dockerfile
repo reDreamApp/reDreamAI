@@ -30,4 +30,4 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
 
 # Run uvicorn from the synced venv directly: `uv run` at runtime needs a
 # writable $HOME cache, which the no-home appuser doesn't have.
-CMD ["/app/.venv/bin/uvicorn", "redream_api.main:app", "--host", "0.0.0.0", "--port", "8001"]
+CMD ["/app/.venv/bin/uvicorn", "redream_api.main:app", "--host", "0.0.0.0", "--port", "8001", "--no-access-log"]

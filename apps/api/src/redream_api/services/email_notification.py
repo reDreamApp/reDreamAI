@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import hmac
 import logging
+import secrets
+import time
 from email.message import EmailMessage
 from hashlib import sha256
+from urllib.parse import urlencode
 from uuid import UUID
 
 import aiosmtplib
@@ -25,27 +28,46 @@ def _sign(payload: str) -> str:
     return hmac.new(secret, payload.encode(), sha256).hexdigest()
 
 
+def _action_payload(
+    action: str, report_id: UUID, message_id: UUID | None, expires: int, nonce: str
+) -> str:
+    return f"v2:{action}:{report_id}:{message_id or ''}:{expires}:{nonce}"
+
+
 def _signed_action_url(action: str, report_id: UUID, message_id: UUID | None = None) -> str:
-    """Build an HMAC-signed URL pointing at the internal moderation endpoint."""
     base = settings.report_action_base_url.rstrip("/")
+    expires = int(time.time()) + settings.report_action_ttl_seconds
+    nonce = secrets.token_urlsafe(24)
+    sig = _sign(_action_payload(action, report_id, message_id, expires, nonce))
+    query = {"sig": sig, "expires": str(expires), "nonce": nonce}
     if action == "hide" and message_id is not None:
         path = f"/messages/{message_id}/hide"
-        sig_body = f"hide:{message_id}:{report_id}"
-        return f"{base}{path}?report_id={report_id}&sig={_sign(sig_body)}"
-    path = f"/reports/{report_id}/{action}"
-    sig_body = f"{action}:{report_id}"
-    return f"{base}{path}?sig={_sign(sig_body)}"
+        query["report_id"] = str(report_id)
+    else:
+        path = f"/reports/{report_id}/{action}"
+    return f"{base}{path}?{urlencode(query)}"
 
 
 def verify_action_signature(
-    *, action: str, report_id: UUID, message_id: UUID | None, signature: str
+    *,
+    action: str,
+    report_id: UUID,
+    message_id: UUID | None,
+    signature: str,
+    expires: int,
+    nonce: str,
 ) -> bool:
-    if action == "hide" and message_id is not None:
-        sig_body = f"hide:{message_id}:{report_id}"
-    else:
-        sig_body = f"{action}:{report_id}"
-    expected = _sign(sig_body)
-    return hmac.compare_digest(expected, signature)
+    now = int(time.time())
+    if (
+        not settings.report_notification_hmac_secret
+        or action not in {"hide", "resolve", "reject"}
+        or not now < expires <= now + settings.report_action_ttl_seconds
+        or not 20 <= len(nonce) <= 64
+    ):
+        return False
+    return hmac.compare_digest(
+        _sign(_action_payload(action, report_id, message_id, expires, nonce)), signature
+    )
 
 
 def _format_email(report: ContentReport) -> EmailMessage:
@@ -69,8 +91,8 @@ Severity:       {report.severity}
 Target role:    {report.target_role}
 Chat ID:        {report.chat_id}
 Message ID:     {report.message_id}
-Stage:          {report.stage or '—'}
-Language:       {report.language or '—'}
+Stage:          {report.stage or "—"}
+Language:       {report.language or "—"}
 Created at:     {report.created_at.isoformat()}
 
 Open the admin view to read content + context (snapshots stay on the server).
@@ -95,9 +117,7 @@ async def send_report_notification(report: ContentReport) -> None:
     """
 
     if not settings.report_notification_email or not settings.report_notification_email_from:
-        log.info(
-            "report.notification.skipped reason=email_not_configured report_id=%s", report.id
-        )
+        log.info("report.notification.skipped reason=email_not_configured report_id=%s", report.id)
         return
     if not settings.report_notification_hmac_secret:
         log.warning(
@@ -120,5 +140,5 @@ async def send_report_notification(report: ContentReport) -> None:
             start_tls=settings.smtp_use_tls,
         )
         log.info("report.notification.sent report_id=%s", report.id)
-    except Exception:  # noqa: BLE001 — never block the request on email failure
+    except Exception:
         log.exception("report.notification.failed report_id=%s", report.id)

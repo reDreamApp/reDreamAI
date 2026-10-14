@@ -7,6 +7,7 @@ from .content_report import ContentReport
 from .daily_mood import DailyMood
 from .dream import Dream
 from .help_center_concern import HelpCenterConcern
+from .moderation_token import ModerationToken
 from .report_action import ReportAction
 from .safety_event import SafetyEvent
 from .service_daily_usage import ServiceDailyUsage
@@ -21,6 +22,7 @@ __all__ = [
     "DailyMood",
     "Dream",
     "HelpCenterConcern",
+    "ModerationToken",
     "ReportAction",
     "SafetyEvent",
     "ServiceDailyUsage",

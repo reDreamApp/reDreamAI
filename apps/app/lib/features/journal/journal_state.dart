@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-
 import 'package:redream_app/core/api/api_exception.dart';
 import 'package:redream_app/features/journal/dream.dart';
 import 'package:redream_app/features/journal/dream_service.dart';
@@ -251,6 +250,13 @@ class JournalState extends ChangeNotifier {
     _replace(dream);
     notifyListeners();
     return dream;
+  }
+
+  Future<Dream> refreshRehearsal(int id) async {
+    final updated = await _service.refreshRehearsal(id);
+    _replace(updated);
+    notifyListeners();
+    return updated;
   }
 
   Future<Dream> generateRehearsal(

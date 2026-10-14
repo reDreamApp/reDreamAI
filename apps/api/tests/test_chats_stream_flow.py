@@ -288,11 +288,11 @@ async def test_post_finalize_failure_keeps_both_rows_and_emits_error(
     from redream_api.api.v1.chats import routes as chats_routes
     from redream_api.db.models.chat_message import ChatMessage
 
-    async def poison(db, *, user_id, input_tokens, output_tokens):
+    async def poison(db, reservation, *, input_tokens, output_tokens):
         db.add(ChatMessage(chat_id=None, role="assistant", content="x", stage=None))
         await db.commit()  # NOT NULL violation → failed flush → poisoned session
 
-    monkeypatch.setattr(chats_routes, "record_usage", poison)
+    monkeypatch.setattr(chats_routes, "settle_usage", poison)
 
     chat_id = await start_chat(client)
     fake_ai.queue_chat_stream([_content("a"), "data: " + json.dumps({"final": _FINAL})])

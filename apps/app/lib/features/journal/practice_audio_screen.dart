@@ -1,13 +1,13 @@
 import 'dart:async';
-
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:just_audio/just_audio.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
+import 'package:redream_app/core/auth/auth_service.dart';
 import 'package:redream_app/core/settings/app_settings.dart';
+import 'package:redream_app/core/storage/secure_audio_cache.dart';
 import 'package:redream_app/core/utils/errors.dart';
 import 'package:redream_app/core/widgets/app_button.dart';
 import 'package:redream_app/core/widgets/app_card.dart';
@@ -33,6 +33,7 @@ class _PracticeAudioScreenState extends State<PracticeAudioScreen> {
   String? _error;
   bool _saving = false;
   bool _downloading = false;
+  File? _playbackFile;
 
   @override
   void initState() {
@@ -42,7 +43,14 @@ class _PracticeAudioScreenState extends State<PracticeAudioScreen> {
 
   @override
   void dispose() {
-    unawaited(_player.dispose());
+    final playback = _playbackFile;
+    unawaited(
+      _player.dispose().then((_) async {
+        if (playback != null && playback.parent.existsSync()) {
+          await playback.parent.delete(recursive: true);
+        }
+      }),
+    );
     super.dispose();
   }
 
@@ -51,10 +59,28 @@ class _PracticeAudioScreenState extends State<PracticeAudioScreen> {
   );
 
   Future<File> _cacheFile() async {
-    final dir = await getApplicationDocumentsDirectory();
-    return File(
-      '${dir.path}/rehearsal_audio/dream_${_dream.id}_$_language.mp3',
+    final owner = context.read<AuthService>().userId;
+    if (owner == null) throw StateError('Sign-in required');
+    return SecureAudioCache.file(
+      owner,
+      _dream.id,
+      _language,
+      _dream.rewrittenDream ?? '',
     );
+  }
+
+  Future<void> _playCached(File file) async {
+    final playback = await SecureAudioCache.decodeForPlayback(file);
+    if (!mounted) {
+      await playback.parent.delete(recursive: true);
+      return;
+    }
+    final previous = _playbackFile;
+    _playbackFile = playback;
+    await _player.setFilePath(playback.path);
+    if (previous != null && previous.parent.existsSync()) {
+      await previous.parent.delete(recursive: true);
+    }
   }
 
   Future<void> _load() async {
@@ -69,7 +95,7 @@ class _PracticeAudioScreenState extends State<PracticeAudioScreen> {
 
       final cached = await _cacheFile();
       if (cached.existsSync()) {
-        await _player.setFilePath(cached.path);
+        await _playCached(cached);
         return;
       }
       final journal = context.read<JournalState>();
@@ -79,11 +105,14 @@ class _PracticeAudioScreenState extends State<PracticeAudioScreen> {
       if ((_dream.rehearsalAudioUrl ?? '').isEmpty && mounted) {
         _dream = await journal.generateRehearsal(_dream, language: _language);
       }
+      if ((_dream.rehearsalAudioUrl ?? '').isNotEmpty) {
+        _dream = await journal.refreshRehearsal(_dream.id);
+      }
       final url = _dream.rehearsalAudioUrl ?? '';
       if (url.isEmpty) throw _UserError(l10n.audioUnavailable);
       final recheck = await _cacheFile();
       if (recheck.existsSync()) {
-        await _player.setFilePath(recheck.path);
+        await _playCached(recheck);
       } else {
         await _player.setUrl(url);
       }
@@ -98,7 +127,6 @@ class _PracticeAudioScreenState extends State<PracticeAudioScreen> {
 
   Future<void> _download() async {
     final l10n = AppLocalizations.of(context)!;
-    final url = _dream.rehearsalAudioUrl ?? '';
     setState(() => _downloading = true);
     try {
       final file = await _cacheFile();
@@ -106,12 +134,13 @@ class _PracticeAudioScreenState extends State<PracticeAudioScreen> {
         showAppSnackBar(context, l10n.audioAlreadySaved);
         return;
       }
-      final res = await http.get(Uri.parse(url));
+      _dream = await context.read<JournalState>().refreshRehearsal(_dream.id);
+      final res = await http.get(Uri.parse(_dream.rehearsalAudioUrl!));
       if (res.statusCode < 200 || res.statusCode >= 300) {
         throw HttpException('${res.statusCode}');
       }
       await file.parent.create(recursive: true);
-      await file.writeAsBytes(res.bodyBytes, flush: true);
+      await SecureAudioCache.save(file, res.bodyBytes);
       if (mounted) showAppSnackBar(context, l10n.audioSaved);
     } on Exception catch (e) {
       if (mounted) {

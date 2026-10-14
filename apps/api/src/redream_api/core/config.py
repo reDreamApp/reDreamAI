@@ -21,6 +21,8 @@ class Settings(BaseSettings):
     # Rehearsal-audio bucket targeted by the GDPR purge's storage cleanup
     # (storage_service). Mirrors apps/ai's setting of the same name.
     supabase_storage_bucket: str = "rehearsal-audio"
+    supabase_public_url: str = ""
+    rehearsal_url_ttl_seconds: int = Field(default=300, ge=60, le=3600)
 
     # Supabase JWT verification
     supabase_jwt_iss: str = ""
@@ -39,6 +41,7 @@ class Settings(BaseSettings):
     report_notification_email: str = ""
     report_notification_email_from: str = ""
     report_notification_hmac_secret: str = ""
+    report_action_ttl_seconds: int = Field(default=86400, ge=60, le=604800)
 
     # SMTP
     smtp_host: str = ""
@@ -50,11 +53,14 @@ class Settings(BaseSettings):
     # Token budgets (ADR 0008): per user, and for all users together.
     daily_llm_token_budget: int = 100_000
     daily_llm_token_budget_total: int = 500_000
+    # $16 / million TTS characters relative to a rough $2 / million chat
+    # tokens. These are budget units, not tokenizer output or invoice totals.
+    tts_budget_tokens_per_character: int = Field(default=8, ge=1, le=10_000)
 
     # Art. 9 consent — the consent-text version users must have granted.
     # Bump ONLY on material changes to the consent copy (new processor, new
     # purpose): a bump forces every user through re-consent on next launch.
-    consent_version: str = "2026-10-03"
+    consent_version: str = "2026-10-07"
 
     # AI service
     ai_service_url: str = "http://localhost:8080"
@@ -78,6 +84,17 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @field_validator("consent_version")
+    @classmethod
+    def _current_consent(cls, value: str) -> str:
+        return "2026-10-07" if value == "2026-10-03" else value
+
+    @field_validator("rehearsal_url_ttl_seconds", mode="before")
+    @classmethod
+    def _migrate_audio_ttl(cls, value: object) -> object:
+        # Legacy hosts explicitly configured a year. Migrate that value safely.
+        return 300 if isinstance(value, (str, int)) and int(value) > 3600 else value
 
     @field_validator("database_url")
     @classmethod

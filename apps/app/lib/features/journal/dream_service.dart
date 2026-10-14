@@ -34,6 +34,9 @@ class DreamService {
   Future<Dream> recordPractice(int id) async =>
       Dream.fromJson(await _api.post('$_base/$id/practice'));
 
+  Future<Dream> refreshRehearsal(int id) async =>
+      Dream.fromJson(await _api.get('$_base/$id/rehearsal-url'));
+
   Future<Dream> generateRehearsal(int id, {required String language}) async =>
       Dream.fromJson(
         await _api.post('$_base/$id/rehearsal', {

@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,7 +13,14 @@ from ....db.models.dream import Dream
 from ....db.models.user import User
 from ....db.repositories.dream_repo import DreamRepo
 from ....services.ai_client import AIServiceError, BaseAiClient, get_ai_client
-from ....services.storage_service import delete_rehearsal_audio_for_dream
+from ....services.storage_service import delete_rehearsal_audio_for_dream, refresh_rehearsal_url
+from ....services.token_budget import (
+    TTS_MAX_SYNTHESIS_ATTEMPTS,
+    release_usage,
+    reserve_usage,
+    settle_tts_usage,
+    tts_budget_tokens,
+)
 from .schemas import DreamCreate, DreamOut, DreamUpdate, RehearsalGenerateRequest
 
 router = APIRouter(prefix="/dreams", tags=["dreams"])
@@ -100,7 +108,7 @@ async def update_dream(
 
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(dream, field, value)
-    dream.last_edited = datetime.now(timezone.utc)
+    dream.last_edited = datetime.now(UTC)
 
     # If the rewritten dream changed, the cached rehearsal audio is stale.
     if rewritten_changed:
@@ -156,13 +164,15 @@ async def record_practice(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "dream not found")
 
     timestamps = list(dream.practice_timestamps or [])
-    timestamps.append(datetime.now(timezone.utc).isoformat())
+    timestamps.append(datetime.now(UTC).isoformat())
     dream.practice_timestamps = timestamps
     saved = await repo.save(dream)
     return _to_out(saved)
 
 
-@router.post("/{dream_id}/rehearsal", response_model=DreamOut)
+@router.post(
+    "/{dream_id}/rehearsal", response_model=DreamOut, dependencies=[Depends(require_consent)]
+)
 async def generate_rehearsal(
     dream_id: int,
     body: RehearsalGenerateRequest,
@@ -174,10 +184,8 @@ async def generate_rehearsal(
     dream = await repo.get_for_user(user.id, dream_id)
     if dream is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "dream not found")
-    if not dream.rewritten_dream:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT, "rewritten_dream is required for rehearsal"
-        )
+    if not dream.rewritten_dream or not dream.rewritten_dream.strip():
+        raise HTTPException(status.HTTP_409_CONFLICT, "rewritten_dream is required for rehearsal")
 
     # Cache: if audio already exists and matches the requested language, reuse.
     if (
@@ -185,8 +193,12 @@ async def generate_rehearsal(
         and dream.rehearsal_language == body.language
         and dream.rehearsal_generated_at is not None
     ):
-        return _to_out(dream)
+        return await _refresh_audio(db, dream)
 
+    tokens_per_attempt = tts_budget_tokens(dream.rewritten_dream)
+    reservation = await reserve_usage(
+        db, user_id=user.id, tokens=tokens_per_attempt * TTS_MAX_SYNTHESIS_ATTEMPTS
+    )
     try:
         result = await ai.rehearsal_generate(
             {
@@ -194,15 +206,48 @@ async def generate_rehearsal(
                 "user_id": str(user.id),
                 "rewritten_dream": dream.rewritten_dream,
                 "language": body.language,
+                "max_synthesis_attempts": TTS_MAX_SYNTHESIS_ATTEMPTS,
             }
         )
     except AIServiceError as exc:
+        await release_usage(db, reservation)
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+
+    await settle_tts_usage(
+        db,
+        reservation,
+        tokens_per_attempt=tokens_per_attempt,
+        synthesis_attempts=result.get("synthesis_attempts"),
+        cache_hit=result.get("cache_hit"),
+    )
 
     dream.rehearsal_audio_url = result.get("audio_url")
     dream.rehearsal_script = result.get("script")
     dream.rehearsal_duration = result.get("duration_estimate")
     dream.rehearsal_language = body.language
-    dream.rehearsal_generated_at = datetime.now(timezone.utc)
+    dream.rehearsal_generated_at = datetime.now(UTC)
     saved = await repo.save(dream)
     return _to_out(saved)
+
+
+async def _refresh_audio(db: AsyncSession, dream: Dream) -> DreamOut:
+    if not dream.rehearsal_audio_url:
+        raise HTTPException(404, "no rehearsal audio")
+    try:
+        dream.rehearsal_audio_url = await refresh_rehearsal_url(
+            dream.rehearsal_audio_url, dream.user_id, dream.id
+        )
+    except (httpx.HTTPError, ValueError) as exc:
+        raise HTTPException(502, "rehearsal audio unavailable") from exc
+    await db.commit()
+    return _to_out(dream)
+
+
+@router.get("/{dream_id}/rehearsal-url", response_model=DreamOut)
+async def refresh_audio(
+    dream_id: int, user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
+) -> DreamOut:
+    dream = await DreamRepo(db).get_for_user(user.id, dream_id)
+    if dream is None:
+        raise HTTPException(404, "dream not found")
+    return await _refresh_audio(db, dream)

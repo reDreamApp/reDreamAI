@@ -1,3 +1,4 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:redream_app/core/storage/local_store.dart';
 import 'package:redream_app/features/journal/dream.dart';
@@ -19,6 +20,7 @@ const _input = DreamInput(
 Future<(JournalState, FakeApi)> _setup({
   List<Map<String, dynamic>>? dreams,
 }) async {
+  FlutterSecureStorage.setMockInitialValues({});
   SharedPreferences.setMockInitialValues({});
   final store = await LocalStore.open();
   final serverDreams =

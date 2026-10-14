@@ -219,6 +219,7 @@ class RehearsalRequest(BaseModel):
     user_id: str = Field(description="Owner; prefixes the Storage path for the GDPR purge.")
     rewritten_dream: str
     language: Language
+    max_synthesis_attempts: int = Field(default=2, ge=1, le=2)
 
 
 class RehearsalResponse(BaseModel):
@@ -227,3 +228,4 @@ class RehearsalResponse(BaseModel):
     duration_estimate: str = Field(description="mm:ss estimate of playback duration.")
     voice_id: str
     cache_hit: bool = False
+    synthesis_attempts: int = Field(default=0, ge=0, le=2)

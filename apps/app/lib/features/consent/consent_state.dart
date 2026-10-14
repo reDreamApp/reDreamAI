@@ -20,6 +20,7 @@ class ConsentState extends ChangeNotifier {
   /// null = status not fetched yet (gate shows a spinner / error + retry).
   bool? get consentRequired => _status?.consentRequired;
   String? get requiredVersion => _status?.requiredVersion;
+  bool get hasCurrentText => requiredVersion == consentTextVersion;
   bool get loading => _loading;
   bool get saving => _saving;
   String? get errorMessage => _errorMessage;
@@ -45,7 +46,7 @@ class ConsentState extends ChangeNotifier {
   /// refetched so the screen shows the current text.
   Future<void> grant() async {
     final version = _status?.requiredVersion;
-    if (version == null || _saving) return;
+    if (version == null || _saving || !hasCurrentText) return;
     _saving = true;
     _errorMessage = null;
     notifyListeners();

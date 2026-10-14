@@ -192,3 +192,22 @@ cd /srv/supabase && sh run.sh stop               # Supabase; data stays in volum
 
 The instance itself is protected against deletion; see
 [`terraform/README.md`](terraform/README.md).
+
+## Updating the app and backend
+
+Publish matching mobile and backend releases when the consent text changes.
+The app sends its bundled `text_version`; the backend requires it to match
+`CONSENT_VERSION`. Update both that setting and Flutter's `consentTextVersion`
+when changing the consent copy.
+
+Apply database migrations before starting updated containers. The deployment
+workflow handles this ordering and runs
+`docker compose exec -T api python -m redream_api.revoke_legacy_audio`
+after startup to rotate legacy audio paths and refresh stored URLs. Run that
+command from `infra/` when deploying manually.
+
+Set the API's `SUPABASE_PUBLIC_URL` to the same public storage host as the AI
+service. Both services default `REHEARSAL_URL_TTL_SECONDS` to 300 seconds;
+existing audio URLs refresh through the owner-authenticated API endpoint.
+Keep the Langfuse retention timer active with its 30-day default, consistent
+with the app's privacy disclosure.
