@@ -69,7 +69,10 @@ async def test_consent_lifecycle(client, no_consent_user):
 
 async def test_stale_consent_version_is_rejected(client, no_consent_user):
     """A grant recorded off an outdated consent screen must not count."""
-    r = await client.post("/api/v1/users/me/consent", json={"version": "2020-01-01"})
+    r = await client.post(
+        "/api/v1/users/me/consent",
+        json={"version": "2020-01-01", "text_version": "2020-01-01"},
+    )
     assert r.status_code == 409
 
 
@@ -114,7 +117,11 @@ async def test_reads_and_deletion_stay_open_without_consent(client, no_consent_u
 
 
 async def test_old_clients_cannot_echo_new_server_version_without_new_copy(client, no_consent_user):
+    """Builds without text_version reload the form silently on a 409, so
+    they get a 426 whose text they show: install the new version."""
     r = await client.post("/api/v1/users/me/consent", json={"version": settings.consent_version})
-    assert r.status_code == 409
+    assert r.status_code == 426
+    assert "latest version of the app" in r.json()["detail"]
+    assert "neueste Version der App" in r.json()["detail"]
     status = await client.get("/api/v1/users/me/consent")
     assert status.json()["consent_required"] is True

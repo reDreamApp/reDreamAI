@@ -21,6 +21,13 @@ log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/users", tags=["users"])
 
+# Both languages: builds without text_version do not tell their language.
+# No umlauts, so the text survives any decoding on old builds.
+_UPDATE_APP_MESSAGE = (
+    "Please install the latest version of the app to continue.\n"
+    "Bitte installiere die neueste Version der App, um fortzufahren."
+)
+
 
 class ConsentStatusOut(BaseModel):
     required_version: str
@@ -59,6 +66,10 @@ async def grant_consent(
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Records explicit consent (Art. 9(2)(a)) as an append-only proof row."""
+    if body.text_version is None:
+        # Builds from before 2026-10-07 send no text_version. They reload the
+        # form silently on a 409 but show any other error's detail under it.
+        raise HTTPException(status.HTTP_426_UPGRADE_REQUIRED, _UPDATE_APP_MESSAGE)
     if body.version != settings.consent_version or body.text_version != settings.consent_version:
         raise HTTPException(
             status.HTTP_409_CONFLICT,
