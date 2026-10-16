@@ -7,6 +7,7 @@ import 'package:redream_app/core/theme/app_theme.dart';
 import 'package:redream_app/core/widgets/app_button.dart';
 import 'package:redream_app/core/widgets/app_card.dart';
 import 'package:redream_app/core/widgets/brand_logo.dart';
+import 'package:redream_app/core/widgets/feedback.dart';
 import 'package:redream_app/features/consent/consent_state.dart';
 import 'package:redream_app/features/settings/privacy_policy_screen.dart';
 import 'package:redream_app/l10n/generated/app_localizations.dart';
@@ -92,8 +93,10 @@ class _ConsentScreenState extends State<ConsentScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context)!;
     final consent = context.watch<ConsentState>();
-    final scheme = Theme.of(context).colorScheme;
     final brand = BrandTheme.of(context);
+    final notice = consent.hasCurrentText
+        ? consent.errorMessage
+        : l10n.consentUpdateRequired;
 
     return Scaffold(
       body: SafeArea(
@@ -149,13 +152,6 @@ class _ConsentScreenState extends State<ConsentScreen> {
                       child: Text(l10n.settingsPrivacyPolicy),
                     ),
                   ),
-                  if (!consent.hasCurrentText)
-                    Text(l10n.consentUpdateRequired, style: TextStyle(color: scheme.error)),
-                  if (consent.errorMessage != null)
-                    Text(
-                      consent.errorMessage!,
-                      style: TextStyle(color: scheme.error),
-                    ),
                 ],
               ),
             ),
@@ -164,6 +160,12 @@ class _ConsentScreenState extends State<ConsentScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Above the checkbox, not after the text, so it is seen
+                  // without scrolling.
+                  if (notice != null) ...[
+                    InlineNotice(message: notice),
+                    const SizedBox(height: 4),
+                  ],
                   CheckboxListTile(
                     value: _agreed,
                     onChanged: consent.saving || !consent.hasCurrentText
@@ -177,7 +179,9 @@ class _ConsentScreenState extends State<ConsentScreen> {
                   AppButton(
                     label: l10n.consentContinue,
                     busy: consent.saving,
-                    onPressed: _agreed && consent.hasCurrentText ? consent.grant : null,
+                    onPressed: _agreed && consent.hasCurrentText
+                        ? consent.grant
+                        : null,
                   ),
                   const SizedBox(height: 8),
                   Text(
