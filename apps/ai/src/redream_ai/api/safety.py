@@ -13,7 +13,7 @@ from ..config import settings
 from ..llm.base import LlmClient
 from ..models import SafetyRequest, SafetyResponse
 from ..safety import classify
-from .chat import get_llm_client
+from .chat import get_llm_client, get_scaleway_llm_client
 
 router = APIRouter()
 
@@ -21,7 +21,8 @@ router = APIRouter()
 @router.post("/safety/classify", response_model=SafetyResponse)
 async def safety_classify(
     req: SafetyRequest,
-    llm: LlmClient = Depends(get_llm_client),
+    llm: LlmClient = Depends(get_scaleway_llm_client),
+    fallback_llm: LlmClient = Depends(get_llm_client),
 ) -> SafetyResponse:
     if not req.text.strip():
         raise HTTPException(400, "text must not be empty")
@@ -37,7 +38,9 @@ async def safety_classify(
     )
     result = await classify(
         llm=llm,
-        model=settings.mistral_safety_model,
+        model=settings.scaleway_safety_model,
+        fallback_llm=fallback_llm,
+        fallback_model=settings.mistral_safety_model,
         text=req.text,
         language=req.language,
         stage=req.stage,

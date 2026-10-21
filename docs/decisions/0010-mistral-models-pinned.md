@@ -137,6 +137,51 @@ the user's voice.
   `2026-10-03`.
 
 
+## Amendment (2026-10-21) — Crisis classifier: Mistral Small on Scaleway primary
+
+The crisis pre-classifier (ADR 0005, `/safety/classify`) was the last chat-text path
+with direct Mistral as its only provider: every user message went to Mistral
+(30-day abuse-monitoring retention), with no fallback, and the backend blocks the
+chat turn when the check fails. It now follows the same topology as the other roles:
+
+| Role | Primary (Scaleway) | Fallback (direct Mistral) |
+|---|---|---|
+| Crisis classifier | `mistral-small-3.2-24b-instruct-2506` | `ministral-8b-2512` |
+
+Scaleway serves no Ministral model, and `mistral-small-3.2` is its only (and latest)
+Mistral Small. Live eval `evals/safety_regression.py`, `safety-v0.4.1`, 52 cases: 52/52
+on both models in four runs each; median latency 0.48 s on Scaleway vs 0.63 s
+on Mistral. The prompt is unchanged. Any primary failure, an answer that is not the
+JSON included, goes to the fallback; both failing gives 503. `ScalewayLlmClient`
+(`redream_ai/llm/scaleway_client.py`) retries once with a 10 s timeout so the
+fallback still fits in the backend's request timeout. Env: `SCALEWAY_SAFETY_MODEL`
+(new) + `MISTRAL_SAFETY_MODEL` (now the fallback). The consent text is unchanged: it
+already names Mistral, which keeps the fallbacks and TTS.
+
+The fallback works on the current Mistral key (`ministral-8b-2512`, 188 requests per
+minute, checked 2026-10-21). The response and clinical-classifier fallbacks
+(`mistral-medium-latest`, `mistral-small-2603`) answer 429 on that key until the
+plan is upgraded.
+
+## Amendment (2026-10-21) — TTS: speech v3 with a German preset voice
+
+Mistral added 36 presets on 2026-10-19 (66 in all), among them the first German one:
+"Heidi", slug `voice_481`, female. It only works with the speech v3 model
+`voxtral-mini-tts-3-0` (alias `voxtral-mini-tts-3`; other hosts list it as
+`mistralai/voxtral-mini-tts-3-0`); `voxtral-mini-tts-2603` answers 400 "voice is not
+supported for speech v1". `gb_jane_neutral` works on v3 too, so English keeps it:
+
+| Language | Model | Voice |
+|---|---|---|
+| EN | `voxtral-mini-tts-3-0` | `gb_jane_neutral` |
+| DE | `voxtral-mini-tts-3-0` | `voice_481` ("Heidi") |
+
+Verified live: a German sample in 2.9 s, transcribed back word for word with Whisper. The
+storage hash covers the voice, so German dreams get new audio on their next request;
+English files stay cached (the model is not in the hash). Free-plan limit on the key:
+12,000 input characters per minute, shared by both TTS models (response headers). Env:
+`VOXTRAL_TTS_MODEL` + `VOXTRAL_VOICE_ID_DE`.
+
 ## Audio access
 
 Signed URLs default to 300 seconds (configuration bounded to 60–3600 seconds).

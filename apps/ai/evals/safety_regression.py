@@ -1,10 +1,12 @@
 """Live regression eval for the crisis classifier prompt (ADR 0005).
 
-Hits the REAL Mistral API (needs MISTRAL_API_KEY in apps/ai/.env) — this is
+Hits the REAL primary model on Scaleway (needs SCALEWAY_API_KEY, and
+SCALEWAY_PROJECT_ID for a project-restricted key, in apps/ai/.env) — this is
 deliberately not a pytest: `make ai-test` stays offline. Run on every edit of
-`prompts/safety.py`:
+`prompts/safety.py`, once per model:
 
     cd apps/ai && uv run python evals/safety_regression.py
+    cd apps/ai && uv run python evals/safety_regression.py --fallback   # direct Mistral
 
 The fp-meta-* cases are the 2026-07-13 incident: a frustrated meta-question at
 the bot ("who are you even") classified high/0.95 under safety-v0.3.0 when
@@ -22,7 +24,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from redream_ai.llm.base import LlmClient
 from redream_ai.llm.mistral_client import MistralLlmClient
+from redream_ai.llm.scaleway_client import ScalewayLlmClient
 from redream_ai.models import Language, Stage
 from redream_ai.prompts.safety import PROMPT_VERSION
 from redream_ai.safety.classifier import classify
@@ -359,13 +363,19 @@ def _load_dotenv(path: Path) -> None:
 
 
 async def main() -> int:
-    api_key = os.environ.get("MISTRAL_API_KEY", "")
-    if not api_key:
-        print("MISTRAL_API_KEY not set (apps/ai/.env) — cannot run live eval")
+    llm: LlmClient
+    try:
+        if "--fallback" in sys.argv[1:]:
+            model = os.environ.get("MISTRAL_SAFETY_MODEL", "ministral-8b-2512")
+            llm = MistralLlmClient(api_key=os.environ.get("MISTRAL_API_KEY", ""))
+        else:
+            model = os.environ.get("SCALEWAY_SAFETY_MODEL", "mistral-small-3.2-24b-instruct-2506")
+            llm = ScalewayLlmClient(
+                os.environ.get("SCALEWAY_API_KEY", ""), os.environ.get("SCALEWAY_PROJECT_ID", "")
+            )
+    except ValueError as exc:  # the key is missing
+        print(f"{exc} (apps/ai/.env) — cannot run live eval")
         return 2
-
-    model = os.environ.get("MISTRAL_SAFETY_MODEL", "ministral-8b-2512")
-    llm = MistralLlmClient(api_key=api_key)
     print(f"prompt={PROMPT_VERSION}  model={model}  cases={len(CASES)}\n")
 
     failures = 0

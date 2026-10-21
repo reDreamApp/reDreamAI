@@ -63,11 +63,19 @@ PROMPT_VERSION = "irt-complete-rewrite-2026-10-14"
 
 
 async def get_llm_client() -> NoReturn:
-    """DI hook for the crisis-classifier route (api/safety.py imports it).
+    """DI hook for the crisis-classifier route's fallback, direct Mistral
+    (api/safety.py imports it).
 
     The /chat route no longer uses the LlmClient — it drives the ported core's own
     Scaleway/Mistral agents — but the crisis classifier (ADR 0005) still does.
     """
+    raise NotImplementedError(
+        "LlmClient dependency must be configured by the app factory in main.py."
+    )
+
+
+async def get_scaleway_llm_client() -> NoReturn:
+    """DI hook for the crisis-classifier route's primary, Scaleway."""
     raise NotImplementedError(
         "LlmClient dependency must be configured by the app factory in main.py."
     )

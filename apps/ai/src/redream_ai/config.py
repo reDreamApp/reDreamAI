@@ -20,8 +20,13 @@ class Settings(BaseSettings):
 
     # Pinned model IDs (ADR 0010 — never floating aliases for prod models).
     # Chat/routing/safety-critic IDs live in core/agent.py::MODELS, not here.
+    # Crisis classifier (ADR 0010, 2026-10-21 amendment): Mistral Small on
+    # Scaleway primary, Ministral 8B on direct Mistral fallback.
+    scaleway_safety_model: str = "mistral-small-3.2-24b-instruct-2506"
     mistral_safety_model: str = "ministral-8b-2512"
-    voxtral_tts_model: str = "voxtral-mini-tts-2603"
+    # Speech v3: the German preset needs it; speech v1 (voxtral-mini-tts-2603)
+    # rejects it (2026-10-21).
+    voxtral_tts_model: str = "voxtral-mini-tts-3-0"
     # STT (ADR 0010, 2026-07-09 amendment): Whisper on Scaleway primary,
     # Voxtral Transcribe V2 on direct Mistral fallback. The Scaleway ID format
     # (org/model:quant) is verbatim from their audio how-to docs.
@@ -29,10 +34,10 @@ class Settings(BaseSettings):
     voxtral_stt_model: str = "voxtral-mini-2602"
 
     # TTS needs a voice: a preset slug (GET /v1/audio/voices) or a saved
-    # voice id. There is no German preset; German text through this English
-    # one was verified intelligible (2026-10-01).
+    # voice id. German: the preset "Heidi" (added 2026-10-19), verified to
+    # transcribe back word for word (2026-10-21).
     voxtral_voice_id_en: str = "gb_jane_neutral"
-    voxtral_voice_id_de: str = "gb_jane_neutral"
+    voxtral_voice_id_de: str = "voice_481"
 
     supabase_url: str = ""
     supabase_service_role_key: str = ""

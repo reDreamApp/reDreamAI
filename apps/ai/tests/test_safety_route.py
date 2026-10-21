@@ -11,16 +11,82 @@ import json
 import pytest
 from fastapi.testclient import TestClient
 
-from redream_ai.api.chat import get_llm_client
+from redream_ai.api.chat import get_llm_client, get_scaleway_llm_client
+from redream_ai.config import settings
+from redream_ai.llm.base import LlmUnavailableError
+from redream_ai.llm.fake_client import FakeLlmClient
 from redream_ai.main import app
 
 
 @pytest.fixture
-def client(fake_llm):
-    app.dependency_overrides[get_llm_client] = lambda: fake_llm
+def fallback_llm() -> FakeLlmClient:
+    return FakeLlmClient()
+
+
+@pytest.fixture
+def client(fake_llm, fallback_llm):
+    """`fake_llm` stands in for Scaleway, `fallback_llm` for direct Mistral."""
+    app.dependency_overrides[get_scaleway_llm_client] = lambda: fake_llm
+    app.dependency_overrides[get_llm_client] = lambda: fallback_llm
     with TestClient(app) as c:
         yield c, fake_llm
+    app.dependency_overrides.pop(get_scaleway_llm_client, None)
     app.dependency_overrides.pop(get_llm_client, None)
+
+
+class _DownLlm(FakeLlmClient):
+    async def chat(self, **kwargs):
+        raise LlmUnavailableError("down")
+
+
+_NONE = json.dumps({"risk": "none", "categories": [], "confidence": 0.9})
+
+
+def test_safety_model_pins():
+    """ADR 0010 (2026-10-21 amendment): a changed default is a model change
+    and needs the ADR and a live eval run."""
+    from redream_ai.config import Settings
+
+    fields = Settings.model_fields
+    assert fields["scaleway_safety_model"].default == "mistral-small-3.2-24b-instruct-2506"
+    assert fields["mistral_safety_model"].default == "ministral-8b-2512"
+
+
+def test_scaleway_answers_first(client, fallback_llm):
+    tc, fake = client
+    fake.enqueue(_NONE)
+    r = tc.post("/safety/classify", json={"text": "I dreamt of a forest.", "language": "en"})
+    assert r.status_code == 200
+    assert [c["model"] for c in fake.calls] == [settings.scaleway_safety_model]
+    assert fallback_llm.calls == []
+
+
+@pytest.mark.parametrize("primary_reply", [None, "Sorry, I cannot help with that."])
+def test_mistral_answers_when_scaleway_fails(client, fallback_llm, primary_reply):
+    """An outage and an answer that is not the JSON both go to the fallback:
+    the backend blocks the chat turn when this check fails."""
+    tc, fake = client
+    if primary_reply is None:
+        app.dependency_overrides[get_scaleway_llm_client] = _DownLlm
+    else:
+        fake.enqueue(primary_reply)
+    fallback_llm.enqueue(
+        json.dumps({"risk": "high", "categories": ["suicidal_ideation"], "confidence": 0.9})
+    )
+    r = tc.post(
+        "/safety/classify", json={"text": "I don't want to be here anymore.", "language": "en"}
+    )
+    assert r.status_code == 200
+    assert r.json()["risk"] == "high"
+    assert [c["model"] for c in fallback_llm.calls] == [settings.mistral_safety_model]
+
+
+def test_both_providers_down_is_503(client):
+    tc, _ = client
+    app.dependency_overrides[get_scaleway_llm_client] = _DownLlm
+    app.dependency_overrides[get_llm_client] = _DownLlm
+    r = tc.post("/safety/classify", json={"text": "I dreamt of a forest.", "language": "en"})
+    assert r.status_code == 503
 
 
 def test_safety_classify_low_risk(client):

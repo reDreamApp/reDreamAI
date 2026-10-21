@@ -69,6 +69,10 @@ decisions in `docs/decisions/`.
   stages, and the prompt says such answers are "none". Eval 52 cases (short
   answers, short sentences, answers with a real risk of their own): 52/52 in
   three runs.
+  2026-10-21: the classifier runs on `mistral-small-3.2-24b-instruct-2506`
+  on Scaleway, with `ministral-8b-2512` on direct Mistral as fallback (it
+  had none). Eval 52/52 on both; median 0.48 s vs 0.63 s. ADR 0010
+  amendment of the same date.
 
 Tracked here so they don't live only in session memory.
 
@@ -117,9 +121,10 @@ Tracked here so they don't live only in session memory.
 ## Deferred deliberately
 
 - **TTS voice choice** — TTS is implemented (2026-10-01, ADR 0010 amendment) with the
-  Mistral preset `gb_jane_neutral` for both languages. Still open: a proper German voice
-  (record Daniel vs. hire a speaker vs. the user's own voice, which adds Art. 9 biometric
-  consent and purge scope).
+  Mistral preset `gb_jane_neutral` for English. Since 2026-10-21 German uses Mistral's
+  German preset "Heidi" (`voice_481`, speech v3 model). Still open only if the
+  presets are not good enough: an own voice (record Daniel vs. hire a speaker vs. the
+  user's own voice, which adds Art. 9 biometric consent and purge scope).
 - **Staging environment** — the release topology (RELEASING.md: preview
   branches / local stack for schema, `production` as the only deploy gate)
   covers pre-launch risk. A standing staging box is a solo-dev time sink;

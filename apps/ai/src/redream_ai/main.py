@@ -13,7 +13,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from .api import audio, chat, health, safety
-from .api.chat import get_llm_client
+from .api.chat import get_llm_client, get_scaleway_llm_client
 from .config import settings
 from .llm.base import LlmClient, LlmUnavailableError
 from .request_limits import RequestSizeLimitMiddleware
@@ -26,6 +26,17 @@ def _build_llm_client() -> LlmClient | None:
     from .llm.mistral_client import MistralLlmClient
 
     return MistralLlmClient(api_key=settings.mistral_api_key)
+
+
+def _build_scaleway_llm_client() -> LlmClient | None:
+    """Construct the Scaleway client; returns None if no API key set."""
+    if not settings.scaleway_api_key:
+        return None
+    from .llm.scaleway_client import ScalewayLlmClient
+
+    return ScalewayLlmClient(
+        api_key=settings.scaleway_api_key, project_id=settings.scaleway_project_id
+    )
 
 
 @asynccontextmanager
@@ -42,7 +53,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # LANGFUSE_ENABLED=false) every decorator is a true no-op — no network.
     obs.configure_decorators()
 
-    # Crisis classifier (ADR 0005) still uses the direct-Mistral LlmClient.
+    # Crisis classifier (ADR 0005): Scaleway primary, direct Mistral fallback.
+    app.state.scaleway_llm_client = _build_scaleway_llm_client()
     app.state.llm_client = _build_llm_client()
 
     # Warmth check for the ported IRT pipeline (agents + SafetyCritic build eagerly
@@ -78,8 +90,16 @@ async def _llm_dep() -> LlmClient:
     return client
 
 
+async def _scaleway_llm_dep() -> LlmClient:
+    client: LlmClient | None = app.state.scaleway_llm_client
+    if client is None:
+        raise RuntimeError("Scaleway LLM client not configured (set SCALEWAY_API_KEY)")
+    return client
+
+
 app.add_middleware(RequestSizeLimitMiddleware)
 app.dependency_overrides[get_llm_client] = _llm_dep
+app.dependency_overrides[get_scaleway_llm_client] = _scaleway_llm_dep
 
 
 @app.exception_handler(LlmUnavailableError)
@@ -89,6 +109,7 @@ async def _llm_unavailable_handler(_: Request, exc: LlmUnavailableError) -> JSON
         content={"detail": f"LLM provider temporarily unavailable: {exc}"},
         headers={"Retry-After": "10"},
     )
+
 
 app.include_router(health.router)
 app.include_router(chat.router)

@@ -13,12 +13,11 @@ covers script, language and voice, so an unchanged dream re-uses its file
 (``cache_hit``) and an edited one gets a new object. The per-user prefix is
 what the backend's GDPR purge deletes.
 
-Voice: Mistral offers preset voices (GET /v1/audio/voices, English and French
-only as of 2026-10-01) and accepts their slug as ``voice_id``; a cloned voice
-id works the same way. Requests without a voice are rejected by the API, so
-both languages default to the ``gb_jane_neutral`` preset. German text through
-it was verified to transcribe back word for word; how it sounds is a product
-decision (ROADMAP).
+Voice: Mistral offers preset voices (GET /v1/audio/voices) and accepts their
+slug as ``voice_id``; a cloned voice id works the same way. Requests without a
+voice are rejected by the API. English uses ``gb_jane_neutral``, German the
+preset "Heidi" (``voice_481``, 2026-10-21), which only the speech v3 model
+accepts. A new voice changes the hash, so a dream gets new audio in it.
 
 Privacy: Scaleway has no TTS, so the rewritten dream (Art. 9 content) goes to
 Mistral La Plateforme (30-day abuse-monitoring retention until ZDR is

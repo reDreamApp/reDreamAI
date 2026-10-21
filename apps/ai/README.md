@@ -35,8 +35,8 @@ Tests run fully offline (`FakeLlmClient` + monkeypatched core agents) — no liv
 - `redream_ai.core` — ported IRT chatbot engine (routing + response agents, Scaleway primary with direct-Mistral fallback). Chat/routing/safety-critic model IDs are pinned in `core/agent.py::MODELS` — see ADR 0010's 2026-07-01 amendment, don't duplicate them elsewhere.
 - `redream_ai.clinical_safety` — neuro-symbolic `SafetyCritic`; runs inside the core during the rewriting stage.
 - `redream_ai.api` — FastAPI routes (`chat`, `safety`, `audio`, `health`).
-- `redream_ai.llm` — `LlmClient` protocol + Mistral/fake adapters; now used only by the crisis classifier route.
-- `redream_ai.safety.classifier` — Ministral 8B JSON-mode crisis classifier.
+- `redream_ai.llm` — `LlmClient` protocol + Scaleway/Mistral/fake adapters; now used only by the crisis classifier route.
+- `redream_ai.safety.classifier` — JSON-mode crisis classifier: Mistral Small 3.2 on Scaleway, Ministral 8B on direct Mistral as fallback.
 - `redream_ai.audio.tts` — Voxtral TTS + Supabase Storage upload (stubbed pending voice source).
 - `redream_ai.audio.stt` — Voxtral STT (stubbed pending Mistral SDK wiring).
 

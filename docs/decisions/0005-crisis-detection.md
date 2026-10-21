@@ -22,7 +22,7 @@ response: {
 }
 ```
 
-**Model**: Ministral 8B with JSON mode + a strict schema prompt. Calibrated to err on false positives (low harm: shows helpline; high cost: missed crisis).
+**Model**: Ministral 8B with JSON mode + a strict schema prompt. Calibrated to err on false positives (low harm: shows helpline; high cost: missed crisis). *Amended 2026-10-21:* Mistral Small 3.2 on Scaleway, Ministral 8B on direct Mistral as fallback (ADR 0010).
 
 **Backend flow** in the chat message handler:
 1. Call `/safety/classify`.

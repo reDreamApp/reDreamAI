@@ -30,8 +30,9 @@ def _configured(monkeypatch):
     monkeypatch.setattr(s, "supabase_public_url", "https://supabase.example.com")
     monkeypatch.setattr(s, "supabase_service_role_key", "srk")
     monkeypatch.setattr(s, "supabase_storage_bucket", "rehearsal-audio")
+    monkeypatch.setattr(s, "voxtral_tts_model", "voxtral-mini-tts-3-0")
     monkeypatch.setattr(s, "voxtral_voice_id_en", "gb_jane_neutral")
-    monkeypatch.setattr(s, "voxtral_voice_id_de", "gb_jane_neutral")
+    monkeypatch.setattr(s, "voxtral_voice_id_de", "voice_481")
 
 
 def _req(text: str = "You walk home with a warm lantern.", lang: Language = Language.EN):
@@ -89,9 +90,10 @@ def test_voice_and_model_defaults():
     from redream_ai.config import Settings
 
     fields = Settings.model_fields
-    assert fields["voxtral_tts_model"].default == "voxtral-mini-tts-2603"
+    assert fields["voxtral_tts_model"].default == "voxtral-mini-tts-3-0"
     assert fields["voxtral_voice_id_en"].default == "gb_jane_neutral"
-    assert fields["voxtral_voice_id_de"].default == "gb_jane_neutral"
+    # The German preset "Heidi"; speech v1 (voxtral-mini-tts-2603) rejects it.
+    assert fields["voxtral_voice_id_de"].default == "voice_481"
 
 
 async def test_generates_uploads_and_signs(monkeypatch):
@@ -109,7 +111,7 @@ async def test_generates_uploads_and_signs(monkeypatch):
     assert fake.objects[path] == _AUDIO
     assert fake.speech_calls == [
         {
-            "model": "voxtral-mini-tts-2603",
+            "model": "voxtral-mini-tts-3-0",
             "input": "You walk home with a warm lantern.",
             "voice_id": "gb_jane_neutral",
             "response_format": "mp3",
@@ -153,6 +155,20 @@ async def test_edited_dream_or_language_gets_a_new_file(monkeypatch):
 
     assert len(fake.objects) == 3
     assert len(fake.speech_calls) == 3
+    assert fake.speech_calls[2]["voice_id"] == "voice_481"
+
+
+async def test_new_voice_gets_a_new_file(monkeypatch):
+    """Dreams rendered in the old German voice get new audio in the new one."""
+    fake = _install(monkeypatch, _Fake())
+    monkeypatch.setattr(tts.settings, "voxtral_voice_id_de", "gb_jane_neutral")
+    await tts.generate_rehearsal(_req(lang=Language.DE))
+    monkeypatch.setattr(tts.settings, "voxtral_voice_id_de", "voice_481")
+    second = await tts.generate_rehearsal(_req(lang=Language.DE))
+
+    assert second.cache_hit is False
+    assert len(fake.objects) == 2
+    assert [c["voice_id"] for c in fake.speech_calls] == ["gb_jane_neutral", "voice_481"]
 
 
 async def test_hard_tts_error_is_not_retried(monkeypatch):

@@ -38,7 +38,8 @@ class LlmClient(Protocol):
     """Async LLM client protocol.
 
     Implementations:
-        - MistralLlmClient (production)
+        - ScalewayLlmClient (production, crisis classifier primary)
+        - MistralLlmClient (production, crisis classifier fallback)
         - FakeLlmClient (tests + offline dev)
     """
 

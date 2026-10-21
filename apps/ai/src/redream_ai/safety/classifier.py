@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from typing import Any
 
@@ -10,6 +11,8 @@ from .. import observability as obs
 from ..llm.base import LlmClient
 from ..models import Language, SafetyCategory, SafetyResponse, SafetyRisk, Stage
 from ..prompts.safety import PROMPT_VERSION, SAFETY_PROMPT_DE, SAFETY_PROMPT_EN
+
+log = logging.getLogger(__name__)
 
 _PROMPT_BY_LANG: dict[Language, str] = {
     Language.EN: SAFETY_PROMPT_EN,
@@ -55,6 +58,8 @@ async def classify(
     stage: Stage | None = None,
     context: str | None = None,
     trace: obs.Trace = None,
+    fallback_llm: LlmClient | None = None,
+    fallback_model: str | None = None,
 ) -> SafetyResponse:
     """Run the safety classifier over user-supplied text.
 
@@ -62,6 +67,10 @@ async def classify(
     `stage` and `context` (the assistant message being answered) disambiguate
     terse replies: "It is an 8 out of 10." is a scale answer, not ideation.
     A bare yes / no needs no model call (`_is_bare_answer`).
+
+    Any failure of the primary model, an unusable answer included, goes to
+    `fallback_model` on `fallback_llm` when one is given: the backend blocks
+    the chat turn when this check fails.
     """
 
     if _is_bare_answer(text):
@@ -82,6 +91,23 @@ async def classify(
         {"role": "user", "content": "\n\n".join(parts)},
     ]
 
+    try:
+        return await _ask(llm, model, messages, trace)
+    except Exception as exc:
+        if fallback_llm is None or fallback_model is None:
+            raise
+        log.warning(
+            "safety.primary_failed model=%s error=%s — falling back to %s",
+            model,
+            exc,
+            fallback_model,
+        )
+        return await _ask(fallback_llm, fallback_model, messages, trace)
+
+
+async def _ask(
+    llm: LlmClient, model: str, messages: list[dict[str, Any]], trace: obs.Trace
+) -> SafetyResponse:
     content, usage = await llm.chat(
         model=model,
         messages=messages,
