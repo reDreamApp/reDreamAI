@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
+  <defs>
+    <path id="spark" d="M0 -10 Q 2 -2 10 0 Q 2 2 0 10 Q -2 2 -10 0 Q -2 -2 0 -10 Z"/>
+    <mask id="moon"><circle cx="236" cy="44" r="18" fill="#fff"/><circle cx="245" cy="37" r="16" fill="#000"/></mask>
+  </defs>
+  <g fill="#fff">
+    <circle cx="160" cy="54" r="27"/>
+    <circle cx="131" cy="66" r="19"/>
+    <circle cx="189" cy="64" r="21"/>
+    <rect x="112" y="64" width="98" height="22" rx="11"/>
+  </g>
+  <circle cx="236" cy="44" r="18" fill="#F6C51B" mask="url(#moon)"/>
+  <use href="#spark" transform="translate(92 40) scale(.9)" fill="#fff"/>
+  <use href="#spark" transform="translate(268 82) scale(.6)" fill="#F6C51B"/>
+  <use href="#spark" transform="translate(74 82) scale(.5)" fill="#F6C51B"/>
+  <use href="#spark" transform="translate(212 20) scale(.45)" fill="#fff"/>
+  <circle cx="160" cy="98" r="3" fill="#fff" opacity=".9"/>
+  <circle cx="160" cy="107" r="2.2" fill="#fff" opacity=".7"/>
+  <path d="M160 180 C 128 168 92 166 56 172 L 56 118 C 92 112 128 114 160 126 C 192 114 228 112 264 118 L 264 172 C 228 166 192 168 160 180 Z" fill="#6E7AED"/>
+  <path d="M160 172 C 130 160 96 158 64 163 L 64 112 C 96 106 130 108 160 120 Z" fill="#fff"/>
+  <path d="M160 172 C 190 160 224 158 256 163 L 256 112 C 224 106 190 108 160 120 Z" fill="#fff"/>
+  <g stroke="#C9CEF6" stroke-width="3" stroke-linecap="round" fill="none">
+    <path d="M78 125 C 100 121 124 122 146 129"/>
+    <path d="M78 137 C 100 133 124 134 146 141"/>
+    <path d="M78 149 C 98 145 118 146 134 151"/>
+    <path d="M174 129 C 196 122 220 121 242 125"/>
+    <path d="M174 141 C 186 137 196 135 204 134"/>
+  </g>
+  <g transform="translate(212 150) rotate(-40)">
+    <rect x="0" y="-6" width="54" height="12" rx="2" fill="#F6C51B"/>
+    <rect x="48" y="-6" width="11" height="12" rx="3" fill="#F472B6"/>
+    <path d="M0 -6 L -15 0 L 0 6 Z" fill="#F5D7A1"/>
+    <path d="M-9.5 -2.3 L -15 0 L -9.5 2.3 Z" fill="#2B2F6B"/>
+  </g>
+</svg>

@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
+  <defs>
+    <path id="spark" d="M0 -10 Q 2 -2 10 0 Q 2 2 0 10 Q -2 2 -10 0 Q -2 -2 0 -10 Z"/>
+  </defs>
+  <g stroke="#fff" stroke-width="2.5" stroke-dasharray="2 6" stroke-linecap="round" fill="none" opacity=".9">
+    <path d="M90 62 C 102 66 108 70 114 74"/>
+    <path d="M84 128 C 98 120 106 116 114 112"/>
+    <path d="M234 98 C 224 98 216 99 206 101"/>
+  </g>
+  <rect x="116" y="14" width="88" height="172" rx="16" fill="#2B2F6B"/>
+  <rect x="122" y="26" width="76" height="148" rx="9" fill="#fff"/>
+  <rect x="148" y="19" width="24" height="3" rx="1.5" fill="#4B5096"/>
+  <rect x="128" y="36" width="52" height="22" rx="8" fill="#EEF0FE"/>
+  <rect x="134" y="43" width="36" height="3" rx="1.5" fill="#A7AFF3"/>
+  <rect x="134" y="49" width="24" height="3" rx="1.5" fill="#A7AFF3"/>
+  <rect x="144" y="66" width="48" height="22" rx="8" fill="#6E7AED"/>
+  <rect x="150" y="73" width="34" height="3" rx="1.5" fill="#fff"/>
+  <rect x="150" y="79" width="22" height="3" rx="1.5" fill="#fff" opacity=".8"/>
+  <rect x="128" y="96" width="58" height="30" rx="8" fill="#EEF0FE"/>
+  <rect x="134" y="103" width="44" height="3" rx="1.5" fill="#A7AFF3"/>
+  <rect x="134" y="109" width="40" height="3" rx="1.5" fill="#A7AFF3"/>
+  <rect x="134" y="115" width="26" height="3" rx="1.5" fill="#A7AFF3"/>
+  <rect x="128" y="134" width="30" height="14" rx="7" fill="#EEF0FE"/>
+  <circle cx="136" cy="141" r="2" fill="#8B5CF6"/>
+  <circle cx="143" cy="141" r="2" fill="#8B5CF6" opacity=".7"/>
+  <circle cx="150" cy="141" r="2" fill="#8B5CF6" opacity=".4"/>
+  <rect x="128" y="156" width="64" height="11" rx="5.5" fill="#F1F2F6"/>
+  <circle cx="66" cy="58" r="24" fill="#fff"/>
+  <rect x="60" y="43" width="12" height="20" rx="6" fill="#8B5CF6"/>
+  <path d="M55 56 a11 11 0 0 0 22 0" stroke="#8B5CF6" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M66 67 V 72 M60 72 H 72" stroke="#8B5CF6" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="60" cy="134" r="24" fill="#fff"/>
+  <g transform="translate(50 145) rotate(-45)">
+    <rect x="0" y="-4.5" width="26" height="9" rx="1.5" fill="#F6C51B"/>
+    <rect x="22" y="-4.5" width="7" height="9" rx="2" fill="#F472B6"/>
+    <path d="M0 -4.5 L -10 0 L 0 4.5 Z" fill="#F5D7A1"/>
+    <path d="M-6.5 -1.7 L -10 0 L -6.5 1.7 Z" fill="#2B2F6B"/>
+  </g>
+  <circle cx="258" cy="98" r="24" fill="#fff"/>
+  <path d="M246 104 v-4 a12 12 0 0 1 24 0 v4" stroke="#22B573" stroke-width="3.5" fill="none" stroke-linecap="round"/>
+  <rect x="242" y="100" width="8" height="13" rx="3.5" fill="#22B573"/>
+  <rect x="266" y="100" width="8" height="13" rx="3.5" fill="#22B573"/>
+  <g font-family="Roboto, Helvetica, Arial, sans-serif" font-size="10" font-weight="700" fill="#fff" text-anchor="middle">
+    <circle cx="84" cy="40" r="8.5" fill="#6E7AED"/><text x="84" y="43.5">1</text>
+    <circle cx="78" cy="116" r="8.5" fill="#6E7AED"/><text x="78" y="119.5">2</text>
+    <circle cx="276" cy="80" r="8.5" fill="#6E7AED"/><text x="276" y="83.5">3</text>
+  </g>
+  <use href="#spark" transform="translate(220 30) scale(.9)" fill="#F6C51B"/>
+  <use href="#spark" transform="translate(236 50) scale(.5)" fill="#fff"/>
+  <use href="#spark" transform="translate(100 96) scale(.45)" fill="#fff"/>
+</svg>

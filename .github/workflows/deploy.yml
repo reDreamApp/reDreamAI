@@ -16,6 +16,8 @@ permissions:
 
 jobs:
   deploy:
+    # Only the private original deploys; public copies of this repo never do.
+    if: github.repository == 'me-daniel/mono_repo_DreamAI'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout monorepo

@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
+  <defs>
+    <path id="spark" d="M0 -10 Q 2 -2 10 0 Q 2 2 0 10 Q -2 2 -10 0 Q -2 -2 0 -10 Z"/>
+    <mask id="moon"><circle cx="244" cy="46" r="16" fill="#fff"/><circle cx="252" cy="40" r="14" fill="#000"/></mask>
+  </defs>
+  <g fill="#fff" opacity=".45">
+    <circle cx="108" cy="128" r="32"/>
+    <circle cx="150" cy="104" r="42"/>
+    <circle cx="204" cy="114" r="36"/>
+    <circle cx="236" cy="136" r="24"/>
+    <rect x="84" y="128" width="172" height="40" rx="20"/>
+  </g>
+  <path d="M160 24 L 210 42 V 96 C 210 135 187 159 160 172 C 133 159 110 135 110 96 V 42 Z" fill="#fff"/>
+  <path d="M160 37 L 199 51 V 96 C 199 127 181 148 160 159 C 139 148 121 127 121 96 V 51 Z" fill="#6E7AED"/>
+  <path d="M149 96 V 86 a11 11 0 0 1 22 0 V 96" stroke="#fff" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <rect x="141" y="94" width="38" height="30" rx="6" fill="#fff"/>
+  <circle cx="160" cy="106" r="4.2" fill="#6E7AED"/>
+  <rect x="158" y="108" width="4" height="9" rx="2" fill="#6E7AED"/>
+  <circle cx="198" cy="150" r="13" fill="#22B573"/>
+  <path d="M192 150 l4 4 l8 -8" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="244" cy="46" r="16" fill="#F6C51B" mask="url(#moon)"/>
+  <use href="#spark" transform="translate(84 50) scale(.9)" fill="#fff"/>
+  <use href="#spark" transform="translate(268 92) scale(.55)" fill="#F6C51B"/>
+  <use href="#spark" transform="translate(66 96) scale(.5)" fill="#F6C51B"/>
+  <use href="#spark" transform="translate(108 26) scale(.45)" fill="#fff"/>
+</svg>

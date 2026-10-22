@@ -1,6 +1,6 @@
 # reDreamAI
 
-Self-help mobile app based on CBT / IRT (Imagery Rehearsal Therapy) for processing nightmares. *Not a substitute for psychotherapy.*
+A self-help companion app for working with difficult dreams: record a dream, reimagine it with a new ending, and listen back to it. *reDreamAI does not diagnose or treat any condition. If nightmares are seriously distressing you, please talk to a doctor or psychotherapist.*
 
 ## Repository layout
 
