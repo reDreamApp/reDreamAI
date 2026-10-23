@@ -66,15 +66,23 @@ The message can be in English or German. Answer only DREAM or TALK."""
 
 # Asked before every turn through POST /language/check (irt_app.
 # resolve_language_switch), only for messages that pass a cheap word check.
-# The backend switches chats.language on EN / DE before the crisis check, so
-# the whole turn runs in the new language. One word back keeps it cheap.
-LANGUAGE_CHECK_PROMPT = """You decide which language a chat with a user continues in. The chat can be held in English or German. You get the chat's current language and the user's latest message. Answer with exactly one word: EN, DE or KEEP.
+# The model only names the message's language (a request for a language
+# counts as that language); the code compares it with the chat's, and the
+# backend switches chats.language before the crisis check, so the whole turn
+# runs in the new language. Live-tested 2026-10-23 on Mistral Small 3.2: an
+# earlier prompt that also asked the model to compare with the chat's
+# language answered KEEP for plain sentences ("Ich will sterben"); this one
+# got 36 of 38 test messages right in two runs, the two misses being "Can you
+# speak German?"-style questions, which the Language paragraph answers.
+LANGUAGE_CHECK_PROMPT = """You tell which language a user's message is written in. Answer with exactly one word: EN, DE or OTHER.
 
-EN: the chat is in German, and the user asks to talk in English, or writes mainly in English (a whole sentence in the user's own words, not just a single word, a name, a title or a quote) without asking to stay in German.
-DE: the chat is in English, and the user asks to talk in German, or writes mainly in German in the same sense without asking to stay in English.
-KEEP: everything else, including a request to stay in the current language (in either language), short replies (yes, ok, ja, nein), messages that mix both languages about equally, messages in any other language, and whenever you are unsure.
+EN: the message is written in English. Also EN when the message asks to talk or write in English, in whatever language it is written.
+DE: the message is written in German. Also DE when the message asks to talk or write in German, in whatever language it is written.
+OTHER: the message is in any other language, or it is only a name, a title or a quote.
 
-Answer only EN, DE or KEEP."""
+When a message mixes English and German, answer the language most of it is written in.
+
+Answer only EN, DE or OTHER."""
 
 # Asked when the SafetyCritic calls a message a replay of the original dream
 # (irt_app._describes_a_change). Its classifier reads a rewrite that keeps

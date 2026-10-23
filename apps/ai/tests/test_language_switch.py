@@ -33,7 +33,7 @@ from redream_ai.main import app
 class _Check:
     """Stands in for the routing agent on the language check."""
 
-    def __init__(self, answer: str = "KEEP", fail: Exception | None = None, delay: float = 0):
+    def __init__(self, answer: str = "OTHER", fail: Exception | None = None, delay: float = 0):
         self.answer = answer
         self.fail = fail
         self.delay = delay
@@ -144,7 +144,8 @@ async def test_an_empty_message_or_an_unknown_language_is_kept(check):
         ("en", "kannst du deutsch reden", "DE", "de"),
         ("en", "kannst du deutsch reden", " de.\n", "de"),
         ("de", "I had a dream about my brother", "EN", "en"),
-        ("en", "nicht im traum, generell", "KEEP", None),
+        ("en", "nicht im traum, generell", "OTHER", None),
+        ("en", "nicht im traum, generell", "KEEP", None),  # not one of the words
         ("en", "nicht im traum, generell", "EN", None),  # the current language: keep
         ("de", "can we speak english please", "DE", None),
         ("en", "kannst du deutsch reden", "Deutsch, please", None),  # not one of the words
@@ -160,12 +161,13 @@ async def test_the_answer_decides(check, current, message, answer, expected):
     assert len(check.calls) == 1
 
 
-async def test_the_model_gets_the_current_language_and_the_message(check):
+async def test_the_model_gets_only_the_message(check):
+    """It names the message's language; the code compares with the chat's."""
     check.answer = "DE"
     await irt_app.resolve_language_switch(" kannst du deutsch reden ", "en")
-    assert check.calls == ["Current language: English\nMessage: kannst du deutsch reden"]
+    assert check.calls == ["kannst du deutsch reden"]
     await irt_app.resolve_language_switch("can we speak english please", "de")
-    assert check.calls[-1] == "Current language: German\nMessage: can we speak english please"
+    assert check.calls[-1] == "can we speak english please"
 
 
 async def test_an_error_keeps_the_language_and_is_not_remembered(monkeypatch):
@@ -196,7 +198,7 @@ async def test_an_answer_is_remembered_without_the_text(check):
     assert len(check.calls) == 1  # the second answer came from memory
     assert all("deutsch" not in key for key in irt_app._language_verdicts)
     # The same text in the other chat language is a different question.
-    check.answer = "KEEP"
+    check.answer = "OTHER"
     assert await irt_app.resolve_language_switch("kannst du deutsch reden", "de") is None
     assert len(check.calls) == 1  # names no other language: the word check stops it
 
@@ -373,5 +375,5 @@ def test_the_language_paragraphs_point_to_writing_in_the_other_language():
 
 
 def test_the_language_check_answers_in_one_word():
-    assert LANGUAGE_CHECK_PROMPT.endswith("Answer only EN, DE or KEEP.")
+    assert LANGUAGE_CHECK_PROMPT.endswith("Answer only EN, DE or OTHER.")
     assert LANGUAGE_CHECK_PROMPT != TALK_GATE_PROMPT

@@ -469,9 +469,10 @@ def _may_switch_language(text: str, current: str) -> bool:
 async def resolve_language_switch(message: str, current: str) -> Optional[str]:
     """The language the chat continues in when this message switches it ("en" / "de"), else None.
 
-    Only messages that pass the word check above reach the routing agent; its
-    one-word answer EN / DE / KEEP decides. A timeout, an error or any other
-    answer keeps the language, and so does an answer equal to the current one.
+    Only messages that pass the word check above reach the routing agent. It
+    names the message's language (EN / DE / OTHER); the chat switches when
+    that is the other of the two. A timeout, an error, OTHER or any other
+    answer keeps the language, and so does the current language.
     """
     text = message.strip()
     if current not in _LANGUAGE_NAMES or not text or not _may_switch_language(text, current):
@@ -481,17 +482,14 @@ async def resolve_language_switch(message: str, current: str) -> Optional[str]:
         return _language_verdicts[key]
     try:
         answer, _, _ = await asyncio.wait_for(
-            routing_agent.generate(
-                f"Current language: {_LANGUAGE_NAMES[current]}\nMessage: {text}",
-                system_prompt=LANGUAGE_CHECK_PROMPT,
-            ),
+            routing_agent.generate(text, system_prompt=LANGUAGE_CHECK_PROMPT),
             timeout=_LANGUAGE_CHECK_TIMEOUT_S,
         )
     except Exception as e:  # includes the timeout
         logger.error(f"Language check failed (the language stays): {type(e).__name__}")
         return None
     # Exactly one of the three words; "DE/EN" or "EN or DE" keep the language.
-    match = re.fullmatch(r"\s*(EN|DE|KEEP)[\s.!]*", (answer or "").upper())
+    match = re.fullmatch(r"\s*(EN|DE|OTHER)[\s.!]*", (answer or "").upper())
     if match is None:
         logger.warning("Language check gave no usable answer (the language stays)")
         return None
