@@ -12,7 +12,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
-from .api import audio, chat, health, safety
+from .api import audio, chat, health, language, safety
 from .api.chat import get_llm_client, get_scaleway_llm_client
 from .config import settings
 from .llm.base import LlmClient, LlmUnavailableError
@@ -114,4 +114,5 @@ async def _llm_unavailable_handler(_: Request, exc: LlmUnavailableError) -> JSON
 app.include_router(health.router)
 app.include_router(chat.router)
 app.include_router(safety.router)
+app.include_router(language.router)
 app.include_router(audio.router)

@@ -3,6 +3,8 @@
 Flow for `POST /chats/{id}/message`:
   1. Token-budget gate (ADR 0008) — 429 if exceeded.
   2. Persist user message.
+  2b. Call AI `/language/check`: a message written in (or asking for) the
+     other supported language switches `chat.language` from this turn on.
   3. Call AI `/safety/classify` (ADR 0005). If risk=high: write safety_event,
      mark user message as flagged, return helpline payload, do NOT advance.
   4. Else: call AI `/chat` with the FULL history (stateless AI, ADR 0002).
@@ -244,6 +246,22 @@ class _TurnSetup:
     history_msgs: list[ChatMessage]
     reservation: TokenReservation
     safety_payload: SafetyEventPayload | None  # non-None ⇒ high risk, no AI turn
+    language_switched: bool = False  # this message switched chat.language
+    previous_language: str | None = None  # set when language_switched
+
+    @property
+    def switch_note(self) -> bool:
+        """Send `language_switched` to the AI: this message switched, or an
+        earlier crisis message did and no AI turn has followed since."""
+        return self.language_switched or self.chat.language_switch_pending
+
+
+async def _revert_language_switch(db: AsyncSession, setup: _TurnSetup) -> None:
+    """Undo this turn's language switch when its user message is rolled back:
+    the client's retry of the same text then switches (and notes it) again."""
+    if setup.language_switched and setup.previous_language:
+        setup.chat.language = setup.previous_language
+        await ChatRepo(db).save(setup.chat)
 
 
 async def _pre_turn(
@@ -254,7 +272,8 @@ async def _pre_turn(
     ai: BaseAiClient,
 ) -> _TurnSetup:
     """Shared pre-AI gates: 404/409 → budget (429) → persist user message →
-    title → safety classifier (ADR 0005, 502 on failure, high-risk short-circuit).
+    title → language switch → safety classifier (ADR 0005, 502 on failure,
+    high-risk short-circuit).
 
     Raises HTTPException for every failure, so the streaming route runs this
     BEFORE the response starts and errors arrive as plain JSON, exactly like
@@ -290,6 +309,20 @@ async def _pre_turn(
         chat.title = _truncate_title(body.content)
         await chat_repo.save(chat)
 
+    # ---- language switch (en <-> de) -------------------------------------
+    # Before the classifier (and the dev-flag skip), so the crisis check, the
+    # helpline text and the AI turn all use the language of THIS message. The
+    # check never raises; any failure keeps the language.
+    language_switched = False
+    previous_language = chat.language
+    if body.content.strip():
+        new_language = await ai.language_check(body.content, chat.language)
+        if new_language != chat.language and new_language in ("en", "de"):
+            log.info("chat %s switches language %s -> %s", chat.id, chat.language, new_language)
+            chat.language = new_language
+            await chat_repo.save(chat)
+            language_switched = True
+
     history_msgs = await msg_repo.list_for_chat(chat.id)
 
     # ---- safety classifier (ADR 0005) ------------------------------------
@@ -309,6 +342,8 @@ async def _pre_turn(
             history_msgs=history_msgs,
             reservation=reservation,
             safety_payload=None,
+            language_switched=language_switched,
+            previous_language=previous_language if language_switched else None,
         )
     last_assistant = next(
         (
@@ -333,12 +368,20 @@ async def _pre_turn(
             }
         )
     except AIServiceError as exc:
+        if language_switched:
+            # Like a failed AI turn: undo the switch, so the client's retry of
+            # the same text switches (and notes it) again.
+            chat.language = previous_language
+            await chat_repo.save(chat)
         await release_usage(db, reservation)
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"safety: {exc}") from exc
 
     safety_payload: SafetyEventPayload | None = None
     if safety.get("risk") == "high":
         user_msg.safety_flagged = True
+        if language_switched:
+            # No AI turn follows, so the switch note waits for the next one.
+            chat.language_switch_pending = True
         await db.commit()
         await SafetyEventRepo(db).create(
             SafetyEvent(
@@ -367,11 +410,17 @@ async def _pre_turn(
         history_msgs=history_msgs,
         reservation=reservation,
         safety_payload=safety_payload,
+        language_switched=language_switched,
+        previous_language=previous_language if language_switched else None,
     )
 
 
 def _ai_chat_payload(
-    chat: Chat, history_msgs: list[ChatMessage], *, user_id: UUID
+    chat: Chat,
+    history_msgs: list[ChatMessage],
+    *,
+    user_id: UUID,
+    language_switched: bool = False,
 ) -> dict[str, Any]:
     """The stateless AI request (ADR 0002): full visible history + echo state.
 
@@ -381,6 +430,9 @@ def _ai_chat_payload(
 
     `session_id`/`user_id` are trace attribution only (never state): they tag
     the Langfuse trace so the GDPR purge (`delete_user_traces`) can find it.
+    `language_switched` is true on the turn whose message switched
+    `chat.language` (or on the first AI turn after a crisis message that
+    switched it); the AI then notes the change in its reply.
     """
     return {
         "messages": [
@@ -399,6 +451,7 @@ def _ai_chat_payload(
         # Echo the once-generated nightmare summary back to the stateless AI
         # so it never regenerates it (None on the first turns is fine).
         "nightmare_summary": chat.nightmare_summary,
+        "language_switched": language_switched,
     }
 
 
@@ -434,6 +487,7 @@ async def _finalize_ai_turn(
     # ---- advance chat state ----------------------------------------------
     chat.current_stage = ai_stage
     chat.is_done = ai_stage == "final"
+    chat.language_switch_pending = False  # this turn carried the switch note
     if ai_stage == "intensity" and chat.is_nightmare is not True:
         chat.is_nightmare = True
     if isinstance(nightmare_summary, str) and nightmare_summary:
@@ -488,12 +542,20 @@ async def send_message(
         )
 
     try:
-        ai_resp = await ai.chat(_ai_chat_payload(chat, setup.history_msgs, user_id=user.id))
+        ai_resp = await ai.chat(
+            _ai_chat_payload(
+                chat,
+                setup.history_msgs,
+                user_id=user.id,
+                language_switched=setup.switch_note,
+            )
+        )
     except AIServiceError as exc:
         # Drop the just-persisted user message: leaving it orphaned (no AI
         # reply) would replay it into the next turn's history alongside the
         # client's retry of the same text.
         await ChatMessageRepo(db).delete(setup.user_msg)
+        await _revert_language_switch(db, setup)
         await release_usage(db, setup.reservation)
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, f"chat: {exc}") from exc
 
@@ -562,6 +624,7 @@ async def _stream_ai_turn(
         try:
             await db.rollback()
             await ChatMessageRepo(db).delete(setup.user_msg)
+            await _revert_language_switch(db, setup)
         except Exception:
             log.exception("failed to roll back user message for chat %s", chat_id)
 
@@ -575,7 +638,12 @@ async def _stream_ai_turn(
             return
 
         async for frame in ai.chat_stream(
-            _ai_chat_payload(chat, setup.history_msgs, user_id=user.id)
+            _ai_chat_payload(
+                chat,
+                setup.history_msgs,
+                user_id=user.id,
+                language_switched=setup.switch_note,
+            )
         ):
             body = frame.removeprefix("data:").strip()
             if body == "[DONE]":
@@ -677,6 +745,8 @@ async def _upsert_dream_from_structured(
     """Create or update the Dream row that corresponds to this chat's summary.
 
     `chat_id` (as a string) is used as `dream.session_id`; one chat → one dream.
+    `language` is the chat's language at the summary, so the journal entry and
+    its rehearsal audio follow a mid-chat switch.
     """
     repo = DreamRepo(db)
     session_key = str(chat_id)
@@ -692,6 +762,7 @@ async def _upsert_dream_from_structured(
     existing = await repo.get_for_user_by_session(user_id, session_key)
     if existing is not None:
         existing.title = title
+        existing.language = language
         existing.original_dream = original or existing.original_dream
         existing.rewritten_dream = rewritten or existing.rewritten_dream
         if intensity is not None:
@@ -714,5 +785,6 @@ async def _upsert_dream_from_structured(
         is_nightmare=True,
         session_id=session_key,
         source="chatbot",
+        language=language,
     )
     return await repo.create(dream)

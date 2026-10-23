@@ -38,6 +38,9 @@ class Dream(Base):
     image_url: Mapped[str | None] = mapped_column(String)
     session_id: Mapped[str | None] = mapped_column(String, index=True)
     source: Mapped[str] = mapped_column(String, nullable=False, default="manual", index=True)
+    # en|de: the chat's language at the summary (chatbot dreams) or the app's
+    # language at creation (manual dreams); NULL for older manual dreams.
+    language: Mapped[str | None] = mapped_column(String)
 
     rehearsal_audio_url: Mapped[str | None] = mapped_column(String)
     rehearsal_script: Mapped[str | None] = mapped_column(String)

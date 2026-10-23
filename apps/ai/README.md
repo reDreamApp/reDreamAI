@@ -7,6 +7,7 @@ Stateless Python service. Receives the full conversation history per request and
 - `POST /chat` — IRT routing + response, non-streaming
 - `POST /chat/stream` — same turn as SSE (ADR 0009); frame contract lives in `src/redream_ai/api/chat.py`'s module docstring
 - `POST /safety/classify` — crisis pre-classifier; backend calls this **before** `/chat` (ADR 0005)
+- `POST /language/check` — does the chat switch between English and German? `{message, language}` → `{language, switched}`; backend calls this before `/safety/classify`
 - `POST /audio/transcribe` — Voxtral STT for voice journaling (ADR 0010)
 - `POST /rehearsal/generate` — Voxtral TTS for audio rehearsal; uploads to Supabase Storage
 - `GET /health` — liveness probe
@@ -34,7 +35,7 @@ Tests run fully offline (`FakeLlmClient` + monkeypatched core agents) — no liv
 
 - `redream_ai.core` — ported IRT chatbot engine (routing + response agents, Scaleway primary with direct-Mistral fallback). Chat/routing/safety-critic model IDs are pinned in `core/agent.py::MODELS` — see ADR 0010's 2026-07-01 amendment, don't duplicate them elsewhere.
 - `redream_ai.clinical_safety` — neuro-symbolic `SafetyCritic`; runs inside the core during the rewriting stage.
-- `redream_ai.api` — FastAPI routes (`chat`, `safety`, `audio`, `health`).
+- `redream_ai.api` — FastAPI routes (`chat`, `safety`, `language`, `audio`, `health`).
 - `redream_ai.llm` — `LlmClient` protocol + Scaleway/Mistral/fake adapters; now used only by the crisis classifier route.
 - `redream_ai.safety.classifier` — JSON-mode crisis classifier: Mistral Small 3.2 on Scaleway, Ministral 8B on direct Mistral as fallback.
 - `redream_ai.audio.tts` — Voxtral TTS + Supabase Storage upload (stubbed pending voice source).

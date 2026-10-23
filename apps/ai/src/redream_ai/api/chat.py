@@ -59,7 +59,7 @@ log = logging.getLogger(__name__)
 
 # The ported prompts carry no version constant; stamp the wire contract's required
 # `prompt_version` with the ported prompt lineage so callers can pin behaviour.
-PROMPT_VERSION = "irt-complete-rewrite-2026-10-14"
+PROMPT_VERSION = "irt-language-switch-2026-10-23"
 
 
 async def get_llm_client() -> NoReturn:
@@ -126,6 +126,7 @@ def _ported_input(req: ChatRequest, conversation: PortedConversation) -> PortedC
         message=req.messages[-1].content,
         user_id=req.user_id,
         language_override=req.language.value,
+        language_switched=req.language_switched,
     )
 
 

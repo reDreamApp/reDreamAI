@@ -41,6 +41,7 @@ def _to_out(dream: Dream) -> DreamOut:
         image_url=dream.image_url,
         session_id=dream.session_id,
         source=dream.source,
+        language=dream.language,
         rehearsal_audio_url=dream.rehearsal_audio_url,
         rehearsal_script=dream.rehearsal_script,
         rehearsal_duration=dream.rehearsal_duration,
@@ -187,10 +188,14 @@ async def generate_rehearsal(
     if not dream.rewritten_dream or not dream.rewritten_dream.strip():
         raise HTTPException(status.HTTP_409_CONFLICT, "rewritten_dream is required for rehearsal")
 
-    # Cache: if audio already exists and matches the requested language, reuse.
+    # The dream's own language wins; the body's (the app setting, which older
+    # app builds always send) only covers dreams without one.
+    language = dream.language or body.language
+
+    # Cache: if audio already exists and matches the effective language, reuse.
     if (
         dream.rehearsal_audio_url
-        and dream.rehearsal_language == body.language
+        and dream.rehearsal_language == language
         and dream.rehearsal_generated_at is not None
     ):
         return await _refresh_audio(db, dream)
@@ -205,7 +210,7 @@ async def generate_rehearsal(
                 "dream_id": str(dream.id),
                 "user_id": str(user.id),
                 "rewritten_dream": dream.rewritten_dream,
-                "language": body.language,
+                "language": language,
                 "max_synthesis_attempts": TTS_MAX_SYNTHESIS_ATTEMPTS,
             }
         )
@@ -224,7 +229,7 @@ async def generate_rehearsal(
     dream.rehearsal_audio_url = result.get("audio_url")
     dream.rehearsal_script = result.get("script")
     dream.rehearsal_duration = result.get("duration_estimate")
-    dream.rehearsal_language = body.language
+    dream.rehearsal_language = language
     dream.rehearsal_generated_at = datetime.now(UTC)
     saved = await repo.save(dream)
     return _to_out(saved)
