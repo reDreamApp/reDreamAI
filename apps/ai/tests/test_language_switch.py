@@ -21,6 +21,7 @@ from redream_ai.core.prompts import (
     LANGUAGE_SWITCH_NOTE_DE,
     LANGUAGE_SWITCH_NOTE_EN,
     REWRITING_NOTHING_YET_NOTE_DE,
+    ROUTING_PROMPTS,
     SCOPE_BOUNDARY_DE,
     SCOPE_BOUNDARY_EN,
     SYSTEM_PROMPT_TEMPLATES_DE,
@@ -123,6 +124,25 @@ def test_these_messages_do_not(current, message):
     assert irt_app._may_switch_language(message, current) is False
 
 
+@pytest.mark.parametrize(
+    ("current", "message", "expected"),
+    [
+        ("de", "Thank you.", True),  # the 2026-10-25 screenshot
+        ("de", "I\u2019m scared", True),
+        ("en", "Danke", True),
+        ("en", "Ich", True),
+        ("de", "-", False),
+        ("de", "*Suspenseful music*", False),  # no word of either list
+        ("en", "ok", False),
+        ("en", "Hallo", True),
+        ("de", "Thank you, ich bin bereit", False),  # German words too
+    ],
+)
+def test_a_first_message_needs_fewer_words(current, message, expected):
+    """The app greets in its own language; a resumed chat may be in the other one."""
+    assert irt_app._may_switch_language(message, current, first_message=True) is expected
+
+
 @pytest.mark.parametrize("message", ["ja", "ok", "I was in Berlin", "Danke"])
 async def test_a_message_that_fails_the_word_check_costs_no_call(check, message):
     assert await irt_app.resolve_language_switch(message, "en") is None
@@ -220,6 +240,16 @@ def test_the_route_reports_a_switch(client, check):
     assert r.json() == {"language": "de", "switched": True}
 
 
+def test_the_route_passes_the_first_message_flag_on(client, check):
+    check.answer = "EN"
+    body = {"message": "Thank you.", "language": "de"}
+    assert client.post("/language/check", json=body).json()["switched"] is False
+    assert check.calls == []
+    r = client.post("/language/check", json={**body, "first_message": True})
+    assert r.json() == {"language": "en", "switched": True}
+    assert check.calls == ["Thank you."]
+
+
 def test_the_route_reports_no_switch(client, check):
     r = client.post("/language/check", json={"message": "ok", "language": "de"})
     assert r.status_code == 200
@@ -267,14 +297,14 @@ async def test_the_switch_note_is_added_only_on_the_switch():
 
 
 class _Turn:
-    """Routing and response agent in one: routes to summary, records the reply prompt."""
+    """Routing and response agent in one: moves on to the summary, records the reply prompt."""
 
     def __init__(self):
         self.system_prompts: list[str] = []
 
     async def generate(self, prompt, system_prompt=None, **kwargs):
-        if system_prompt is None:
-            return "summary", {}, None  # the router
+        if system_prompt in ROUTING_PROMPTS.values():
+            return "YES", {}, None  # the step check
         self.system_prompts.append(system_prompt)
         return "Antwort", {"input": 1, "output": 1, "total": 2}, None
 
@@ -355,20 +385,23 @@ def test_the_chat_route_passes_the_flag_on(monkeypatch):
 
 
 def test_the_language_paragraphs_point_to_writing_in_the_other_language():
+    # The guide only talks about language when asked, or for a third language:
+    # in the 2026-10-25 screenshot it told a user who wrote "Thank you." that
+    # they could simply write in English.
     assert (
-        "\n\nLanguage: every reply is written in English. If the user asks to speak German, "
-        "say briefly that they can simply write in German and the chat will continue in "
-        "German. If they write in or ask for a language other than English or German, say in "
-        "English that this chat can be held in English or German, and then carry on with "
-        "what else they said.\n\n"
+        "\n- Language: the chat is held in English or German and switches by itself when "
+        "the user writes in the other one. If the user asks for German, say they can simply "
+        "write in German. If they write in or ask for another language, say in English that "
+        "this chat can be held in English or German, and respond to the rest of their "
+        "message. Otherwise say nothing about language.\n"
     ) in SCOPE_BOUNDARY_EN
     assert (
-        "\n\nSprache: Jede Antwort ist auf Deutsch geschrieben. Bittet der Nutzer darum, "
-        "Englisch zu sprechen, sag kurz, dass er einfach auf Englisch schreiben kann und der "
-        "Chat dann auf Englisch weitergeht. Schreibt er in einer anderen Sprache als Deutsch "
-        "oder Englisch oder bittet er um eine solche, sag auf Deutsch, dass dieser Chat auf "
-        "Deutsch oder Englisch geführt werden kann, und geh dann auf das ein, was er sonst "
-        "gesagt hat.\n\n"
+        "\n- Sprache: Der Chat läuft auf Deutsch oder Englisch und wechselt von selbst, wenn "
+        "der Nutzer in der anderen Sprache schreibt. Bittet er um Englisch, sag, dass er "
+        "einfach auf Englisch schreiben kann. Schreibt er in einer anderen Sprache oder "
+        "bittet er um eine, sag auf Deutsch, dass dieser Chat auf Deutsch oder Englisch "
+        "geführt werden kann, und geh auf den Rest seiner Nachricht ein. Sonst sag nichts "
+        "zur Sprache.\n"
     ) in SCOPE_BOUNDARY_DE
     for boundary in (SCOPE_BOUNDARY_EN, SCOPE_BOUNDARY_DE):
         assert "settings" not in boundary and "Einstellungen" not in boundary

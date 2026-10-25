@@ -213,6 +213,10 @@ class SafetyResponse(BaseModel):
 class LanguageCheckRequest(BaseModel):
     message: str = Field(description="The user's latest message.")
     language: Language = Field(description="The chat's current language.")
+    first_message: bool = Field(
+        default=False,
+        description="True for the chat's first user message, which may switch on fewer words.",
+    )
 
     model_config = ConfigDict(extra="forbid")
 

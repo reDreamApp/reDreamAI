@@ -48,7 +48,9 @@ class BaseAiClient(Protocol):
     async def chat(self, payload: dict[str, Any]) -> dict[str, Any]: ...
     def chat_stream(self, payload: dict[str, Any]) -> AsyncIterator[str]: ...
     async def safety_classify(self, payload: dict[str, Any]) -> dict[str, Any]: ...
-    async def language_check(self, message: str, language: str) -> str: ...
+    async def language_check(
+        self, message: str, language: str, first_message: bool = False
+    ) -> str: ...
     async def transcribe(self, *, file_name: str, audio_bytes: bytes) -> dict[str, Any]: ...
     async def rehearsal_generate(self, payload: dict[str, Any]) -> dict[str, Any]: ...
 
@@ -105,8 +107,14 @@ class HttpxAiClient:
             raise AIServiceError(f"/safety/classify failed: {r.status_code} {r.text[:200]}")
         return r.json()
 
-    async def language_check(self, message: str, language: str) -> str:
+    async def language_check(
+        self, message: str, language: str, first_message: bool = False
+    ) -> str:
         """POST /language/check — the language the chat continues in.
+
+        `first_message` marks the chat's first user message, which may switch
+        on fewer words: the app greets in its own language, and a resumed chat
+        can have been started in the other one.
 
         Never raises: a failure, a timeout or an answer that is not en/de keeps
         `language`, so the turn always proceeds. The warning leaves out the
@@ -116,7 +124,11 @@ class HttpxAiClient:
             async with httpx.AsyncClient(timeout=_LANGUAGE_CHECK_TIMEOUT) as client:
                 r = await client.post(
                     self._url("/language/check"),
-                    json={"message": message, "language": language},
+                    json={
+                        "message": message,
+                        "language": language,
+                        "first_message": first_message,
+                    },
                 )
             if r.status_code >= 300:
                 log.warning("/language/check failed: %s — keeping %s", r.status_code, language)

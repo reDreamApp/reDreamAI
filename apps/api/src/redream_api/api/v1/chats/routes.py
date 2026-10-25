@@ -316,7 +316,11 @@ async def _pre_turn(
     language_switched = False
     previous_language = chat.language
     if body.content.strip():
-        new_language = await ai.language_check(body.content, chat.language)
+        new_language = await ai.language_check(
+            body.content,
+            chat.language,
+            first_message=not any(m.role == "user" for m in existing),
+        )
         if new_language != chat.language and new_language in ("en", "de"):
             log.info("chat %s switches language %s -> %s", chat.id, chat.language, new_language)
             chat.language = new_language

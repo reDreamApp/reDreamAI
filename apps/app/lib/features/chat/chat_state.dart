@@ -30,6 +30,10 @@ class ChatState extends ChangeNotifier {
   final IVoiceRecorder? _recorder;
 
   int? _chatId;
+
+  /// The current chat's language as the backend reports it; null when
+  /// unknown (no chat, or a chat missing from the loaded list).
+  String? _chatLanguage;
   IrtStage _stage = IrtStage.recording;
   final List<ChatMessage> _messages = [];
   bool _sending = false;
@@ -135,6 +139,7 @@ class ChatState extends ChangeNotifier {
       _sending = false;
       _hasStreamingDraft = false;
       _chatId = res.chatId;
+      _chatLanguage = res.language;
       _stage = res.currentStage;
       _messages.clear();
       if (_greeting(res.chatId, welcomeMessages) case final greeting?) {
@@ -176,12 +181,35 @@ class ChatState extends ChangeNotifier {
     }
     final latest = _chats.isEmpty ? null : _chats.first;
     if (latest != null && !latest.isDone) {
-      final loaded = await loadChat(
-        latest.id,
-        welcomeMessages: welcomeMessages,
-      );
-      if (loaded) return;
+      if (latest.title == null && latest.language != language) {
+        // Nobody has written in it yet, and it was started before the app's
+        // language changed: its greeting would be in the app's language
+        // while the guide answers in the other (2026-10-25).
+        await deleteChat(latest.id);
+      } else {
+        final loaded = await loadChat(
+          latest.id,
+          welcomeMessages: welcomeMessages,
+        );
+        if (loaded) return;
+      }
     }
+    await startChat(language: language, welcomeMessages: welcomeMessages);
+  }
+
+  /// After the app's language changed: a chat nobody has written in yet is
+  /// replaced by a new one in that language. A chat with messages keeps its
+  /// language; the backend switches it when the user writes in the other.
+  Future<void> followAppLanguage({
+    required String language,
+    required List<String> welcomeMessages,
+  }) async {
+    final id = _chatId;
+    if (id == null || _chatLanguage == null || _chatLanguage == language) {
+      return;
+    }
+    if (_sending || _loadingChat || _messages.any((m) => m.isUser)) return;
+    await deleteChat(id);
     await startChat(language: language, welcomeMessages: welcomeMessages);
   }
 
@@ -232,6 +260,7 @@ class ChatState extends ChangeNotifier {
         _intensitySaving = false;
       }
       _chatId = id;
+      _chatLanguage = summary?.language;
       _messages.clear();
       if (_greeting(id, welcomeMessages) case final greeting?) {
         _messages.add(
@@ -296,6 +325,7 @@ class ChatState extends ChangeNotifier {
       _sending = false;
       _hasStreamingDraft = false;
       _chatId = null;
+      _chatLanguage = null;
       _messages.clear();
       _stage = IrtStage.recording;
       _isDone = false;
@@ -317,6 +347,7 @@ class ChatState extends ChangeNotifier {
     _sending = false;
     _hasStreamingDraft = false;
     _chatId = null;
+    _chatLanguage = null;
     _chats = const [];
     _messages.clear();
     _stage = IrtStage.recording;

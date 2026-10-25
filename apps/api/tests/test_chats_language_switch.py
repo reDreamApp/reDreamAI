@@ -70,7 +70,11 @@ async def test_message_route_switches_before_the_classifier(
 
     assert r.status_code == 200, r.text
     assert _methods(fake_ai) == ["language_check", "safety_classify", "chat"]
-    assert _payload(fake_ai, "language_check") == {"message": text, "language": "en"}
+    assert _payload(fake_ai, "language_check") == {
+        "message": text,
+        "language": "en",
+        "first_message": True,
+    }
     assert _payload(fake_ai, "safety_classify")["language"] == "de"
     chat_payload = _payload(fake_ai, "chat")
     assert chat_payload["language"] == "de"
@@ -120,8 +124,10 @@ async def test_switch_flag_is_only_set_on_the_switching_turn(
     r = await client.post(f"/api/v1/chats/{chat_id}/message", json={"content": "Ja."})
 
     assert r.status_code == 200, r.text
-    # Second turn: checked against the new language, no switch, no note.
+    # Second turn: checked against the new language, no switch, no note,
+    # and no longer the chat's first message.
     assert _payload(fake_ai, "language_check")["language"] == "de"
+    assert _payload(fake_ai, "language_check")["first_message"] is False
     chat_payload = _payload(fake_ai, "chat")
     assert chat_payload["language"] == "de"
     assert chat_payload["language_switched"] is False
@@ -391,7 +397,11 @@ async def test_http_language_check_returns_the_new_language(monkeypatch) -> None
 
     assert result == "de"
     assert seen[0].url.path == "/language/check"
-    assert json.loads(seen[0].content) == {"message": "Ich bin da.", "language": "en"}
+    assert json.loads(seen[0].content) == {
+        "message": "Ich bin da.",
+        "language": "en",
+        "first_message": False,
+    }
     assert timeouts == [10.0]
 
 

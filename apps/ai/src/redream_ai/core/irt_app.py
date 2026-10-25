@@ -7,19 +7,22 @@ from .models import Conversation, Stage, ChatInput, ChatResponse
 import hashlib
 import logging
 import json
-from .prompts import (SYSTEM_PROMPT_TEMPLATES_DE, SYSTEM_PROMPT_TEMPLATES_EN,
+from .prompts import (ROUTING_PROMPTS, SYSTEM_PROMPT_TEMPLATES_DE, SYSTEM_PROMPT_TEMPLATES_EN,
                       NIGHTMARE_SUMMARY_PROMPT_DE, NIGHTMARE_SUMMARY_PROMPT_EN,
                       SCOPE_BOUNDARY_DE, SCOPE_BOUNDARY_EN,
                       SAFETY_NOTE_INTRO_DE, SAFETY_NOTE_INTRO_EN,
                       SAFETY_NOTE_STYLE_DE, SAFETY_NOTE_STYLE_EN,
+                      SUMMARY_REQUEST_DE, SUMMARY_REQUEST_EN,
                       RECORDING_ENOUGH_NOTE_DE, RECORDING_ENOUGH_NOTE_EN,
                       RECORDING_NO_DREAM_YET_NOTE_DE, RECORDING_NO_DREAM_YET_NOTE_EN,
                       REWRITING_ENOUGH_NOTE_DE, REWRITING_ENOUGH_NOTE_EN,
                       REWRITING_ONE_MORE_NOTE_DE, REWRITING_ONE_MORE_NOTE_EN,
                       REWRITING_OPENER_NOTE_DE, REWRITING_OPENER_NOTE_EN,
                       REWRITING_NOTHING_YET_NOTE_DE, REWRITING_NOTHING_YET_NOTE_EN,
+                      REPEAT_NOTE_DE, REPEAT_NOTE_EN,
                       LANGUAGE_SWITCH_NOTE_DE, LANGUAGE_SWITCH_NOTE_EN,
-                      LANGUAGE_CHECK_PROMPT, REPLAY_CHECK_PROMPT, TALK_GATE_PROMPT)
+                      LANGUAGE_CHECK_PROMPT, NEW_VERSION_CHECK_PROMPT, REPLAY_CHECK_PROMPT,
+                      TALK_GATE_PROMPT)
 
 # Load environment variables (searches upward from CWD to find project .env)
 load_dotenv(find_dotenv())
@@ -196,18 +199,6 @@ async def process_chat_message_stream(
         if safety_enabled and stage == "rewriting":
             safety_result = await evaluate_safety(chat_input.message, conversation)
 
-        history = conversation.get_history_as_string()
-        intro_message_de = "AI: Ich bin hier, um dir zu helfen, deine Albträume zu bewältigen und sie in positivere Erfahrungen zu verwandeln.\\nNimm dir Zeit, deinen Albtraum so detailliert wie möglich zu beschreiben. Wenn du fertig bist, werde ich hier sein, um dir Anleitung und Unterstützung zu bieten, während wir ihn gemeinsam in eine positivere Erzählung umwandeln."
-        intro_message_en = "AI: I'm here to help you work through your nightmares and turn them into more positive experiences.\\nTake your time to describe your nightmare in as much detail as you can. When you're ready, I'll be here to guide and support you as we reshape it together into a more empowering story."
-
-        is_english = (conversation.language == "en")
-        intro_message = intro_message_en if is_english else intro_message_de
-
-        # Prepend intro message to the history string used for the prompt
-        history_for_prompt = intro_message + "\\n" + history if history else intro_message
-        
-        full_prompt = f"\n\nConversation history:\n{history_for_prompt}"
-        
         full_response = ""
         final_usage = {}
         stage_note = await _stage_note(
@@ -215,7 +206,7 @@ async def process_chat_message_stream(
             chat_input.language_switched
         )
         async for chunk, chunk_usage in get_response_stream_async(
-            stage, full_prompt, conversation, detected_language,
+            stage, _reply_input(stage, conversation), conversation, detected_language,
             safety_constraint=stage_note
         ):
             if chunk:
@@ -259,31 +250,28 @@ async def determine_stage_async(user_input: str, conversation: Conversation) -> 
         metadata={"type": "stage_determination"}
     )
     
-    history = conversation.get_history_as_string()
-    # Corrected prompt: ROUTING_PROMPT is handled by the agent's system_prompt
-    prompt = f"<transcript>\n{history}\n</transcript>\n\nClassification:"
-    
-    stage_response, usage, _ = await routing_agent.generate(prompt)  # Unpack content, usage, and logprobs
-    stage_str = stage_response.strip()
-    logger.info(f"Stage output: {stage_str}")
-    
-    try:
-        stage = Stage(stage_str)
-    except ValueError:
-        # Unparseable routing output → stay in the current stage. On turn 1 the
-        # stages list is empty, so default to RECORDING instead of IndexError-ing.
-        if conversation.stages:
-            stage = Stage(conversation.stages[-1])
-        else:
-            stage = Stage.RECORDING
-        logger.warning(f"Invalid stage '{stage_str}', defaulting to {stage.value}")
-
-    # APP BUILD: 'rehearsal' is not part of the routed chat flow (it happens later
-    # in the dream journal, not in chat). If the router ever emits it — the response
-    # template still exists as a website-legacy artifact — treat it as the final
-    # wrap-up. See ROUTING_PROMPT in prompts.py.
-    if stage == Stage.REHEARSAL:
-        logger.info("Rehearsal is not routed in the app build; treating as final")
+    # The step of the guide's last reply. Its yes/no check decides whether the
+    # user's newest message moves the exercise on. The first message stays in
+    # recording without a check (_keep_stage_order), final and the website's
+    # rehearsal end in final, and a pre-port "intensity" turn counts as rewriting.
+    current = conversation.stages[-1] if conversation.stages else None
+    if current is not None and current not in ROUTING_PROMPTS and current not in (
+        Stage.FINAL.value, Stage.REHEARSAL.value
+    ):
+        current = Stage.REWRITING.value
+    usage = None
+    if current is None:
+        stage = Stage.RECORDING
+    elif current in ROUTING_PROMPTS:
+        history = conversation.get_history_as_string()
+        answer, usage, _ = await routing_agent.generate(
+            f"<conversation>\n{history}\n</conversation>",
+            system_prompt=ROUTING_PROMPTS[current],
+        )
+        moves_on = (answer or "").strip().upper().startswith("YES")
+        logger.info(f"Step check in {current}: {'YES' if moves_on else 'NO'}")
+        stage = Stage(_NEXT_STAGE[current]) if moves_on else Stage(current)
+    else:
         stage = Stage.FINAL
 
     stage = _keep_stage_order(stage, conversation)
@@ -297,6 +285,12 @@ async def determine_stage_async(user_input: str, conversation: Conversation) -> 
     )
     
     return stage.value
+
+_NEXT_STAGE = {
+    Stage.RECORDING.value: Stage.REWRITING.value,
+    Stage.REWRITING.value: Stage.SUMMARY.value,
+    Stage.SUMMARY.value: Stage.FINAL.value,
+}
 
 # A session cannot leave recording on the user's first message: the guide
 # answers at least once in recording before any rewriting starts.
@@ -421,7 +415,7 @@ _GERMAN_WORDS = frozenset("""
     nicht kein keine keinen keinem keiner keines nichts niemand alles
     und oder aber auch noch sehr schon nur jetzt dann dass weil doch mal mehr immer
     wenn wie ist sind bin bist habe hab hast haben hatte waren wird wurde würde
-    kann kannst möchte brauche geht gibt bitte
+    kann kannst möchte brauche geht gibt bitte danke hallo tschüss
     ein eine einen einem einer der das dem des im vom zum zur über für mit auf zu
     von nach bei aus
 """.split())
@@ -432,7 +426,7 @@ _ENGLISH_WORDS = frozenset("""
     don't dont didn't didnt doesn't isn't wasn't can't cant won't
     i'm i've i'll it's let's
     please very already just about how what when where why who there then nobody
-    on at up out
+    on at up out thanks thank hello bye
 """.split())
 # The other language's name, in either language; "deutsch" and "englisch"
 # also inside compounds ("Hochdeutsch", "Schulenglisch").
@@ -448,12 +442,19 @@ _language_verdicts: dict[str, Optional[str]] = {}
 _LANGUAGE_VERDICTS_MAX = 512
 
 
-def _may_switch_language(text: str, current: str) -> bool:
+# A chat's first message may switch on fewer words: the app greets in its own
+# language, but a chat resumed after the user changed it was started in the
+# other one ("Thank you." to an English greeting in a German chat, 2026-10-25).
+_MIN_WORDS = 3
+_MIN_WORDS_FIRST_MESSAGE = 1
+
+
+def _may_switch_language(text: str, current: str, first_message: bool = False) -> bool:
     """Cheap check before the model: does the message name or look like the other language?"""
     if _OTHER_LANGUAGE_NAME[current].search(text):
         return True
     words = [w.lower() for w in _WORD.findall(text.replace("\u2019", "'"))]
-    if len(words) < 3:
+    if len(words) < (_MIN_WORDS_FIRST_MESSAGE if first_message else _MIN_WORDS):
         return False
     other, own = (_GERMAN_WORDS, _ENGLISH_WORDS) if current == "en" else (_ENGLISH_WORDS, _GERMAN_WORDS)
     other_hits = [w for w in words if w in other]
@@ -466,7 +467,9 @@ def _may_switch_language(text: str, current: str) -> bool:
     )
 
 
-async def resolve_language_switch(message: str, current: str) -> Optional[str]:
+async def resolve_language_switch(
+    message: str, current: str, first_message: bool = False
+) -> Optional[str]:
     """The language the chat continues in when this message switches it ("en" / "de"), else None.
 
     Only messages that pass the word check above reach the routing agent. It
@@ -475,7 +478,7 @@ async def resolve_language_switch(message: str, current: str) -> Optional[str]:
     answer keeps the language, and so does the current language.
     """
     text = message.strip()
-    if current not in _LANGUAGE_NAMES or not text or not _may_switch_language(text, current):
+    if current not in _LANGUAGE_NAMES or not text or not _may_switch_language(text, current, first_message):
         return None
     key = hashlib.sha256(f"{current}\n{text.lower()}".encode()).hexdigest()
     if key in _language_verdicts:
@@ -567,11 +570,25 @@ def _rewriting_answers(conversation: Conversation) -> List[str]:
 
 
 async def _has_new_version(conversation: Conversation) -> bool:
-    """True once the user has said anything about the new version of the dream."""
+    """True once the user has said anything about the new version of the dream.
+
+    Any message with content after the guide's first rewriting reply counts.
+    Without one, the model reads the whole chat: the change often comes in the
+    message that agrees to rewrite, or already while the dream is told. False
+    on a failure, so the summary waits.
+    """
     for answer in _rewriting_answers(conversation):
         if not await _is_plain_talk(answer):
             return True
-    return False
+    try:
+        answer, _, _ = await routing_agent.generate(
+            f"<transcript>\n{conversation.get_history_as_string()}\n</transcript>",
+            system_prompt=NEW_VERSION_CHECK_PROMPT,
+        )
+    except Exception as e:
+        logger.error(f"New-version check failed (the summary waits): {e}")
+        return False
+    return answer.strip().upper().startswith("YES")
 
 
 async def _hold_summary_without_rewrite(stage: str, conversation: Conversation) -> Tuple[str, bool]:
@@ -604,7 +621,11 @@ async def _rewriting_note(
         return None
     answers = _rewriting_answers(conversation)
     if not answers:
-        # The stage opens with this reply, on a message without any change in it.
+        # The stage opens with this reply, on a message without any change in
+        # it. The note says that nothing was changed yet, so not when the user
+        # gave the new version while telling the dream.
+        if await _has_new_version(conversation):
+            return None
         return REWRITING_OPENER_NOTE_EN if is_english else REWRITING_OPENER_NOTE_DE
     # The user added nothing: one more question the first time, then no more.
     plain = [await _is_plain_talk(answer) for answer in answers]
@@ -643,15 +664,31 @@ async def _stage_note(
     comes last.
     """
     is_english = language == "en"
-    note = None
+    notes = []
     if stage == Stage.REWRITING.value:
-        note = await _rewriting_note(safety_result, conversation, is_english, summary_held_back)
+        notes.append(await _rewriting_note(safety_result, conversation, is_english, summary_held_back))
     elif stage == Stage.RECORDING.value:
-        note = await _recording_note(conversation, is_english)
-    if not language_switched:
-        return note
-    switch_note = LANGUAGE_SWITCH_NOTE_EN if is_english else LANGUAGE_SWITCH_NOTE_DE
-    return note + "\n\n" + switch_note if note else switch_note
+        notes.append(await _recording_note(conversation, is_english))
+    if stage == Stage.RECORDING.value:
+        notes.append(await _repeat_note(conversation, is_english))
+    if language_switched:
+        notes.append(LANGUAGE_SWITCH_NOTE_EN if is_english else LANGUAGE_SWITCH_NOTE_DE)
+    return "\n\n".join(n for n in notes if n) or None
+
+
+async def _repeat_note(conversation: Conversation, is_english: bool) -> Optional[str]:
+    """Quote the guide's last reply when the user's message says nothing about the dream.
+
+    Recording only: in rewriting the counted notes vary the question, and a
+    note on every turn made the guide paraphrase its summary offer into
+    something the router does not read as one ("Shall I save it in your
+    Journal?", 2026-10-25 runs).
+    """
+    previous = next((m.content for m in reversed(conversation.messages) if m.role == "assistant"), None)
+    latest = next((m.content for m in reversed(conversation.messages) if m.role == "user"), "")
+    if not previous or not await _is_plain_talk(latest):
+        return None
+    return (REPEAT_NOTE_EN if is_english else REPEAT_NOTE_DE).format(previous=previous.strip())
 
 
 @observe(name="safety_evaluation", as_type="generation")
@@ -682,6 +719,21 @@ async def evaluate_safety(user_input: str, conversation: Conversation):
         return None
 
 
+def _reply_input(stage: str, conversation: Conversation) -> List[dict]:
+    """What the reply model reads after its system prompt.
+
+    The chat as user/assistant turns, so the model knows which replies were
+    its own (the app's greeting is display-only; the boundary names it). The
+    summary is a text about the chat, so that step gets the chat as one
+    document with the request to write it.
+    """
+    if stage != Stage.SUMMARY.value:
+        return conversation.history_as_turns()
+    request = SUMMARY_REQUEST_EN if conversation.language == "en" else SUMMARY_REQUEST_DE
+    transcript = conversation.get_history_as_string()
+    return [{"role": "user", "content": f"<conversation>\n{transcript}\n</conversation>\n\n{request}"}]
+
+
 @observe(name="get_response", as_type="generation", capture_input=False, capture_output=False)
 async def get_response_async(stage: str, user_input: str, conversation: Conversation, safety_constraint: Optional[str] = None) -> Tuple[str, dict]:
     """Async version of get_response"""
@@ -695,19 +747,9 @@ async def get_response_async(stage: str, user_input: str, conversation: Conversa
         }
     )
     
-    history = conversation.get_history_as_string()
-    intro_message_de = "AI: Ich bin hier, um dir zu helfen, deine Albträume zu bewältigen und sie in positivere Erfahrungen zu verwandeln.\\nNimm dir Zeit, deinen Albtraum so detailliert wie möglich zu beschreiben. Wenn du fertig bist, werde ich hier sein, um dir Anleitung und Unterstützung zu bieten, während wir ihn gemeinsam in eine positivere Erzählung umwandeln."
-    intro_message_en = "AI: I'm here to help you work through your nightmares and turn them into more positive experiences.\\nTake your time to describe your nightmare in as much detail as you can. When you're ready, I'll be here to guide and support you as we reshape it together into a more empowering story."
-
     is_english = (conversation.language == "en")
     templates = SYSTEM_PROMPT_TEMPLATES_EN if is_english else SYSTEM_PROMPT_TEMPLATES_DE
-    intro_message = intro_message_en if is_english else intro_message_de
-
-    # Prepend intro message to the history string used for the prompt
-    history_for_prompt = intro_message + "\\n" + history if history else intro_message
-    
     prompt_template = templates[stage]
-    full_prompt = f"\n\nConversation history:\n{history_for_prompt}" # Use the modified history
 
     # Prepend the scope/boundary guardrail to every stage so the bot stays within
     # the IRT method (no diagnosis / no acting as a confidant; distress → redirect).
@@ -717,7 +759,9 @@ async def get_response_async(stage: str, user_input: str, conversation: Conversa
         composed_system_prompt = base_prompt + "\n\n" + safety_constraint
     else:
         composed_system_prompt = base_prompt
-    response, usage, _ = await response_agent.generate(full_prompt, system_prompt=composed_system_prompt)
+    response, usage, _ = await response_agent.generate(
+        _reply_input(stage, conversation), system_prompt=composed_system_prompt
+    )
     
     langfuse_context.update_current_observation(
         output=response,
@@ -727,11 +771,11 @@ async def get_response_async(stage: str, user_input: str, conversation: Conversa
     return response, usage
 
 @observe(name="get_response_stream", as_type="generation", capture_input=False, capture_output=False)
-async def get_response_stream_async(stage: str, full_prompt: str, conversation: Conversation, language: str, safety_constraint: Optional[str] = None) -> AsyncGenerator[Tuple[str, Optional[dict]], None]:
+async def get_response_stream_async(stage: str, turns: List[dict], conversation: Conversation, language: str, safety_constraint: Optional[str] = None) -> AsyncGenerator[Tuple[str, Optional[dict]], None]:
     """Async streaming version of get_response"""
     langfuse_context.update_current_observation(
         name="Response Generation",
-        input=full_prompt,
+        input=turns[-1]["content"] if turns else None,
         output=None,  # Will be set after streaming completes
         metadata={
             "type": "response_generation",
@@ -754,7 +798,7 @@ async def get_response_stream_async(stage: str, full_prompt: str, conversation: 
 
     full_response = ""
     final_usage = {}
-    async for chunk, chunk_usage, _ in response_agent.generate_stream(full_prompt, system_prompt=composed_system_prompt):
+    async for chunk, chunk_usage, _ in response_agent.generate_stream(turns, system_prompt=composed_system_prompt):
         if chunk:
             full_response += chunk
         if chunk_usage:

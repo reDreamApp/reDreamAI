@@ -20,7 +20,9 @@ router = APIRouter()
 
 @router.post("/language/check", response_model=LanguageCheckResponse)
 async def language_check(req: LanguageCheckRequest) -> LanguageCheckResponse:
-    switched_to = await irt_app.resolve_language_switch(req.message, req.language.value)
+    switched_to = await irt_app.resolve_language_switch(
+        req.message, req.language.value, first_message=req.first_message
+    )
     if switched_to is None:
         return LanguageCheckResponse(language=req.language, switched=False)
     return LanguageCheckResponse(language=Language(switched_to), switched=True)

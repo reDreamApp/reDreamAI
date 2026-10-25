@@ -19,7 +19,6 @@ from openai import RateLimitError
 from redream_ai.clinical_safety.classifier import ClinicalClassifier
 from redream_ai.clinical_safety.critic import SafetyCritic
 from redream_ai.core import agent
-from redream_ai.core.prompts import ROUTING_PROMPT
 
 
 def _fake_response(content):
@@ -97,7 +96,7 @@ def test_module_level_agents_use_pinned_wiring():
     assert agent.routing_agent.provider == "scaleway"
     assert agent.routing_agent.fallback_model == "ministral-8b-2512"
     assert agent.routing_agent.fallback_provider == "mistral"
-    assert agent.routing_agent.system_prompt == ROUTING_PROMPT
+    assert agent.routing_agent.system_prompt == ""  # every call brings its own
     assert agent.response_agent.model == "mistral-medium-3.5-128b"
     assert agent.response_agent.provider == "scaleway"
     assert agent.response_agent.fallback_model == "mistral-medium-latest"

@@ -1,12 +1,11 @@
 import os
 import math
 import asyncio
-from typing import Literal, AsyncGenerator, Tuple, Optional, List
+from typing import Literal, AsyncGenerator, Tuple, Optional, List, Union
 from dataclasses import dataclass, field
 from openai import AsyncOpenAI, APIConnectionError, APITimeoutError, InternalServerError, RateLimitError
 from groq import AsyncGroq
 import logging
-from .prompts import ROUTING_PROMPT
 import tiktoken
 # Create a specific logger for prompts
 prompt_logger = logging.getLogger("prompts")
@@ -144,12 +143,12 @@ class Agent:
         — used by the summary structured-extraction pass (ADR 0003).
         """
         effective_system_prompt = system_prompt if system_prompt is not None else self.system_prompt
+        # A list is the conversation as chat turns ({"role", "content"}); a
+        # string is one user message.
+        turns = prompt if isinstance(prompt, list) else [{"role": "user", "content": prompt}]
         request_kwargs = {
             "model": model,
-            "messages": [
-                {"role": "system", "content": effective_system_prompt},
-                {"role": "user", "content": prompt}
-            ],
+            "messages": [{"role": "system", "content": effective_system_prompt}, *turns],
             "temperature": self.temperature,
         }
         if response_format is not None:
@@ -193,7 +192,7 @@ class Agent:
 
     async def generate(
         self,
-        prompt: str,
+        prompt: Union[str, List[dict]],
         logprobs: bool = False,
         top_logprobs: Optional[int] = None,
         system_prompt: Optional[str] = None,
@@ -204,7 +203,8 @@ class Agent:
         model/provider if the primary fails.
 
         Args:
-            prompt: The user prompt to send
+            prompt: The user prompt to send, or the conversation as a list of
+                {"role": "user" | "assistant", "content": ...} turns
             logprobs: Whether to request log probabilities for each token
             top_logprobs: If logprobs=True, how many top alternatives per token (1-20)
             system_prompt: Per-call system prompt override (defaults to self.system_prompt).
@@ -277,14 +277,15 @@ class Agent:
         
         return result
 
-    async def generate_stream(self, prompt: str, system_prompt: Optional[str] = None) -> AsyncGenerator[Tuple[str, Optional[dict], Optional[LogprobsResult]], None]:
+    async def generate_stream(self, prompt: Union[str, List[dict]], system_prompt: Optional[str] = None) -> AsyncGenerator[Tuple[str, Optional[dict], Optional[LogprobsResult]], None]:
         """Generate a streaming response, falling back to the secondary model if the
         primary fails to open the stream. Note: logprobs not available in streaming mode.
 
         ``system_prompt`` overrides self.system_prompt for this call only (see generate)."""
         try:
             encoder = tiktoken.get_encoding("cl100k_base")
-            prompt_tokens = len(encoder.encode(prompt))
+            text = "\n".join(t["content"] for t in prompt) if isinstance(prompt, list) else prompt
+            prompt_tokens = len(encoder.encode(text))
             completion_tokens = 0
 
             primary_kwargs = self._build_request_kwargs(
@@ -357,8 +358,10 @@ RESPONSE_FALLBACK_MODEL_KEY = "MISTRAL_MEDIUM_DIRECT"
 # Create agent instances (will fail if API keys are not set)
 try:
     # Routing: Mistral Small on Scaleway, falling back to Ministral 8B on Mistral.
+    # Every call passes its own one-word prompt (step checks, talk / language /
+    # replay / new-version checks), so there is no default.
     routing_agent = Agent(
-        MODELS[DEFAULT_ROUTING_MODEL_KEY], ROUTING_PROMPT, temperature=0.1,
+        MODELS[DEFAULT_ROUTING_MODEL_KEY], "", temperature=0.1,
         fallback_model_config=MODELS[ROUTING_FALLBACK_MODEL_KEY],
     )
     # Responses: Mistral Medium 3.5 on Scaleway, falling back to mistral-medium-latest on Mistral.
