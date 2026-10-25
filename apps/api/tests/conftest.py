@@ -130,18 +130,9 @@ class FakeAiClient:
             raise response["__raise__"]
         return response
 
-    async def language_check(
-        self, message: str, language: str, first_message: bool = False
-    ) -> str:
+    async def language_check(self, message: str, language: str) -> str:
         self.calls.append(
-            {
-                "method": "language_check",
-                "payload": {
-                    "message": message,
-                    "language": language,
-                    "first_message": first_message,
-                },
-            }
+            {"method": "language_check", "payload": {"message": message, "language": language}}
         )
         if not self._language:
             return language

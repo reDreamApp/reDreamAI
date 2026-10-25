@@ -415,7 +415,7 @@ _GERMAN_WORDS = frozenset("""
     nicht kein keine keinen keinem keiner keines nichts niemand alles
     und oder aber auch noch sehr schon nur jetzt dann dass weil doch mal mehr immer
     wenn wie ist sind bin bist habe hab hast haben hatte waren wird wurde würde
-    kann kannst möchte brauche geht gibt bitte danke hallo tschüss
+    kann kannst möchte brauche geht gibt bitte
     ein eine einen einem einer der das dem des im vom zum zur über für mit auf zu
     von nach bei aus
 """.split())
@@ -426,7 +426,7 @@ _ENGLISH_WORDS = frozenset("""
     don't dont didn't didnt doesn't isn't wasn't can't cant won't
     i'm i've i'll it's let's
     please very already just about how what when where why who there then nobody
-    on at up out thanks thank hello bye
+    on at up out
 """.split())
 # The other language's name, in either language; "deutsch" and "englisch"
 # also inside compounds ("Hochdeutsch", "Schulenglisch").
@@ -442,19 +442,12 @@ _language_verdicts: dict[str, Optional[str]] = {}
 _LANGUAGE_VERDICTS_MAX = 512
 
 
-# A chat's first message may switch on fewer words: the app greets in its own
-# language, but a chat resumed after the user changed it was started in the
-# other one ("Thank you." to an English greeting in a German chat, 2026-10-25).
-_MIN_WORDS = 3
-_MIN_WORDS_FIRST_MESSAGE = 1
-
-
-def _may_switch_language(text: str, current: str, first_message: bool = False) -> bool:
+def _may_switch_language(text: str, current: str) -> bool:
     """Cheap check before the model: does the message name or look like the other language?"""
     if _OTHER_LANGUAGE_NAME[current].search(text):
         return True
     words = [w.lower() for w in _WORD.findall(text.replace("\u2019", "'"))]
-    if len(words) < (_MIN_WORDS_FIRST_MESSAGE if first_message else _MIN_WORDS):
+    if len(words) < 3:
         return False
     other, own = (_GERMAN_WORDS, _ENGLISH_WORDS) if current == "en" else (_ENGLISH_WORDS, _GERMAN_WORDS)
     other_hits = [w for w in words if w in other]
@@ -467,9 +460,7 @@ def _may_switch_language(text: str, current: str, first_message: bool = False) -
     )
 
 
-async def resolve_language_switch(
-    message: str, current: str, first_message: bool = False
-) -> Optional[str]:
+async def resolve_language_switch(message: str, current: str) -> Optional[str]:
     """The language the chat continues in when this message switches it ("en" / "de"), else None.
 
     Only messages that pass the word check above reach the routing agent. It
@@ -478,7 +469,7 @@ async def resolve_language_switch(
     answer keeps the language, and so does the current language.
     """
     text = message.strip()
-    if current not in _LANGUAGE_NAMES or not text or not _may_switch_language(text, current, first_message):
+    if current not in _LANGUAGE_NAMES or not text or not _may_switch_language(text, current):
         return None
     key = hashlib.sha256(f"{current}\n{text.lower()}".encode()).hexdigest()
     if key in _language_verdicts:

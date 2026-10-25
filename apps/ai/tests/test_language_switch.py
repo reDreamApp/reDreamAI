@@ -124,25 +124,6 @@ def test_these_messages_do_not(current, message):
     assert irt_app._may_switch_language(message, current) is False
 
 
-@pytest.mark.parametrize(
-    ("current", "message", "expected"),
-    [
-        ("de", "Thank you.", True),  # the 2026-10-25 screenshot
-        ("de", "I\u2019m scared", True),
-        ("en", "Danke", True),
-        ("en", "Ich", True),
-        ("de", "-", False),
-        ("de", "*Suspenseful music*", False),  # no word of either list
-        ("en", "ok", False),
-        ("en", "Hallo", True),
-        ("de", "Thank you, ich bin bereit", False),  # German words too
-    ],
-)
-def test_a_first_message_needs_fewer_words(current, message, expected):
-    """The app greets in its own language; a resumed chat may be in the other one."""
-    assert irt_app._may_switch_language(message, current, first_message=True) is expected
-
-
 @pytest.mark.parametrize("message", ["ja", "ok", "I was in Berlin", "Danke"])
 async def test_a_message_that_fails_the_word_check_costs_no_call(check, message):
     assert await irt_app.resolve_language_switch(message, "en") is None
@@ -238,16 +219,6 @@ def test_the_route_reports_a_switch(client, check):
     r = client.post("/language/check", json=body)
     assert r.status_code == 200
     assert r.json() == {"language": "de", "switched": True}
-
-
-def test_the_route_passes_the_first_message_flag_on(client, check):
-    check.answer = "EN"
-    body = {"message": "Thank you.", "language": "de"}
-    assert client.post("/language/check", json=body).json()["switched"] is False
-    assert check.calls == []
-    r = client.post("/language/check", json={**body, "first_message": True})
-    assert r.json() == {"language": "en", "switched": True}
-    assert check.calls == ["Thank you."]
 
 
 def test_the_route_reports_no_switch(client, check):
