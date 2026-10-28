@@ -26,13 +26,15 @@ variable "zone" {
 }
 
 variable "instance_type" {
-  description = "Instance commercial type. GP1-XS = 4 vCPU / 16 GB RAM."
+  # 2026-10-28: the stack uses ~2.2 GB without Langfuse (GP1-XS, 16 GB, was
+  # 7x oversized). DEV1-L keeps local SSD, so the change is a resize.
+  description = "Instance commercial type. DEV1-L = 4 vCPU / 8 GB RAM (was GP1-XS, 16 GB)."
   type        = string
-  default     = "GP1-XS"
+  default     = "DEV1-L"
 }
 
 variable "root_volume_size_gb" {
-  description = "Root volume size in GB (local SSD, billed on top of the instance; GP1-XS allows up to 150)."
+  description = "Root volume size in GB (local SSD, billed on top of the instance; the instance type caps it)."
   type        = number
   default     = 50
 }

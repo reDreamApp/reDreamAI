@@ -57,6 +57,16 @@ class Settings(BaseSettings):
     environment: str = "development"
     log_level: str = "INFO"
 
+    # SAFETY_DEBUG=true: every text model call (guide, routing, crisis
+    # classifier, rewrite critic, summaries) goes to Mistral Small 3.2 on
+    # Scaleway with no fallback, so a safety-layer debugging run is cheap and
+    # every answer comes from one model. Ignored when ENVIRONMENT=production.
+    safety_debug: bool = False
+
+    @property
+    def small_model_only(self) -> bool:
+        return self.safety_debug and self.environment != "production"
+
     @field_validator("rehearsal_url_ttl_seconds", mode="before")
     @classmethod
     def _migrate_audio_ttl(cls, value: object) -> object:
@@ -69,6 +79,13 @@ class Settings(BaseSettings):
         # .env.example) must not fail service boot — treat it as unset.
         if isinstance(v, str) and not v.strip():
             return True
+        return v
+
+    @field_validator("safety_debug", mode="before")
+    @classmethod
+    def _empty_means_off(cls, v: object) -> object:
+        if isinstance(v, str) and not v.strip():
+            return False
         return v
 
     model_config = SettingsConfigDict(

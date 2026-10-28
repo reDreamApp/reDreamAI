@@ -39,8 +39,9 @@ async def safety_classify(
     result = await classify(
         llm=llm,
         model=settings.scaleway_safety_model,
-        fallback_llm=fallback_llm,
-        fallback_model=settings.mistral_safety_model,
+        # SAFETY_DEBUG: Mistral Small 3.2 only, no fallback.
+        fallback_llm=None if settings.small_model_only else fallback_llm,
+        fallback_model=None if settings.small_model_only else settings.mistral_safety_model,
         text=req.text,
         language=req.language,
         stage=req.stage,

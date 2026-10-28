@@ -58,3 +58,12 @@ One consequence listed above does not hold: the nightly backup dumps the
 `postgres` database only, so Langfuse traces are **not** in the backups. For
 erasure and retention that is the better outcome — a deleted trace does not
 live on in a dump — but it also means traces cannot be restored.
+
+## Amendment 2026-10-28: optional, off by default
+
+Langfuse is a compose profile (`langfuse`) and is off by default: for data
+minimisation no chatbot inputs and responses are stored as traces, and the box
+saves the memory of the Langfuse app. `infra/.env` switches it on
+(`COMPOSE_PROFILES=langfuse`, `LANGFUSE_ENABLED=true`, see
+`infra/.env.example`). The database, the erasure path above and the retention
+timer stay in place either way.

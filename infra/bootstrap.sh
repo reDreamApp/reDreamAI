@@ -212,8 +212,9 @@ cat <<EOF
 Done.
   API        https://$DOMAIN/api/v1/health
   Supabase   https://supabase.$DOMAIN   (auth and signed audio URLs only)
-  Langfuse   https://langfuse.$DOMAIN   (login: $ADMIN_EMAIL, password:
-             LANGFUSE_INIT_USER_PASSWORD in $ENV_DIR/langfuse.env)
+  Langfuse   https://langfuse.$DOMAIN   (off by default, see infra/.env.example;
+             login: $ADMIN_EMAIL, password: LANGFUSE_INIT_USER_PASSWORD
+             in $ENV_DIR/langfuse.env)
 
 For the app's .env:
   SUPABASE_URL=https://supabase.$DOMAIN

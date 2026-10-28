@@ -4,7 +4,9 @@
 #   - caddy            : reverse proxy, TLS via Let's Encrypt, SSE-friendly
 #   - api              : backend (apps/api), connects to Supabase Postgres
 #   - ai               : AI service (apps/ai), stateless
-#   - langfuse         : self-hosted Langfuse v2 (ADR 0007)
+#   - langfuse         : self-hosted Langfuse v2 (ADR 0007), optional and off by
+#                        default (data minimisation); switched on in infra/.env
+#                        (see infra/.env.example)
 #
 # What's deliberately NOT here (ADR 0001 — one Postgres):
 #   - db: app database == self-hosted Supabase's Postgres. Supabase runs in
@@ -40,7 +42,6 @@ services:
     depends_on:
       - api
       - ai
-      - langfuse
 
   ai:
     build:
@@ -49,6 +50,9 @@ services:
     restart: always
     env_file:
       - ./env/ai.env
+    environment:
+      # Overrides ai.env: traces go to Langfuse only when it runs (infra/.env).
+      LANGFUSE_ENABLED: ${LANGFUSE_ENABLED:-false}
     expose:
       - "8080"
     networks:
@@ -74,6 +78,7 @@ services:
 
   langfuse:
     image: langfuse/langfuse:2
+    profiles: ["langfuse"]
     restart: always
     env_file:
       - ./env/langfuse.env

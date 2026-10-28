@@ -164,6 +164,23 @@ are re-issued on a rebuild.
 
 Langfuse traces live in their own database and are **not** part of the dump.
 
+## Langfuse is off by default
+
+For data minimisation (Art. 5(1)(c) GDPR / DSGVO) the stack runs without
+Langfuse: no chatbot inputs and responses are stored as diagnostic traces.
+Its database, the account-deletion path (`LANGFUSE_DATABASE_URL`) and the
+retention timer stay, so older traces are still deleted on request and after
+30 days, and switching it on needs no new setup:
+
+```bash
+cp /srv/redreamai/infra/.env.example /srv/redreamai/infra/.env   # then uncomment both lines
+cd /srv/redreamai/infra && docker compose up -d                   # starts Langfuse, ai sends traces
+```
+
+Switching it off again: remove both lines, `docker compose up -d`, then
+`docker compose --profile langfuse stop langfuse`. The privacy texts in the
+app describe Langfuse as on; update them when it stays off.
+
 ## Trace retention
 
 Langfuse traces hold the full conversation text. `bootstrap.sh` enables a daily

@@ -100,6 +100,17 @@ def test_the_fallback_model_gets_the_prompt_without_the_revenge_rule(client, fal
     assert fake.calls[0]["messages"][1] == fallback_llm.calls[0]["messages"][1]
 
 
+def test_debug_mode_has_no_fallback(client, fallback_llm, monkeypatch):
+    """SAFETY_DEBUG: Mistral Small 3.2 only, so a failure is not hidden by ministral."""
+    monkeypatch.setattr(settings, "safety_debug", True)
+    monkeypatch.setattr(settings, "environment", "development")
+    tc, _ = client
+    app.dependency_overrides[get_scaleway_llm_client] = _DownLlm
+    r = tc.post("/safety/classify", json={"text": "I dreamt of a forest.", "language": "en"})
+    assert r.status_code == 503
+    assert fallback_llm.calls == []
+
+
 def test_both_providers_down_is_503(client):
     tc, _ = client
     app.dependency_overrides[get_scaleway_llm_client] = _DownLlm

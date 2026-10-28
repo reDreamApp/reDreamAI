@@ -7,7 +7,8 @@
 #                                          SUPABASE_URL; `kong` is the alias of
 #                                          Supabase's API gateway in the external
 #                                          supabase network this stack attaches to)
-#   langfuse.{$DOMAIN}  → langfuse:3000   (auth handled by Langfuse itself)
+#   langfuse.{$DOMAIN}  → langfuse:3000   (auth handled by Langfuse itself;
+#                          answers only when Langfuse is switched on, infra/.env)
 #
 # Caddy does not buffer reverse-proxied responses, so SSE chat streams flow
 # through without extra config (unlike nginx where `proxy_buffering off` is

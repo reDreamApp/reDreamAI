@@ -7,6 +7,8 @@ from openai import AsyncOpenAI, APIConnectionError, APITimeoutError, InternalSer
 from groq import AsyncGroq
 import logging
 import tiktoken
+
+from ..config import settings
 # Create a specific logger for prompts
 prompt_logger = logging.getLogger("prompts")
 logger = logging.getLogger(__name__)
@@ -73,6 +75,9 @@ class Agent:
         max_tokens: int = 1024,
         fallback_model_config: Optional[ModelConfig] = None,
     ):
+        if settings.small_model_only:
+            # SAFETY_DEBUG (config.py): one model for every call, no fallback.
+            model_config, fallback_model_config = MODELS["MISTRAL_SMALL"], None
         self.model = model_config.name
         self.provider = model_config.provider
         self.system_prompt = system_prompt
@@ -354,6 +359,14 @@ DEFAULT_RESPONSE_MODEL_KEY = "MISTRAL_MEDIUM"
 # Cross-provider fallbacks (direct Mistral API) used when the Scaleway primary fails.
 ROUTING_FALLBACK_MODEL_KEY = "MINISTRAL_8B"
 RESPONSE_FALLBACK_MODEL_KEY = "MISTRAL_MEDIUM_DIRECT"
+
+if settings.small_model_only:
+    logger.warning(
+        "SAFETY_DEBUG: every model call goes to %s on Scaleway, without fallback.",
+        MODELS["MISTRAL_SMALL"].name,
+    )
+elif settings.safety_debug:
+    logger.warning("SAFETY_DEBUG is ignored in production.")
 
 # Create agent instances (will fail if API keys are not set)
 try:
