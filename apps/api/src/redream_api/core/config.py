@@ -50,9 +50,11 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_use_tls: bool = True
 
-    # Token budgets (ADR 0008): per user, and for all users together.
+    # Token budgets (ADR 0008): per user and day, for all users per day, and
+    # for all users per calendar month (UTC).
     daily_llm_token_budget: int = 100_000
-    daily_llm_token_budget_total: int = 500_000
+    daily_llm_token_budget_total: int = 1_000_000
+    monthly_llm_token_budget_total: int = 10_000_000
     # $16 / million TTS characters relative to a rough $2 / million chat
     # tokens. These are budget units, not tokenizer output or invoice totals.
     tts_budget_tokens_per_character: int = Field(default=8, ge=1, le=10_000)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from uuid import uuid4
 
 from sqlalchemy import delete, select
@@ -11,6 +11,7 @@ from redream_api.core.config import settings
 from redream_api.db.models.service_daily_usage import ServiceDailyUsage
 from redream_api.db.models.user import User
 from redream_api.db.models.user_daily_usage import UserDailyUsage
+from redream_api.db.repositories import usage_repo
 from redream_api.db.repositories.usage_repo import UsageRepo
 from redream_api.db.repositories.user_repo import UserRepo
 from redream_api.services.token_budget import check_budget, record_usage
@@ -71,8 +72,9 @@ async def test_normal_chat_increments_usage(
 # ---------------------------------------------------------------------------
 
 
-def test_the_total_limit_defaults_to_500k() -> None:
-    assert settings.daily_llm_token_budget_total == 500_000
+def test_the_total_limits_default_to_1m_a_day_and_10m_a_month() -> None:
+    assert settings.daily_llm_token_budget_total == 1_000_000
+    assert settings.monthly_llm_token_budget_total == 10_000_000
 
 
 async def test_429_for_everyone_when_the_total_is_used_up(
@@ -271,3 +273,49 @@ async def test_a_turn_the_client_abandons_keeps_its_reservation(
     user, total = await _used(db_session_maker, fake_user.id)
     assert user == total == setup.reservation.tokens
     assert user >= 8192
+
+
+# ---------------------------------------------------------------------------
+# The monthly limit of all users together (ADR 0008, amended 2026-10-28)
+# ---------------------------------------------------------------------------
+
+_MID_MONTH = date(2026, 10, 15)
+
+
+async def _seed_days(db_session_maker, rows: dict[date, int]) -> None:
+    async with db_session_maker() as session:
+        for day, tokens in rows.items():
+            session.add(ServiceDailyUsage(usage_date=day, llm_tokens=tokens))
+        await session.commit()
+
+
+async def test_the_month_counts_earlier_days_but_not_last_month(
+    fake_user, db_session_maker, monkeypatch
+) -> None:
+    monkeypatch.setattr(usage_repo, "_today_utc", lambda: _MID_MONTH)
+    await _seed_days(db_session_maker, {date(2026, 10, 1): 40_000, date(2026, 9, 30): 9_000_000})
+    async with db_session_maker() as session:
+        repo = UsageRepo(session)
+        assert await repo.reserve(fake_user.id, 8192, 100_000, 1_000_000, 50_000) == _MID_MONTH
+        assert await repo.get_month_total() == 48_192
+        # 40,000 earlier + 8,192 today + 8,192 more would pass 50,000.
+        assert await repo.reserve(fake_user.id, 8192, 100_000, 1_000_000, 50_000) is None
+        assert await repo.get_month_total() == 48_192
+
+
+async def test_429_for_everyone_when_the_month_is_used_up(
+    client, fake_user, db_session_maker, monkeypatch
+) -> None:
+    chat_id = await start_chat(client)
+    monkeypatch.setattr(usage_repo, "_today_utc", lambda: _MID_MONTH)
+    monkeypatch.setattr(settings, "monthly_llm_token_budget_total", 50_000)
+    await _seed_days(db_session_maker, {date(2026, 10, 1): 50_000})
+
+    r = await client.post(f"/api/v1/chats/{chat_id}/message", json={"content": "anything"})
+    assert r.status_code == 429
+    assert "monthly" in r.json()["detail"]
+    assert int(r.headers["Retry-After"]) > 0
+
+    async with db_session_maker() as session:
+        over, retry_after = await check_budget(session, user_id=fake_user.id)
+    assert over and retry_after > 0

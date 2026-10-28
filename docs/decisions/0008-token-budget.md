@@ -93,6 +93,15 @@ no user data.
 
 Not fully counted by either limit: auxiliary safety, routing and critic calls.
 
+## Amendment 2026-10-28 — daily total raised, a monthly limit added
+
+For up to 20 users at the same time the limit for all users per day goes up
+(`DAILY_LLM_TOKEN_BUDGET_TOTAL`), and a limit for all users per calendar month
+(`MONTHLY_LLM_TOKEN_BUDGET_TOTAL`, UTC) caps the monthly cost. The month is the
+sum of this month's `service_daily_usage` rows, checked in the same atomic
+update that reserves today's tokens; a request over it gets 429 with
+Retry-After until the next month. Defaults in `apps/api` `core/config.py`.
+
 ## Alternatives considered
 - **Per-message rate limit (e.g. 10 req/min)**: doesn't bound cost. Rejected.
 - **User-tz reset window**: complexity not justified.

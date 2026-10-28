@@ -1,7 +1,8 @@
-"""Daily LLM token budgets (ADR 0008).
+"""LLM token budgets (ADR 0008).
 
-100k tokens / user / day, and 500k / day for all users together. UTC reset.
-Audio transcription tokens and price-weighted TTS characters count too.
+Per user and day, for all users together per day, and for all users together
+per calendar month (limits in core/config.py). UTC reset. Audio transcription
+tokens and price-weighted TTS characters count too.
 """
 
 from __future__ import annotations
@@ -30,6 +31,13 @@ def seconds_until_utc_midnight() -> int:
     return int((midnight - now).total_seconds())
 
 
+def seconds_until_next_month() -> int:
+    now = datetime.now(UTC)
+    first = (now.replace(day=28) + timedelta(days=4)).replace(day=1)
+    start = datetime.combine(first.date(), time.min, tzinfo=UTC)
+    return int((start - now).total_seconds())
+
+
 async def check_budget(db: AsyncSession, *, user_id: UUID) -> tuple[bool, int]:
     """Return (is_over_budget, retry_after_seconds).
 
@@ -47,6 +55,14 @@ async def check_budget(db: AsyncSession, *, user_id: UUID) -> tuple[bool, int]:
             settings.daily_llm_token_budget_total,
         )
         return True, seconds_until_utc_midnight()
+    month = await repo.get_month_total()
+    if month >= settings.monthly_llm_token_budget_total:
+        log.warning(
+            "budget.month_exhausted used=%d limit=%d",
+            month,
+            settings.monthly_llm_token_budget_total,
+        )
+        return True, seconds_until_next_month()
     return False, 0
 
 
@@ -76,13 +92,23 @@ class TokenReservation:
 
 async def reserve_usage(db: AsyncSession, *, user_id: UUID, tokens: int = 8192) -> TokenReservation:
     tokens = max(8192, tokens)
-    day = await UsageRepo(db).reserve(
-        user_id, tokens, settings.daily_llm_token_budget, settings.daily_llm_token_budget_total
+    repo = UsageRepo(db)
+    day = await repo.reserve(
+        user_id,
+        tokens,
+        settings.daily_llm_token_budget,
+        settings.daily_llm_token_budget_total,
+        settings.monthly_llm_token_budget_total,
     )
     if day is None:
-        retry = seconds_until_utc_midnight()
+        if await repo.get_month_total() + tokens > settings.monthly_llm_token_budget_total:
+            retry, which = seconds_until_next_month(), "monthly"
+        else:
+            retry, which = seconds_until_utc_midnight(), "daily"
         raise HTTPException(
-            429, "daily token budget has insufficient capacity", headers={"Retry-After": str(retry)}
+            429,
+            f"{which} token budget has insufficient capacity",
+            headers={"Retry-After": str(retry)},
         )
     return TokenReservation(user_id, day, tokens)
 

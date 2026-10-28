@@ -50,3 +50,9 @@ variable "backup_bucket_name" {
   type        = string
   default     = "redreamai-backups"
 }
+
+variable "protected" {
+  description = "Instance protection: blocks deletion and stopping. Set false only for maintenance that needs a stop (a type change), in its own apply, then back to true."
+  type        = bool
+  default     = true
+}

@@ -54,6 +54,18 @@ working API in three steps: `tofu apply` in `infra/terraform`, copy the repo to
 the box, run `infra/bootstrap.sh` there. The steps, what they create and what
 ends up public are in [`infra/README.md`](infra/README.md).
 
+## Settings worth knowing
+
+- **Langfuse (diagnostic traces) is off by default.** No chatbot inputs and
+  responses are stored as traces, to collect as little personal data as
+  possible (GDPR / DSGVO). It can be switched on in `infra/.env` (see
+  [`infra/.env.example`](infra/.env.example)) for debugging.
+- **Token budgets cap the AI cost.** The backend limits AI tokens per user per
+  day, for all users together per day, and for all users together per month.
+  A request over a limit is answered with 429 until the limit resets. The
+  limits are set in `api.env` (`DAILY_LLM_TOKEN_BUDGET`,
+  `DAILY_LLM_TOKEN_BUDGET_TOTAL`, `MONTHLY_LLM_TOKEN_BUDGET_TOTAL`, ADR 0008).
+
 ## Decisions
 
 Binding architectural decisions live in [`docs/decisions/`](docs/decisions/README.md). Read those before making structural changes.

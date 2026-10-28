@@ -79,9 +79,9 @@ resource "scaleway_instance_server" "app" {
   }
 
   # The Scaleway API refuses to delete a protected instance, so a plan that
-  # would replace the box fails instead of destroying it. To really remove
-  # it, set this to false and apply first.
-  protected = true
+  # would replace the box fails instead of destroying it. Protection also
+  # blocks stopping it, which a type change needs (var.protected).
+  protected = var.protected
 
   lifecycle {
     # cloud-init only runs on first boot; editing the file later must not

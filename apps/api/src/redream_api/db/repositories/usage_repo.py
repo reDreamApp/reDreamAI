@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from datetime import date as date_type
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.service_daily_usage import ServiceDailyUsage
@@ -39,6 +39,15 @@ class UsageRepo:
         )
         return (await self.db.scalar(stmt)) or 0
 
+    async def get_month_total(self) -> int:
+        """Tokens of all users this calendar month (UTC), deleted accounts included."""
+        day = _today_utc()
+        stmt = select(func.coalesce(func.sum(ServiceDailyUsage.llm_tokens), 0)).where(
+            ServiceDailyUsage.usage_date >= day.replace(day=1),
+            ServiceDailyUsage.usage_date <= day,
+        )
+        return int(await self.db.scalar(stmt) or 0)
+
     async def _ensure_counters(self, user_id: UUID, day: date_type) -> None:
         # ON CONFLICT also handles simultaneous first requests of a UTC day.
         from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -55,15 +64,26 @@ class UsageRepo:
         )
 
     async def reserve(
-        self, user_id: UUID, tokens: int, user_limit: int, total_limit: int
+        self, user_id: UUID, tokens: int, user_limit: int, total_limit: int, month_limit: int
     ) -> date_type | None:
         day = _today_utc()
         await self._ensure_counters(user_id, day)
+        # Only today's row changes, and its row lock orders concurrent
+        # reservations, so the month check is as atomic as the day check.
+        earlier_this_month = (
+            select(func.coalesce(func.sum(ServiceDailyUsage.llm_tokens), 0))
+            .where(
+                ServiceDailyUsage.usage_date >= day.replace(day=1),
+                ServiceDailyUsage.usage_date < day,
+            )
+            .scalar_subquery()
+        )
         total = await self.db.scalar(
             update(ServiceDailyUsage)
             .where(
                 ServiceDailyUsage.usage_date == day,
                 ServiceDailyUsage.llm_tokens + tokens <= total_limit,
+                ServiceDailyUsage.llm_tokens + tokens + earlier_this_month <= month_limit,
             )
             .values(llm_tokens=ServiceDailyUsage.llm_tokens + tokens)
             .returning(ServiceDailyUsage.llm_tokens)
