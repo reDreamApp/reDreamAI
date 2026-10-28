@@ -178,8 +178,10 @@ cd /srv/redreamai/infra && docker compose up -d                   # starts Langf
 ```
 
 Switching it off again: remove both lines, `docker compose up -d`, then
-`docker compose --profile langfuse stop langfuse`. The privacy texts in the
-app describe Langfuse as on; update them when it stays off.
+`docker compose --profile langfuse stop langfuse`. The app's privacy texts
+assume it is off: before switching it on for real users, add the traces back
+to the privacy policy and the consent text and bump `consent_version`
+(apps/api; a new purpose needs new consent).
 
 ## Trace retention
 
