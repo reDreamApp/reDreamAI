@@ -81,6 +81,25 @@ def test_mistral_answers_when_scaleway_fails(client, fallback_llm, primary_reply
     assert [c["model"] for c in fallback_llm.calls] == [settings.mistral_safety_model]
 
 
+def test_the_fallback_model_gets_the_prompt_without_the_revenge_rule(client, fallback_llm):
+    """safety-v0.5.1: ministral-8b missed real farewells with the revenge rule."""
+    from redream_ai.prompts.safety import (
+        _REVENGE_EN,
+        SAFETY_PROMPT_EN,
+        SAFETY_PROMPT_FALLBACK_EN,
+    )
+
+    tc, fake = client
+    fake.enqueue("not json")
+    fallback_llm.enqueue(_NONE)
+    tc.post("/safety/classify", json={"text": "I dreamt of a forest.", "language": "en"})
+    assert fake.calls[0]["messages"][0]["content"] == SAFETY_PROMPT_EN
+    assert fallback_llm.calls[0]["messages"][0]["content"] == SAFETY_PROMPT_FALLBACK_EN
+    assert all(passage in SAFETY_PROMPT_EN for passage in _REVENGE_EN)
+    assert not any(passage in SAFETY_PROMPT_FALLBACK_EN for passage in _REVENGE_EN)
+    assert fake.calls[0]["messages"][1] == fallback_llm.calls[0]["messages"][1]
+
+
 def test_both_providers_down_is_503(client):
     tc, _ = client
     app.dependency_overrides[get_scaleway_llm_client] = _DownLlm

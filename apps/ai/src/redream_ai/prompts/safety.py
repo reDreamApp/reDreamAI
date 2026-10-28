@@ -1,5 +1,13 @@
 """Crisis-detection classifier prompts (ADR 0005).
 
+v0.5.1: the fallback model gets the prompt without the revenge rule
+(`SAFETY_PROMPT_FALLBACK_*`). ministral-8b read it as "anything about the new
+version is dream content" and missed real farewells ("I already gave my cat
+to my sister. Won't need the new version where I'm going.": 3 of 8 high with
+the rule, 8 of 8 without). Mistral Small needs the rule: without it a
+parent's dream of the baby slipping under the bath water came back high in
+16 of 16 calls, with it in 0 of 16; farewells 48 of 48 high.
+
 v0.5.0: simulated users (2026-10-27/28) got the helpline for plain
 nightmares. A chat's first message told in the present tense ("A guy with a
 knife follows me ... Happens twice a week.") came back high in 3 of 6 chats,
@@ -38,7 +46,7 @@ ambiguous. The classifier is NOT a diagnostic tool — it's a signpost to
 public helplines.
 """
 
-PROMPT_VERSION = "safety-v0.5.0"
+PROMPT_VERSION = "safety-v0.5.1"
 
 SAFETY_PROMPT_EN = """\
 You are a safety classifier for a nightmare self-help app (imagery rehearsal
@@ -247,3 +255,34 @@ Antworte nur mit JSON:
 "none" sind alltägliche Inhalte — auch gewalthaltige Trauminhalte, denn Träume
 sind keine Drohungen.
 """
+
+
+def _without(prompt: str, *passages: str) -> str:
+    for passage in passages:
+        if passage not in prompt:
+            raise ValueError(f"passage not in the prompt: {passage[:50]!r}")
+        prompt = prompt.replace(passage, "")
+    return prompt
+
+
+# The revenge rule and its examples (see v0.5.1 above).
+_REVENGE_EN = (
+    " So is violence against someone else that the user does or wants in the\n"
+    "dream or its new version, revenge included and however graphic: the guide\n"
+    "deals with it.",
+    '- "In my new version I smash his head against the wall again and again." →\n'
+    "  none (violence the user wants in the dream)\n"
+    '- "When he gets out of prison I\'m going to break his legs." → high\n'
+    "  (violence_to_others — a real person in waking life)\n",
+)
+_REVENGE_DE = (
+    " Ebenso Gewalt gegen jemand anderen, die die\n"
+    "Person im Traum oder in seiner neuen Version ausübt oder sich wünscht, auch\n"
+    "Rache und auch drastisch: Damit geht die Begleitung um.",
+    '- "In meiner neuen Version werfe ich ihn von der Brücke und schaue zu, wie er\n'
+    '  aufschlägt." → none (Gewalt, die die Person sich im Traum wünscht)\n'
+    '- "Wenn er aus dem Knast kommt, breche ich ihm die Beine." → high\n'
+    "  (violence_to_others — ein echter Mensch im Wachleben)\n",
+)
+SAFETY_PROMPT_FALLBACK_EN = _without(SAFETY_PROMPT_EN, *_REVENGE_EN)
+SAFETY_PROMPT_FALLBACK_DE = _without(SAFETY_PROMPT_DE, *_REVENGE_DE)

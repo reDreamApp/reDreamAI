@@ -10,13 +10,24 @@ from typing import Any
 from .. import observability as obs
 from ..llm.base import LlmClient
 from ..models import Language, SafetyCategory, SafetyResponse, SafetyRisk, Stage
-from ..prompts.safety import PROMPT_VERSION, SAFETY_PROMPT_DE, SAFETY_PROMPT_EN
+from ..prompts.safety import (
+    PROMPT_VERSION,
+    SAFETY_PROMPT_DE,
+    SAFETY_PROMPT_EN,
+    SAFETY_PROMPT_FALLBACK_DE,
+    SAFETY_PROMPT_FALLBACK_EN,
+)
 
 log = logging.getLogger(__name__)
 
 _PROMPT_BY_LANG: dict[Language, str] = {
     Language.EN: SAFETY_PROMPT_EN,
     Language.DE: SAFETY_PROMPT_DE,
+}
+# The fallback model misses real farewells with the revenge rule (v0.5.1).
+_FALLBACK_PROMPT_BY_LANG: dict[Language, str] = {
+    Language.EN: SAFETY_PROMPT_FALLBACK_EN,
+    Language.DE: SAFETY_PROMPT_FALLBACK_DE,
 }
 
 _RESPONSE_FORMAT: dict[str, Any] = {"type": "json_object"}
@@ -82,7 +93,6 @@ async def classify(
             risk=SafetyRisk.NONE, categories=[], confidence=1.0, prompt_version=PROMPT_VERSION
         )
 
-    system_prompt = _PROMPT_BY_LANG[language]
     parts: list[str] = []
     if stage is not None:
         parts.append(f"[IRT stage: {stage.value}]")
@@ -95,13 +105,10 @@ async def classify(
         # read as real events (2026-10-27 simulated users, v0.5.0).
         parts.append(_GREETING_CONTEXT)
     parts.append(f"[User message to classify]\n{text}" if parts else text)
-    messages: list[dict[str, Any]] = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": "\n\n".join(parts)},
-    ]
+    user_content = "\n\n".join(parts)
 
     try:
-        return await _ask(llm, model, messages, trace)
+        return await _ask(llm, model, _messages(_PROMPT_BY_LANG[language], user_content), trace)
     except Exception as exc:
         if fallback_llm is None or fallback_model is None:
             raise
@@ -111,7 +118,15 @@ async def classify(
             exc,
             fallback_model,
         )
-        return await _ask(fallback_llm, fallback_model, messages, trace)
+        fallback_messages = _messages(_FALLBACK_PROMPT_BY_LANG[language], user_content)
+        return await _ask(fallback_llm, fallback_model, fallback_messages, trace)
+
+
+def _messages(system_prompt: str, user_content: str) -> list[dict[str, Any]]:
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_content},
+    ]
 
 
 async def _ask(

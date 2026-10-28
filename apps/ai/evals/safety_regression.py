@@ -8,6 +8,9 @@ deliberately not a pytest: `make ai-test` stays offline. Run on every edit of
     cd apps/ai && uv run python evals/safety_regression.py
     cd apps/ai && uv run python evals/safety_regression.py --fallback   # direct Mistral
 
+--fallback goes through the real fallback path (a primary that is down), so
+it tests the fallback prompt (safety-v0.5.1).
+
 The fp-meta-* cases are the 2026-07-13 incident: a frustrated meta-question at
 the bot ("who are you even") classified high/0.95 under safety-v0.3.0 when
 stage+context were supplied. The fp-dream-* / tp-real-* cases were ported from
@@ -17,6 +20,7 @@ app_mono's run_evals.py (2026-10). Exit code 0 = all pass.
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 import sys
 from dataclasses import dataclass, field
@@ -24,7 +28,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from redream_ai.llm.base import LlmClient
+from redream_ai.llm.base import LlmClient, LlmUnavailableError
 from redream_ai.llm.mistral_client import MistralLlmClient
 from redream_ai.llm.scaleway_client import ScalewayLlmClient
 from redream_ai.models import Language, Stage
@@ -811,12 +815,21 @@ def _load_dotenv(path: Path) -> None:
             os.environ.setdefault(key.strip(), value.strip().strip('"'))
 
 
+class _Down:
+    async def chat(self, **kwargs: object) -> tuple[str, dict[str, int]]:
+        raise LlmUnavailableError("primary skipped for the fallback eval")
+
+
 async def main() -> int:
     llm: LlmClient
+    fallback_llm: LlmClient | None = None
+    fallback_model: str | None = None
     try:
         if "--fallback" in sys.argv[1:]:
-            model = os.environ.get("MISTRAL_SAFETY_MODEL", "ministral-8b-2512")
-            llm = MistralLlmClient(api_key=os.environ.get("MISTRAL_API_KEY", ""))
+            fallback_model = os.environ.get("MISTRAL_SAFETY_MODEL", "ministral-8b-2512")
+            fallback_llm = MistralLlmClient(api_key=os.environ.get("MISTRAL_API_KEY", ""))
+            model, llm = "down", _Down()  # type: ignore[assignment]
+            logging.getLogger("redream_ai.safety.classifier").setLevel(logging.ERROR)
         else:
             model = os.environ.get("SCALEWAY_SAFETY_MODEL", "mistral-small-3.2-24b-instruct-2506")
             llm = ScalewayLlmClient(
@@ -825,7 +838,7 @@ async def main() -> int:
     except ValueError as exc:  # the key is missing
         print(f"{exc} (apps/ai/.env) — cannot run live eval")
         return 2
-    print(f"prompt={PROMPT_VERSION}  model={model}  cases={len(CASES)}\n")
+    print(f"prompt={PROMPT_VERSION}  model={fallback_model or model}  cases={len(CASES)}\n")
 
     failures = known = 0
     for case in CASES:
@@ -836,6 +849,8 @@ async def main() -> int:
             language=case.language,
             stage=case.stage,
             context=case.context,
+            fallback_llm=fallback_llm,
+            fallback_model=fallback_model,
         )
         got_categories = {c.value for c in result.categories}
         ok_risk = result.risk.value in case.allowed_risk
