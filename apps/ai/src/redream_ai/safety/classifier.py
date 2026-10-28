@@ -40,6 +40,10 @@ _MAX_BARE_ANSWER_WORDS = 3
 # In these stages every assistant message is about the user's dream, even
 # when it does not say "dream".
 _DREAM_STAGES = frozenset({Stage.RECORDING, Stage.REWRITING, Stage.SUMMARY})
+_GREETING_CONTEXT = (
+    "[Assistant message being replied to (the app's greeting)]\n"
+    "Tell me about a dream that troubles you."
+)
 
 
 def _is_bare_answer(text: str) -> bool:
@@ -85,6 +89,11 @@ async def classify(
     if context:
         about = " (about the user's dream)" if stage in _DREAM_STAGES else ""
         parts.append(f"[Assistant message being replied to{about}]\n{context}")
+    elif stage is Stage.RECORDING:
+        # The chat's first message answers the app's greeting, which is not
+        # in the history: without it, nightmares told in the present tense
+        # read as real events (2026-10-27 simulated users, v0.5.0).
+        parts.append(_GREETING_CONTEXT)
     parts.append(f"[User message to classify]\n{text}" if parts else text)
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": system_prompt},

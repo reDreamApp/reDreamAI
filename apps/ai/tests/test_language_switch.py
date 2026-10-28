@@ -146,6 +146,7 @@ async def test_an_empty_message_or_an_unknown_language_is_kept(check):
         ("en", "kannst du deutsch reden", " de.\n", "de"),
         ("de", "I had a dream about my brother", "EN", "en"),
         ("en", "nicht im traum, generell", "OTHER", None),
+        ("de", "ich renne and all the bells are ringing", "MIXED", None),
         ("en", "nicht im traum, generell", "KEEP", None),  # not one of the words
         ("en", "nicht im traum, generell", "EN", None),  # the current language: keep
         ("de", "can we speak english please", "DE", None),
@@ -302,7 +303,7 @@ async def test_both_paths_add_the_note_only_on_the_switch(monkeypatch, switched,
     monkeypatch.setattr(irt_app, "routing_agent", agent)
     monkeypatch.setattr(irt_app, "response_agent", agent)
 
-    async def tells_the_dream(text):
+    async def tells_the_dream(text, any_length=False):
         return False
 
     monkeypatch.setattr(irt_app, "_is_plain_talk", tells_the_dream)
@@ -379,5 +380,5 @@ def test_the_language_paragraphs_point_to_writing_in_the_other_language():
 
 
 def test_the_language_check_answers_in_one_word():
-    assert LANGUAGE_CHECK_PROMPT.endswith("Answer only EN, DE or OTHER.")
+    assert LANGUAGE_CHECK_PROMPT.endswith("Answer only EN, DE, MIXED or OTHER.")
     assert LANGUAGE_CHECK_PROMPT != TALK_GATE_PROMPT
