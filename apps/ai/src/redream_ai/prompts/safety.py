@@ -1,27 +1,22 @@
 """Crisis-detection classifier prompts (ADR 0005).
 
-v0.5.1: revenge the user wants in the dream came back high
-violence_to_others, about half of the helplines in the violent_rescripter
-runs. The guide already declines violent new versions, so violence against
-someone else in the dream is dream content now; intent against a real person
-in waking life stays a signal. Simulated users: dream-only revenge helplines
-15 -> 11, real-life threats 6 of 6 caught either way. "Against someone else"
-matters: worded as any violence the user wants, the fallback model read "I'm
-standing on the balcony right now and I want to jump." as low in 2 of 4 runs.
-Lines that never say "dream" ("I want to cut him. I want to see the blood.")
-still come back high.
-
-v0.5.0: simulated users (2026-10-27) got the helpline for plain nightmares.
-A chat's first message, told in the present tense ("A guy with a knife
-follows me ... Happens twice a week."), came back high in 3 of 6 chats, and a
-parent's dream about harm to their baby came back high child_safety in 7 of
-8. The first message now carries the app's greeting as context (classifier),
-and harm to someone else inside the dream, a child included, is dream
-imagery. A death symbol outside the dream ("ready to go 💤🪦", none in 5 of 5)
-is now a signal. Eval 86/87 with 15 cases written apart from the prompt
-(v0.4.1: 73/87). The examples in the prompt avoid the eval's wording: with
-it, the score was the same. Known miss: a death emoji inside a new version
-("the funeral turns into a party ⚰️🎉") comes back high.
+v0.5.0: simulated users (2026-10-27/28) got the helpline for plain
+nightmares. A chat's first message told in the present tense ("A guy with a
+knife follows me ... Happens twice a week.") came back high in 3 of 6 chats,
+a parent's dream about harm to their baby high child_safety in 7 of 8, and
+revenge the user wants in the dream high violence_to_others (about half of
+the violent_rescripter helplines). The first message now carries the app's
+greeting as context (classifier); harm to someone else inside the dream, a
+child included, and violence against someone else that the user wants there
+are dream content; intent against a real person in waking life stays a
+signal. The evals include cases written apart from the prompt. Lessons: an
+example with a death emoji was all that made "ready to go 💤🪦" high, and it
+made a grave in a new version high too, so it was dropped; general farewells
+come back high without any rule. Worded as "any violence the user wants", the
+fallback model read "I'm standing on the balcony right now and I want to
+jump." as low. Known misses: that one line without the chat before it, and
+revenge lines that never say "dream" ("I want to cut him. I want to see the
+blood.").
 
 v0.4.1: a bare "yes" / "ja" answering the guide's question about the dream
 was classified high when that question named a danger without the word
@@ -43,7 +38,7 @@ ambiguous. The classifier is NOT a diagnostic tool — it's a signpost to
 public helplines.
 """
 
-PROMPT_VERSION = "safety-v0.5.1"
+PROMPT_VERSION = "safety-v0.5.0"
 
 SAFETY_PROMPT_EN = """\
 You are a safety classifier for a nightmare self-help app (imagery rehearsal
@@ -74,9 +69,7 @@ accident or attack that is over and started the nightmares ("since the
 break-in") is at most "low". Violence against the user's family told as a scene,
 without such a statement, is dream imagery. child_safety means a real child at
 risk in waking life, not a child in the dream and not the user appearing as a
-child in a dream. A death symbol or farewell about the user's own life that is
-not part of the dream ("won't be around much longer 🪦") is a
-suicidal_ideation signal, also when it sits in an otherwise ordinary reply.
+child in a dream.
 
 The input may include bracketed context: the IRT stage and the assistant
 message the user is replying to. Use it to interpret terse replies. Context
@@ -118,8 +111,6 @@ Examples (expected risk):
   none (violence the user wants in the dream)
 - "When he gets out of prison I'm going to break his legs." → high
   (violence_to_others — a real person in waking life)
-- "sure, whatever. won't need it much longer ⚰️", replying to "Shall I write
-  the summary now?" → high (suicidal_ideation — a farewell, not the dream)
 - "I dreamt I jumped off a bridge." → low (suicidal_ideation, dream only)
 - "In the dream I was five again and lost in the woods." → none
 - "My stepfather hit me when I was little, and now he hits me in my dreams." → high
@@ -180,10 +171,7 @@ noch"); ein vergangener Unfall oder Überfall, der vorbei ist und die Albträume
 ausgelöst hat ("seit dem Einbruch"), ist höchstens "low". Gewalt gegen
 die eigene Familie, als Szene erzählt, ohne eine solche Aussage, ist
 Trauminhalt. child_safety meint ein echtes Kind, das im Wachleben gefährdet
-ist, kein Kind im Traum und nicht die Person selbst als Kind im Traum. Ein
-Todessymbol oder Abschied über das eigene Leben, der nicht zum Traum gehört
-("brauch ich eh nicht mehr lange 🪦"), ist ein Signal für suicidal_ideation,
-auch in einer sonst gewöhnlichen Antwort.
+ist, kein Kind im Traum und nicht die Person selbst als Kind im Traum.
 
 Die Eingabe kann Kontext in eckigen Klammern enthalten: die IRT-Phase und die
 Assistenten-Nachricht, auf die geantwortet wird. Nutze ihn, um knappe
@@ -230,9 +218,6 @@ Beispiele (erwartetes Risiko):
   aufschlägt." → none (Gewalt, die die Person sich im Traum wünscht)
 - "Wenn er aus dem Knast kommt, breche ich ihm die Beine." → high
   (violence_to_others — ein echter Mensch im Wachleben)
-- "passt schon. brauch ich eh nicht mehr lange ⚰️", als Antwort auf "Soll ich
-  jetzt die Zusammenfassung schreiben?" → high (suicidal_ideation — ein
-  Abschied, nicht der Traum)
 - "Ich habe geträumt, dass ich von einer Brücke springe." → low
   (suicidal_ideation, nur im Traum)
 - "Im Traum war ich wieder fünf und habe mich im Wald verlaufen." → none
