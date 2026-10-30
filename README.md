@@ -2,6 +2,14 @@
 
 A self-help companion app for working with difficult dreams: record a dream, reimagine it with a new ending, and listen back to it. *reDreamAI does not diagnose or treat any condition. If nightmares are seriously distressing you, please talk to a doctor or psychotherapist.*
 
+<p align="center">
+  <img src="docs/screenshots/home.webp" width="180" alt="Home: a button to begin a session and the progress tiles">
+  <img src="docs/screenshots/session.webp" width="180" alt="Session: the AI guide asks how the dream could end differently">
+  <img src="docs/screenshots/journal.webp" width="180" alt="Journal: dreams and nightmares with their rehearsal progress">
+  <img src="docs/screenshots/dream.webp" width="180" alt="A rewritten dream to read, with a Listen button">
+</p>
+<p align="center"><sub>Home · Session with the AI guide · Journal · Rewritten dream (example content)</sub></p>
+
 ## Repository layout
 
 ```
