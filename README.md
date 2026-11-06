@@ -1,7 +1,6 @@
 # reDreamAI
 
-### A self-help companion app for against nightmares: record a dream, rewrite it, and rehearse. <br>
-<br>*reDreamAI does not diagnose or treat any condition. If you have PTSD or chronic nightmares, please talk to a doctor or psychotherapist.*<br>
+### A self-help companion app against nightmares: record a dream, rewrite it, and rehearse. <br>
 
 <p align="center">
   <img src="docs/screenshots/home.webp" width="180" alt="Home: a button to begin a session and the progress tiles">
@@ -10,6 +9,8 @@
   <img src="docs/screenshots/dream.webp" width="180" alt="A rewritten dream to read, with a Listen button">
 </p>
 <p align="center"><sub>Home · Session with the AI guide · Journal · Rewritten dream (example content)</sub></p>
+
+<br>*reDreamAI does not diagnose or treat any condition. If you have PTSD or chronic nightmares, please talk to a doctor or psychotherapist.*<br>
 
 ## Repository layout
 
