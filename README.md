@@ -1,4 +1,4 @@
-<h align="center">reDreamAI</h>
+<h1 align="center">reDreamAI</h1>
 <br>
 <h3 align="center">A self-help companion app against nightmares: record a dream, rewrite it, and rehearse.</h3>
 
