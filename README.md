@@ -1,7 +1,7 @@
 # reDreamAI
 
-### A self-help companion app for working with difficult dreams: record a dream, reimagine it with a new ending, and listen back to it. <br>
-<br>*reDreamAI does not diagnose or treat any condition. If you have PTSD or chronic nightmares, please talk to a doctor or psychotherapist.*
+### A self-help companion app for against nightmares: record a dream, rewrite it, and rehearse. <br>
+<br>*reDreamAI does not diagnose or treat any condition. If you have PTSD or chronic nightmares, please talk to a doctor or psychotherapist.*<br>
 
 <p align="center">
   <img src="docs/screenshots/home.webp" width="180" alt="Home: a button to begin a session and the progress tiles">
