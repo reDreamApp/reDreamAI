@@ -1,9 +1,11 @@
-<p align="center">
-    
+<div align="center">
+
     # reDreamAI
 
     ### A self-help companion app against nightmares: record a dream, rewrite it, and rehearse. <br>
-</p>
+
+</div>
+    
 <p align="center">
   <img src="docs/screenshots/home.webp" width="180" alt="Home: a button to begin a session and the progress tiles">
   <img src="docs/screenshots/session.webp" width="180" alt="Session: the AI guide asks how the dream could end differently">
