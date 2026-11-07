@@ -2,7 +2,7 @@
 
 <h4 align="center">
     A self-help companion app against nightmares.<br>
-    Record a dream, rewrite it, and rehearse daily — by reading or by listening as meditation.</h4>
+    Record a dream, rewrite it, and rehearse daily by reading or by listening as meditation.</h4>
 <div align="center">
 <br>
 </div>
