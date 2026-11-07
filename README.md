@@ -1,6 +1,9 @@
 <h1 align="center">reDreamAI</h1>
 
-<h3 align="center">A self-help companion app against nightmares: record a dream, rewrite it, and rehearse.</h3>
+<h4 align="center">
+    A self-help companion app against nightmares.<br>
+    Record a dream, rewrite it, and rehearse daily — by reading or by listening as meditation.</h4>
+<div align="center">
 <br>
 </div>
     
